@@ -9,7 +9,7 @@ DEMO      := /demos
 PKGS      := $(shell $(GO) list ./... | grep -v '$(DEMO)')
 COVEROUT  ?= coverage.out
 
-.PHONY: build test race vet fmt generate lint cover cover-check demos
+.PHONY: build test race vet fmt generate lint cover cover-check doc-check demos
 
 build:
 	$(GO) build ./...
@@ -54,6 +54,11 @@ portable:
 
 portable-quick:
 	sh scripts/portable.sh --quick
+
+# README.md and AGENTS.md are part of the contract: this checks their links,
+# documented symbols, numbering and table of contents.
+doc-check:
+	python3 scripts/doccheck.py
 
 demos:
 	$(GO) build ./demos/...

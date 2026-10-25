@@ -6,9 +6,23 @@ Working notes for anyone — human or coding agent — changing `binco`.
 to use each package. This file is the other half: how the repository is built,
 what it promises, where a change belongs, and how to verify it.
 
-The project is **pre-release**, so no API is frozen. Renames and simpler designs
-are welcome when they make the library easier to use, but a change is only done
-when its documentation, tests and generated files are updated with it.
+The project is preparing its **1.0.0** release: 1.0.0 is the first stable
+release, and the wire format described in README §13 is frozen from it. Until the
+tag is pushed no API is frozen, so renames and simpler designs are welcome when
+they make the library easier to use - but a change is only done when its
+documentation, tests and generated files are updated with it.
+
+## Start here
+
+| If you want to… | Read |
+|-----------------|------|
+| understand the layout | §3 Repository map |
+| understand how a codec works | §4 Architecture |
+| add or change a codec | §8 Adding to the library |
+| touch the generator or templates | §7 The code generator |
+| change the bytes on the wire | §6 Wire format and compatibility |
+| run the checks before finishing | §2 Commands, §9 Testing |
+| prepare a release | §12 CI and release |
 
 ## 1. Ground rules
 
@@ -30,9 +44,11 @@ when its documentation, tests and generated files are updated with it.
    it decodes, and a reader that stops making progress fails with
    `io.ErrNoProgress` instead of blocking. `wirefmt/safety_test.go` enforces this
    for every codec family.
-5. **Every exported identifier has a doc comment**, and every exported behaviour
-   has a section in the README or this file. Documentation is part of the change,
-   not a follow-up.
+5. **Every exported package-level identifier has a doc comment**, and every
+   exported behaviour has a section in the README or this file. Codec method sets
+   (`Marshal`, `Unmarshal`, `Size`, `Skip`) are covered by their type's comment
+   instead of four separate ones. Documentation is part of the change, not a
+   follow-up.
 6. **Errors instead of panics, except in `Marshal`.** Encoding has no error return,
    so a short output buffer panics with `binco.ErrBufferTooSmall`. Nothing else
    panics on data: malformed input returns an error. The only other panics are
@@ -61,8 +77,12 @@ go test -race ./...
 GOARCH=386 go test ./...          # the 32-bit wire-width and overflow paths
 go generate ./... && git diff --exit-code   # generated code is current
 make cover-check                 # 100% statement coverage, demos excluded
+make doc-check                   # README/AGENTS links, symbols, numbering
 make portable                    # builds every target Go supports (slow)
 make portable-quick              # the cross-section only, for iteration
+
+# Every Go command above has a Makefile entry:
+make build test race vet fmt generate lint cover cover-check doc-check portable portable-quick demos
 
 # Faster iteration.
 go test ./composite/ -run TestSorted -v
@@ -77,8 +97,10 @@ go test -tags=fuzz -run='^$' -fuzz=FuzzUnmarshal -fuzztime=30s ./varnum
 GOPROXY=off GOFLAGS=-mod=mod go build ./... && GOPROXY=off GOFLAGS=-mod=mod go test ./...
 ```
 
-`golangci-lint run --build-tags=fuzz` is what the lint job uses. `-short` is the
-fast mode; it only skips the test that shells out to `go`.
+`golangci-lint run --build-tags=fuzz` is what the lint job uses (`make lint`).
+`-short` is the fast mode; it only skips the test that shells out to `go`.
+`make cover` writes `coverage.out`; it is generated and ignored - never commit
+it, and delete it if a stray copy is left behind.
 
 ## 3. Repository map
 
@@ -105,7 +127,8 @@ fast mode; it only skips the test that shells out to `go`.
 ├── internal/           shared implementation details (see §4.6)
 ├── demos/              runnable main packages, one per feature (see §10)
 ├── testdata/           fixture types used by the generator tests
-├── scripts/            covercheck.sh (coverage gate), portable.sh (every target)
+├── scripts/            covercheck.sh (coverage gate), doccheck.py (docs),
+│                       portable.sh (every target)
 ├── Makefile            build/test/cover/lint entry points (demos excluded)
 ├── NOCOVER.md          the few branches coverage cannot reach, with reasons
 └── .github/workflows/  CI
@@ -241,7 +264,7 @@ import it.
 | `le` | little-endian fixed-width coding in a `[]byte` | `scalar`, `zerocopy` |
 | `lew` | the same over an `io.Reader`/`io.Writer` | `wirefmt/scalar`, `wirefmt/zerocopy` |
 | `fixedwidth` | decides whether a slice can be copied in bulk | both `composite` trees |
-| `wireio` | read/skip exactly N stream bytes, with `ErrUnexpectedEOF` mapping | both streaming text codecs |
+| `wireio` | bounded read/skip of N stream bytes: `ErrUnexpectedEOF` on truncation, `io.ErrNoProgress` on a stalled reader; `CopyN` also backs the stream adapter and `lew` | the streaming tree |
 | `importfix` | prunes unused imports, dedupes, groups, gofmts | `codegen` |
 | `modpath` | module and import path validation | `codegen/typename`, `codegen/config/gen` |
 
@@ -277,7 +300,7 @@ Rules:
 
 ## 6. Wire format and compatibility
 
-The format is specified in README §5. Repository-side rules:
+The format is specified in README §13 (The wire format). Repository-side rules:
 
 * **The bytes are the contract.** `golden_test.go` (root) and
   `wirefmt/golden_test.go` pin the primitive encodings and the cross-tree parity.
@@ -411,6 +434,7 @@ The suite is table-driven and lives next to the code. What it covers:
 | `ptrmap` | `FuzzPointer`, `FuzzPointerSlice` |
 | `typeid` | `FuzzDTM`, `FuzzTyped` |
 | `varnum` | `FuzzUnmarshal` |
+| `wirefmt` | `FuzzStreamDecode` (one value per streaming family: no panic, no over-read, `Skip` agreement) |
 | `wirefmt/varnum` | `FuzzUnmarshal`, `FuzzSkip` |
 | `wirefmt/composite` | `FuzzString`, `FuzzByteSlice`, `FuzzSlice`, `FuzzMap` |
 | `codegen/scanner` | `FuzzParseDefinedType`, `FuzzParseContainerType`, `FuzzParsePrimitive`, `FuzzScan` |
@@ -456,6 +480,21 @@ representative value of every codec family it checks that:
 `FuzzStreamDecode` (build tag `fuzz`) fuzzes the same properties. Add a table
 row when you add a codec family.
 
+### Documentation
+
+`scripts/doccheck.py` (also `make doc-check`; the `Docs` CI job) verifies that the
+two documents match the code:
+
+* every internal link in README.md resolves to a heading;
+* every `package.Symbol` mentioned in README.md or AGENTS.md is exported by that
+  package (looked up with `go doc`);
+* README.md numbers its sections and subsections sequentially, and the table of
+  contents lists exactly those headings in order;
+* every `README §N` reference in AGENTS.md names an existing section;
+* none of the retired names listed in `RETIRED` (in the script) survives.
+
+A new documentation rule belongs in the script, not in a reviewer's memory.
+
 ### Coverage
 
 Every library package must stay at **100% statement coverage**. The demos are
@@ -497,7 +536,7 @@ them on every build, so a stale example is a broken build.
 | `pm/simple`, `pm/linked_list`, `pm/graph` | shared pointers, cycles, graphs |
 | `native` | zero-copy pitfalls and fixes |
 | `marshal_func` | `binco.Marshal`/`MarshalTyped` |
-| `gen`, `gen_options` | code generation (these two are regenerated) |
+| `gen`, `gen_options` | code generation (regenerated; their `gen/` subpackages hold the generator programs) |
 
 ```bash
 go run ./demos/types/struct
@@ -528,17 +567,31 @@ show, and should be added to this table.
 
 | Job | What it does |
 |-----|--------------|
-| `Test` | gofmt check, `go vet`, `go test -race -cover` over the non-demo packages, the coverage gate (`scripts/covercheck.sh`), `go generate` + `git diff --exit-code`, `go build ./...`, Coveralls upload |
-| `Test (GOARCH=386)` | `go test ./...` on 32-bit |
+| `Test` | gofmt check, `go vet`, `go test -race -covermode=atomic -coverprofile=coverage.out` over the non-demo packages, `scripts/covercheck.sh`, generated-code diff (`go generate`), `go build ./...`, Coveralls upload |
+| `Test (GOARCH=386)` | `GOARCH=386 go test ./...` on 32-bit |
 | `Portability` | `scripts/portable.sh`: build every Go target, test-compile the cross-section |
+| `Docs` | `python3 scripts/doccheck.py`: links, documented symbols, numbering, retired names |
 | `Lint` | `golangci-lint run --build-tags=fuzz` |
 | `Fuzz <target>` | one matrix entry per target: 15 s on a push, 5 min on the nightly schedule |
 | `Publish release` | on a `v*` tag: creates the GitHub release |
 
+### Definition of done
+
+A change is ready when all of these hold:
+
+1. `gofmt -l .` prints nothing and `go vet ./...` passes.
+2. `go test ./...`, `go test -race ./...` and `GOARCH=386 go test ./...` pass.
+3. `make cover-check` reports 100% (or `NOCOVER.md` explains the gap).
+4. `make portable-quick` passes; before a release, run `make portable`.
+5. `go generate ./...` leaves the committed generated files unchanged.
+6. `golangci-lint run --build-tags=fuzz` reports no issues.
+7. `make doc-check` passes, and README and this file describe the new behaviour.
+8. `CHANGELOG.md` has an entry for the change.
+
 Release checklist:
 
 1. `go generate ./...` and commit any regenerated file.
-2. Update `CHANGELOG.md` (user-visible changes, in the `Unreleased` section).
+2. Update `CHANGELOG.md`: move `Unreleased` into the new version and date it.
 3. `gofmt -l .`, `go vet ./...`, `go test ./...`, `go test -race ./...`,
    `GOARCH=386 go test ./...`, `make cover-check`.
 4. Tag `vX.Y.Z` and push the tag; CI publishes the release.
@@ -564,5 +617,11 @@ Release checklist:
   reads a known number of bytes.
 * **Fuzz seeds.** A failing input is written next to the package; commit it, do
   not delete it.
+* **Generated artifacts.** `make cover-check` writes `coverage.out`; `go test
+  -c` writes `*.test`; `go tool cover -html` writes `coverage.html`. All three
+  are ignored and must not be committed. Nothing generated belongs in git
+  except the two demo files named in rule 8.
+* **Documentation drift.** README and this file are part of the contract:
+  changing a command, an error, a default or a limit means updating both.
 * **`/tmp` size.** Some sandboxes have a small `/tmp`; if `go test -race` fails
   with a disk-quota error, set `GOTMPDIR` to a directory on a larger disk.

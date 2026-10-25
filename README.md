@@ -1,4 +1,4 @@
-# binco [![Go Reference](https://pkg.go.dev/badge/github.com/malivvan/binco.svg)](https://pkg.go.dev/github.com/malivvan/binco) [![Release](https://img.shields.io/github/v/release/malivvan/binco.svg?sort=semver)](https://github.com/malivvan/binco/releases/latest) ![test](https://github.com/malivvan/binco/workflows/ci/badge.svg) [![Coverage Status](https://coveralls.io/repos/github/malivvan/binco/badge.svg)](https://coveralls.io/github/malivvan/binco) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+# binco [![Go Reference](https://pkg.go.dev/badge/github.com/malivvan/binco.svg)](https://pkg.go.dev/github.com/malivvan/binco) [![Release](https://img.shields.io/github/v/release/malivvan/binco.svg?sort=semver)](https://github.com/malivvan/binco/releases/latest) [test](https://github.com/malivvan/binco/actions/workflows/ci.yml/badge.svg) [![Coverage Status](https://coveralls.io/repos/github/malivvan/binco/badge.svg?branch=master)](https://coveralls.io/github/malivvan/binco?branch=master) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 `binco` is a binary codec toolkit for Go. It gives you codecs for every
 built-in type, a zero-copy fast path, pointer mapping for graphs, type
@@ -21,9 +21,22 @@ Foo{A: 300, B: true, C: "hi"}    ->    [216 4 1 2 104 105]
 ```
 
 That is the whole idea. The rest of this document explains how to use it for
-every kind of data you are likely to serialize. If you are working on the library
-itself, [`AGENTS.md`](./AGENTS.md) covers the architecture, conventions and
-commands.
+every kind of data you are likely to serialize. New here? The
+[Start here](#start-here) table maps a task to the section that answers it. If
+you are working on the library itself, [`AGENTS.md`](./AGENTS.md) covers the
+architecture, conventions and commands.
+
+## Start here
+
+| Goal | Where to look |
+|------|---------------|
+| Encode and decode your first value | [Quick start](#3-quick-start) |
+| Choose an encoding for a field | [Choosing codecs](#5-choosing-codecs) |
+| Write or generate a codec for a struct | [Structs by hand](#63-structs-by-hand), [Code generation](#7-code-generation) |
+| Send values over a connection | [Streaming protocols](#611-streaming-protocols) |
+| Decode untrusted input safely | [Validating untrusted input](#612-validating-untrusted-input), [Correctness guarantees and security](#11-correctness-guarantees-and-security) |
+| Look up an error, a symbol or the bytes | [Error reference](#10-error-reference), [Package guide](#8-package-guide), [The wire format](#13-the-wire-format) |
+| Change the library itself | [AGENTS.md](./AGENTS.md) |
 
 ## Contents
 
@@ -31,96 +44,89 @@ commands.
 
 * [Why binco](#1-why-binco)
 * [Install and requirements](#2-install-and-requirements)
-* [Core concepts](#3-core-concepts)
-  * [Codecs](#31-codecs)
-  * [Buffers and streams](#32-buffers-and-streams)
-  * [The schema is the contract](#33-the-schema-is-the-contract)
-  * [Errors and panics](#34-errors-and-panics)
-  * [Sizes skipping and the exactly-N-bytes invariant](#35-sizes-skipping-and-the-exactly-n-bytes-invariant)
-* [Quick start](#4-quick-start)
-  * [A number](#41-a-number)
-  * [A string](#42-a-string)
-  * [A struct by hand](#43-a-struct-by-hand)
-  * [The same struct from the generator](#44-the-same-struct-from-the-generator)
-  * [Over a stream](#45-over-a-stream)
+* [Quick start](#3-quick-start)
+  * [A number](#31-a-number)
+  * [A string](#32-a-string)
+  * [A struct by hand](#33-a-struct-by-hand)
+  * [The same struct from the generator](#34-the-same-struct-from-the-generator)
+  * [Over a stream](#35-over-a-stream)
+* [Core concepts](#4-core-concepts)
+  * [Codecs](#41-codecs)
+  * [Buffers and streams](#42-buffers-and-streams)
+  * [The schema is the contract](#43-the-schema-is-the-contract)
+  * [Errors and panics](#44-errors-and-panics)
+  * [Sizes skipping and the exactly-N-bytes invariant](#45-sizes-skipping-and-the-exactly-n-bytes-invariant)
+* [Choosing codecs](#5-choosing-codecs)
 
-**The format**
+**Task guides**
 
-* [The wire format](#5-the-wire-format)
-  * [Anatomy of a payload](#51-anatomy-of-a-payload)
-  * [Booleans and bytes](#52-booleans-and-bytes)
-  * [Varint](#53-varint)
-  * [Fixed width](#54-fixed-width)
-  * [Strings and byte slices](#55-strings-and-byte-slices)
-  * [Slices and arrays](#56-slices-and-arrays)
-  * [Maps](#57-maps)
-  * [Pointers](#58-pointers)
-  * [Time](#59-time)
-  * [Type identifiers](#510-type-identifiers)
-  * [A payload dissected](#511-a-payload-dissected)
-  * [Compatibility rules](#512-compatibility-rules)
-* [Choosing codecs](#6-choosing-codecs)
+* [Use cases](#6-use-cases)
+  * [Numbers and enums](#61-numbers-and-enums)
+  * [Strings and byte blobs](#62-strings-and-byte-blobs)
+  * [Structs by hand](#63-structs-by-hand)
+  * [Structs from the generator](#64-structs-from-the-generator)
+  * [Collections](#65-collections)
+  * [Optional fields and nil](#66-optional-fields-and-nil)
+  * [Shared pointers and identity](#67-shared-pointers-and-identity)
+  * [Cycles linked lists trees graphs](#68-cycles-linked-lists-trees-graphs)
+  * [Polymorphism with interfaces](#69-polymorphism-with-interfaces)
+  * [Versioning and migration](#610-versioning-and-migration)
+  * [Streaming protocols](#611-streaming-protocols)
+  * [Validating untrusted input](#612-validating-untrusted-input)
+  * [Partial decoding and out-of-order reads](#613-partial-decoding-and-out-of-order-reads)
+  * [Zero-copy hot paths](#614-zero-copy-hot-paths)
+  * [Custom codecs](#615-custom-codecs)
+  * [Composition recursion and generics](#616-composition-recursion-and-generics)
+  * [Zero-allocation encoding](#617-zero-allocation-encoding)
+  * [Concurrency](#618-concurrency)
+  * [Testing your codecs](#619-testing-your-codecs)
+  * [Interoperability](#620-interoperability)
+* [Code generation](#7-code-generation)
+  * [Getting started](#71-getting-started)
+  * [Generator configuration](#72-generator-configuration)
+  * [Generator methods](#73-generator-methods)
+  * [Generated code and naming](#74-generated-code-and-naming)
+  * [Serialization options](#75-serialization-options)
+  * [Interfaces](#76-interfaces)
+  * [Versioned types](#77-versioned-types)
+  * [Multi-package and cross-package generation](#78-multi-package-and-cross-package-generation)
+  * [Streaming mode](#79-streaming-mode)
+  * [Workflow and troubleshooting](#710-workflow-and-troubleshooting)
 
 **Reference**
 
-* [Package guide](#7-package-guide)
-  * [binco](#71-binco)
-  * [varnum](#72-varnum)
-  * [scalar](#73-scalar)
-  * [composite](#74-composite)
-  * [zerocopy](#75-zerocopy)
-  * [ptrmap](#76-ptrmap)
-  * [typeid](#77-typeid)
-  * [config](#78-config)
-  * [wirefmt](#79-wirefmt)
-
-**Use cases**
-
-* [Use cases](#8-use-cases)
-  * [Numbers and enums](#81-numbers-and-enums)
-  * [Strings and byte blobs](#82-strings-and-byte-blobs)
-  * [Structs by hand](#83-structs-by-hand)
-  * [Structs from the generator](#84-structs-from-the-generator)
-  * [Collections](#85-collections)
-  * [Optional fields and nil](#86-optional-fields-and-nil)
-  * [Shared pointers and identity](#87-shared-pointers-and-identity)
-  * [Cycles linked lists trees graphs](#88-cycles-linked-lists-trees-graphs)
-  * [Polymorphism with interfaces](#89-polymorphism-with-interfaces)
-  * [Versioning and migration](#810-versioning-and-migration)
-  * [Streaming protocols](#811-streaming-protocols)
-  * [Validating untrusted input](#812-validating-untrusted-input)
-  * [Partial decoding and out-of-order reads](#813-partial-decoding-and-out-of-order-reads)
-  * [Zero-copy hot paths](#814-zero-copy-hot-paths)
-  * [Custom codecs](#815-custom-codecs)
-  * [Composition recursion and generics](#816-composition-recursion-and-generics)
-  * [Zero-allocation encoding](#817-zero-allocation-encoding)
-  * [Concurrency](#818-concurrency)
-  * [Testing your codecs](#819-testing-your-codecs)
-  * [Interoperability](#820-interoperability)
-
-**The generator**
-
-* [Code generation](#9-code-generation)
-  * [Getting started](#91-getting-started)
-  * [Generator configuration](#92-generator-configuration)
-  * [Generator methods](#93-generator-methods)
-  * [Generated code and naming](#94-generated-code-and-naming)
-  * [Serialization options](#95-serialization-options)
-  * [Interfaces](#96-interfaces)
-  * [Versioned types](#97-versioned-types)
-  * [Multi-package and cross-package generation](#98-multi-package-and-cross-package-generation)
-  * [Streaming mode](#99-streaming-mode)
-  * [Workflow and troubleshooting](#910-workflow-and-troubleshooting)
+* [Package guide](#8-package-guide)
+  * [binco](#81-binco)
+  * [varnum](#82-varnum)
+  * [scalar](#83-scalar)
+  * [composite](#84-composite)
+  * [zerocopy](#85-zerocopy)
+  * [ptrmap](#86-ptrmap)
+  * [typeid](#87-typeid)
+  * [config](#88-config)
+  * [wirefmt](#89-wirefmt)
+* [Cheat sheet](#9-cheat-sheet)
+* [Error reference](#10-error-reference)
+* [Correctness guarantees and security](#11-correctness-guarantees-and-security)
+* [Performance guide](#12-performance-guide)
+* [The wire format](#13-the-wire-format)
+  * [Anatomy of a payload](#131-anatomy-of-a-payload)
+  * [Booleans and bytes](#132-booleans-and-bytes)
+  * [Varint](#133-varint)
+  * [Fixed width](#134-fixed-width)
+  * [Strings and byte slices](#135-strings-and-byte-slices)
+  * [Slices and arrays](#136-slices-and-arrays)
+  * [Maps](#137-maps)
+  * [Pointers](#138-pointers)
+  * [Time](#139-time)
+  * [Type identifiers](#1310-type-identifiers)
+  * [A payload dissected](#1311-a-payload-dissected)
+  * [Compatibility rules](#1312-compatibility-rules)
 
 **Operating it**
 
-* [Performance guide](#10-performance-guide)
-* [Correctness guarantees and security](#11-correctness-guarantees-and-security)
-* [Error reference](#12-error-reference)
-* [Cheat sheet](#13-cheat-sheet)
 * [FAQ](#14-faq)
 * [Working on binco](#15-working-on-binco)
-* [License](#license)
 
 ## 1. Why binco
 
@@ -135,8 +141,9 @@ struct above occupies five bytes, of which four carry actual information.
 
 Every encoding decision is static: which codec, which width, which length
 prefix. The generator inlines the whole structure of a type, and the `zerocopy`
-package turns scalar work into single machine-word reads and writes. Nothing in
-the hot path uses reflection, interfaces you did not ask for, or map lookups.
+package avoids copies for strings and byte slices while keeping scalar work
+branch-free. Nothing in the hot path uses reflection, interfaces you did not ask
+for, or map lookups.
 
 ### Zero allocations when you want them
 
@@ -163,15 +170,16 @@ families still interoperate.
 
 * No schema evolution magic: the schema lives in your code, so changing it is a
   code change with the usual compatibility rules (see
-  [Compatibility rules](#512-compatibility-rules)).
+  [Compatibility rules](#1312-compatibility-rules)).
 * No framing: a payload has no length prefix or delimiter. If you need framing,
   add it yourself or use a type identifier, as shown in
-  [Streaming protocols](#811-streaming-protocols).
+  [Streaming protocols](#611-streaming-protocols).
 * No reflection at run time: reflection exists only in the code generator.
 * No canonical map order by default: a Go map iterates in a random order, so
   encoding one is not deterministic. `composite.NewSortedMapSerializer` writes
   the entries sorted by their encoded key bytes when the bytes must be
-  reproducible; see [Collections](#85-collections).
+  reproducible; see [Collections](#65-collections).
+
 
 ## 2. Install and requirements
 
@@ -181,7 +189,7 @@ go get github.com/malivvan/binco@latest
 
 v1.0.0 is the first stable release. The module follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html), and the wire format
-described in [The wire format](#5-the-wire-format) is frozen for the v1 series.
+described in [The wire format](#13-the-wire-format) is frozen for the v1 series.
 Release notes live in [CHANGELOG.md](./CHANGELOG.md).
 
 * Go 1.27.3 or newer.
@@ -205,124 +213,10 @@ import (
 )
 ```
 
-## 3. Core concepts
 
-### 3.1 Codecs
+## 3. Quick start
 
-Everything in the module is a codec implementing one interface:
-
-```go
-type Serializer[T any] interface {
-	Marshal(t T, bs []byte) (n int)
-	Unmarshal(bs []byte) (t T, n int, err error)
-	Size(t T) (size int)
-	Skip(bs []byte) (n int, err error)
-}
-```
-
-* `Marshal` fills `bs` and returns the number of bytes written. It panics with
-  `binco.ErrTruncated` when `bs` is too small - a caller bug, not a data
-  error.
-* `Unmarshal` parses one value and never reads past it, so the rest of the
-  buffer can be decoded by the next codec.
-* `Size` returns exactly the number of bytes `Marshal` will write.
-* `Skip` advances over a value without building it.
-
-Codecs are values, not functions with hidden state. The exported ones are
-package-level variables (`varnum.Int`, `composite.String`, `scalar.Uint64`,
-`zerocopy.Int32`, ...) and constructors (`composite.NewSliceSerializer`, `ptrmap.NewPtrSerializer`,
-`typeid.NewSerializer`, ...). Because the interface is generic, codecs compose: a slice
-codec takes an element codec, a map codec takes a key and a value codec, a typed
-codec wraps any of them.
-
-```go
-ints := composite.NewSliceSerializer(varnum.Int)                               // []int
-rows := composite.NewSliceSerializer(composite.NewSliceSerializer(varnum.Int)) // [][]int
-byName := composite.NewMapSerializer(composite.String, varnum.Int)             // map[string]int
-```
-
-### 3.2 Buffers and streams
-
-The module ships two parallel APIs with the same wire format:
-
-| | Buffer API | Streaming API |
-|---|---|---|
-| package | `binco` and its subpackages | `binco/wirefmt` and its subpackages |
-| destination | `[]byte` you own | `io.Writer` |
-| source | `[]byte` | `io.Reader` |
-| interface | `Serializer[T]` | `wirefmt.Serializer[T]` |
-| errors | only data errors | data errors **and** I/O errors |
-| use when | the payload is a value (message, file, cache entry) | the payload is a flow (connection, pipe, large file) |
-
-Bytes written by a buffer codec are read by the matching stream codec, and vice
-versa. Only the plumbing differs; the format does not.
-
-### 3.3 The schema is the contract
-
-A payload is the concatenation of the encoded fields of a type, in declaration
-order. Nothing marks where a field ends: the receiver's code knows. Three
-consequences:
-
-1. **Field order is part of the format.** Reordering struct fields changes the
-   wire format. Add new versions instead (see
-   [Versioning and migration](#810-versioning-and-migration)).
-2. **Both sides must agree on every field's codec.** A `varnum.Int` field read
-   by a `scalar.Int` parser produces garbage, not an error.
-3. **You can drop data by not reading it.** Unknown trailing fields are not an
-   error; a reader that knows fewer fields simply stops early.
-
-The generator writes a `SchemaFingerprint` constant next to every struct: a
-SHA-256 of the field names and types in declaration order. Comparing it with the
-value that produced a payload turns a silent misread (two `int` fields swapped)
-into a clear failure. See
-[Compatibility rules](#512-compatibility-rules).
-
-### 3.4 Errors and panics
-
-`Marshal` panics with `binco.ErrBufferTooSmall` when the output buffer is too
-small; that is the only panic in normal operation and it signals a bug in the
-caller (`binco.Encode` sizes the buffer for you and never triggers it). Every
-codec panics with that same sentinel rather than with a raw index error, so one
-`recover` can recognise the case. `Unmarshal` and `Skip` never panic on malformed
-input: they return one of the errors in the
-[error reference](#12-error-reference), all prefixed with `binco: ` and all
-comparable with `errors.Is`.
-A value that exceeds `binco.MaxDepth` levels of nesting reports
-`binco.ErrTooDeep` instead of exhausting the stack.
-
-```go
-name, err := binco.Decode(composite.String, bs)
-switch {
-case errors.Is(err, binco.ErrTruncated):
-	// the payload ended inside the value
-case errors.Is(err, binco.ErrNegativeLength):
-	// a length field decoded as a negative number
-}
-```
-
-Streaming codecs additionally return whatever the `Writer` or `Reader` returned,
-unchanged and unwrapped, with one rule: `io.EOF` before the first byte of a value
-is a clean end of stream, and `io.ErrUnexpectedEOF` after it is a truncated
-message. The two are distinguishable.
-
-`Skip` applies the same range checks as `Unmarshal`: a value that `Unmarshal`
-would reject as out of range is not silently skipped either.
-
-### 3.5 Sizes skipping and the exactly-N-bytes invariant
-
-Three guarantees make zero-allocation encoding safe and let you index into a
-payload without decoding it:
-
-* `Size(v)` equals the number of bytes `Marshal(v, bs)` writes.
-* `Unmarshal` consumes exactly `Size` bytes of the value it returns.
-* `Skip` advances exactly as far as `Unmarshal` would.
-
-The test suite asserts these invariants for every codec, including the
-generated ones.
-
-## 4. Quick start
-
-### 4.1 A number
+### 3.1 A number
 
 ```go
 package main
@@ -354,7 +248,7 @@ func main() {
 }
 ```
 
-### 4.2 A string
+### 3.2 A string
 
 ```go
 import "github.com/malivvan/binco/composite"
@@ -367,7 +261,7 @@ text, err := binco.Decode(composite.String, bs)        // "hello world"
 the value and the error. Use them when convenience matters more than buffer
 reuse.
 
-### 4.3 A struct by hand
+### 3.3 A struct by hand
 
 A codec for a struct is the concatenation of its fields' codecs:
 
@@ -434,7 +328,7 @@ back, err := binco.Decode(PersonSerializer, bs)
 The pattern is always the same: encode field by field into `bs[n:]`, decode
 field by field from `bs[n:]`, and accumulate `n`.
 
-### 4.4 The same struct from the generator
+### 3.4 The same struct from the generator
 
 Writing that by hand does not scale. The generator writes it for you:
 
@@ -483,9 +377,9 @@ func main() {
 
 `go generate` now produces `PersonBinco`, a `binco.Serializer[Person]` with the
 same behaviour as the hand-written codec. The full story is in
-[Code generation](#9-code-generation).
+[Code generation](#7-code-generation).
 
-### 4.5 Over a stream
+### 3.5 Over a stream
 
 ```go
 import (
@@ -509,306 +403,133 @@ shared stream. For a long-lived stream use `wirefmt.NewEncoder` and
 `wirefmt.NewDecoder`, which own one buffer each, or pass your own
 `*bufio.Writer`/`*bufio.Reader`.
 
-## 5. The wire format
+**Where to go next**
 
-### 5.1 Anatomy of a payload
+* [Core concepts](#4-core-concepts) - the four invariants every codec keeps and
+  the error/panic contract.
+* [Choosing codecs](#5-choosing-codecs) - varint, fixed width or zero-copy.
+* [Use cases](#6-use-cases) - a recipe for each kind of data.
+* [Code generation](#7-code-generation) - let the generator write the codecs.
+* [Cheat sheet](#9-cheat-sheet) - the whole API on one screen.
 
-A payload is a sequence of encoded values with no separators:
 
-```
-[ field 1 ][ field 2 ][ field 3 ] ...
-```
+## 4. Core concepts
 
-There is no header, no version, no length, no checksum and no padding. The
-receiver reads values in the order the schema declares them. Every value is
-self-delimiting: a number by its width or its LEB128 continuation bits, a
-container by its length prefix, a pointer by its flag byte.
+### 4.1 Codecs
 
-### 5.2 Booleans and bytes
-
-`bool` and `byte` occupy exactly one byte.
-
-```
-true     ->  [1]
-false    ->  [0]
-byte 7   ->  [7]
-```
-
-A `bool` byte other than 0 or 1 is rejected with `binco.ErrWrongFormat`.
-
-### 5.3 Varint
-
-`package varnum` encodes unsigned integers in LEB128 form: seven bits per byte,
-least significant group first, the high bit set on every byte but the last.
-
-```
-40          ->  [40]
-127         ->  [127]
-128         ->  [128 1]
-300         ->  [172 2]
-2^64-1      ->  [255 255 255 255 255 255 255 255 255 1]
-```
-
-Signed integers are ZigZag-mapped first, so that small negative numbers stay
-small:
-
-```
- 0          ->  [0]
--1          ->  [1]
- 1          ->  [2]
--2          ->  [3]
- 63         ->  [126]
--64         ->  [127]
- 64         ->  [128 1]
- 300        ->  [216 4]
--300        ->  [215 4]
-```
-
-`varnum.PositiveInt` and its sized variants skip the ZigZag step. They are meant
-for values that cannot be negative: lengths, type identifiers, pointer ids.
-
-An encoding must be *canonical*: the shortest form of the value. A multi-byte
-encoding whose final byte is zero (`[128 128 128 0]`) is rejected with
-`binco.ErrNonCanonical`, so every value has exactly one byte representation and
-hashing, signing or de-duplicating payloads by their bytes is meaningful.
-
-An encoding may not exceed the width of its type. When it does, decoding fails
-with `binco.ErrOverflow`:
-
-| Type | Longest encoding | Largest final byte |
-|------|------------------|--------------------|
-| `uint8` | 2 bytes | 1 |
-| `uint16` | 3 bytes | 3 |
-| `uint32` | 5 bytes | 15 |
-| `uint64` | 10 bytes | 1 |
-
-Floats are stored as the unsigned varint of their IEEE 754 bit pattern (64 or 32
-bits), which keeps `0.0` and small denormals short and `1.5` at nine bytes.
-
-### 5.4 Fixed width
-
-`package scalar` writes numbers in little-endian byte order using the width of
-their Go type: eight bytes for 64-bit values, four for 32-bit, two for 16-bit,
-one for 8-bit. `int` and `uint` are always encoded as eight bytes, whatever the
-host word size is, so a payload written on amd64 reads back on a 32-bit build; a
-value the host cannot hold is reported as `binco.ErrOverflow`.
-
-```
-uint64 40     ->  [40 0 0 0 0 0 0 0]
-uint64 max    ->  [255 255 255 255 255 255 255 255]
-uint16 0x1234 ->  [52 18]
-int64 -1      ->  [255 255 255 255 255 255 255 255]
-float64 1.0   ->  [0 0 0 0 0 0 240 63]
-float32 1.5   ->  [0 0 192 63]
-byte 7        ->  [7]
-```
-
-Raw beats varint in size only for large values:
-
-| Type | Raw becomes smaller above |
-|------|---------------------------|
-| `uint64` | 2^56 |
-| `uint32` | 2^28 |
-| `uint16` | 2^14 |
-| `uint8` | never |
-
-Its advantage is speed: no shifts, no branches, and in `package zerocopy` a single
-machine-word store.
-
-### 5.5 Strings and byte slices
-
-Both are a length followed by raw bytes. The length is a positive integer
-(`varnum.PositiveInt` by default).
-
-```
-"hello world"   ->  [11 104 101 108 108 111 32 119 111 114 108 100]
-[]byte{1,2,3}   ->  [3 1 2 3]
-""              ->  [0]
-nil []byte      ->  [0]
-```
-
-A nil string/byte slice and an empty one produce the same bytes and both decode
-to an empty, non-nil value. Byte slices carry no UTF-8 meaning, so invalid UTF-8
-survives a round trip inside `[]byte` but not necessarily inside `string`
-(Go does not validate on conversion, so in practice it survives there too).
-
-### 5.6 Slices and arrays
-
-A slice is a length followed by its elements. An array is encoded the same way,
-but its type fixes the length.
-
-```
-[]int{1,2,3}        ->  [3 2 4 6]
-[3]int{1,2,3}       ->  [3 2 4 6]
-[]string{"hello", "world"}
-                    ->  [2 5 104 101 108 108 111 5 119 111 114 108 100]
-```
-
-Decoding into an array requires the length prefix to match the array type: a
-payload of a different length fails with `binco.ErrWrongLength`. That keeps the
-decode memory-safe.
-
-### 5.7 Maps
-
-A map is a length followed by key/value pairs:
-
-```
-map[int]string{1: "hello"}  ->  [1 2 5 104 101 108 108 111]
-```
-
-Entries appear in Go's map iteration order, which is random. Two marshals of the
-same map may produce different bytes, though both decode to equal maps. If you
-need canonical bytes, encode a sorted slice of pairs instead; see
-[Collections](#85-collections).
-
-### 5.8 Pointers
-
-A pointer starts with a one-byte flag:
-
-| Flag | Name | Meaning |
-|------|------|---------|
-| `0` | `binco.PtrNotNil` | the pointed-to value follows |
-| `1` | `binco.PtrNil` | nil, nothing follows |
-| `2` | `binco.PtrMapping` | an identifier follows; data only the first time |
-
-The plain pointer codec (`composite.NewPtrSerializer`) writes flags 0 and 1 and rejects flag 2:
-
-```
-nil *string        ->  [1]
-&"hello world"     ->  [0 11 104 101 ... 100]
-```
-
-Pointer mapping (`package ptrmap`) uses flag 2 to write a pointer graph once:
+Everything in the module is a codec implementing one interface:
 
 ```go
-ptr1, ptr2 := &10, &20
-list := []*int{ptr1, ptr1, ptr2}
-
-list               ->  [3 2 0 20 2 0 2 1 40]
-```
-
-```
-[3]      number of elements
-[2 0]    mapping flag, id 0, then the value 10 (ZigZag 20)
-[2 0]    the same pointer again: flag and id only
-[2 1]    mapping flag, id 1, then the value 20 (ZigZag 40)
-```
-
-Ids start at zero in encounter order and are shared by every `ptrmap` codec of one
-value. An id remembers the type it was decoded as, and a reference is only
-resolved when that type matches: a payload cannot make a `*string` out of an
-`*int`, and the mismatch is reported as `binco.ErrWrongType`.
-
-Both pointer codecs bound their recursion. `ptrmap` counts depth per decoded
-value and stops at `binco.MaxDepth` (1000); the plain pointer codec shares one
-atomic counter per serializer and stops at `binco.MaxPointerDepth` (10000). A
-payload of nested pointers therefore returns `binco.ErrTooDeep` instead of
-exhausting the goroutine stack. See
-[Shared pointers and identity](#87-shared-pointers-and-identity).
-
-### 5.9 Time
-
-`time.Time` is stored as a Unix timestamp, using a fixed eight bytes:
-
-```
-time.Date(2024, 5, 6, 7, 8, 9, 0, time.UTC)
-  with scalar.TimeUnixUTC  ->  [217 129 56 102 0 0 0 0]
-```
-
-Four units are available: seconds, milliseconds, microseconds and nanoseconds.
-Every variant decodes to UTC, so the same payload compares equal on machines in
-different zones; the `...UTC` names are kept for compatibility and mean the same
-thing. Precision the unit cannot represent is lost, and `UnixNano` overflows
-silently outside roughly 1678-2262 (`UnixMilli` has a far wider range).
-
-### 5.10 Type identifiers
-
-A DTM (data type metadata) is a positive integer written in front of a payload
-to name its type:
-
-```
-DTM 7 + int 300    ->  [7 216 4]
-```
-
-It is written with `varnum.PositiveInt`, so ids below 128 cost one byte. The
-receiver reads the id first and dispatches to the matching codec:
-
-```go
-dtm, n, err := typeid.DTMSerializer.Unmarshal(bs)
-switch dtm {
-case LoginDTM:
-	// decode the rest with the Login codec
-case ChatDTM:
-	// decode the rest with the Chat codec
-default:
-	err = binco.NewUnexpectedDTMError(dtm)
+type Serializer[T any] interface {
+	Marshal(t T, bs []byte) (n int)
+	Unmarshal(bs []byte) (t T, n int, err error)
+	Size(t T) (size int)
+	Skip(bs []byte) (n int, err error)
 }
 ```
 
-DTMs are the only "framing" the format has, which makes them the tool of choice
-for streams and files of heterogeneous values.
+* `Marshal` fills `bs` and returns the number of bytes written. It panics with
+  `binco.ErrBufferTooSmall` when `bs` is too small - a caller bug, not a data
+  error.
+* `Unmarshal` parses one value and never reads past it, so the rest of the
+  buffer can be decoded by the next codec.
+* `Size` returns exactly the number of bytes `Marshal` will write.
+* `Skip` advances over a value without building it.
 
-Ids are positive: a zero or negative id would be written as a huge unsigned
-number, so `typeid.DTMSerializer` rejects it with `binco.ErrOverflow`. In the
-generator, pin the id of every registered type with `genopts.WithDTM`; without it
-the generator numbers the types in registration order, and adding or removing one
-renumbers the others. Generated constants carry literal values, duplicate ids are
-rejected, and `Generator.DTMRegistry` returns the mapping for a golden file.
-
-### 5.11 A payload dissected
-
-Consider a record encoded as its three fields, using a varint for the number, an
-8-byte raw integer for the source port and a string for the host:
+Codecs are values, not functions with hidden state. The exported ones are
+package-level variables (`varnum.Int`, `composite.String`, `scalar.Uint64`,
+`zerocopy.Int32`, ...) and constructors (`composite.NewSliceSerializer`, `ptrmap.NewPtrSerializer`,
+`typeid.NewSerializer`, ...). Because the interface is generic, codecs compose: a slice
+codec takes an element codec, a map codec takes a key and a value codec, a typed
+codec wraps any of them.
 
 ```go
-bs := []byte{
-	216, 4, // 300 as a ZigZag varint
-	0xD4, 0x3D, 0, 0, 0, 0, 0, 0, // 15828 as an 8-byte raw integer
-	9, 'l', 'o', 'c', 'a', 'l', 'h', 'o', 's', 't', // length + bytes
+ints := composite.NewSliceSerializer(varnum.Int)                               // []int
+rows := composite.NewSliceSerializer(composite.NewSliceSerializer(varnum.Int)) // [][]int
+byName := composite.NewMapSerializer(composite.String, varnum.Int)             // map[string]int
+```
+
+### 4.2 Buffers and streams
+
+The module ships two parallel APIs with the same wire format:
+
+| | Buffer API | Streaming API |
+|---|---|---|
+| package | `binco` and its subpackages | `binco/wirefmt` and its subpackages |
+| destination | `[]byte` you own | `io.Writer` |
+| source | `[]byte` | `io.Reader` |
+| interface | `Serializer[T]` | `wirefmt.Serializer[T]` |
+| errors | only data errors | data errors **and** I/O errors |
+| use when | the payload is a value (message, file, cache entry) | the payload is a flow (connection, pipe, large file) |
+
+Bytes written by a buffer codec are read by the matching stream codec, and vice
+versa. Only the plumbing differs; the format does not.
+
+### 4.3 The schema is the contract
+
+A payload is the concatenation of the encoded fields of a type, in declaration
+order. Nothing marks where a field ends: the receiver's code knows. Three
+consequences:
+
+1. **Field order is part of the format.** Reordering struct fields changes the
+   wire format. Add new versions instead (see
+   [Versioning and migration](#610-versioning-and-migration)).
+2. **Both sides must agree on every field's codec.** A `varnum.Int` field read
+   by a `scalar.Int` parser produces garbage, not an error.
+3. **You can drop data by not reading it.** Unknown trailing fields are not an
+   error; a reader that knows fewer fields simply stops early.
+
+The generator writes a `SchemaFingerprint` constant next to every struct: a
+SHA-256 of the field names and types in declaration order. Comparing it with the
+value that produced a payload turns a silent misread (two `int` fields swapped)
+into a clear failure. See
+[Compatibility rules](#1312-compatibility-rules).
+
+### 4.4 Errors and panics
+
+`Marshal` panics with `binco.ErrBufferTooSmall` when the output buffer is too
+small; that is the only panic in normal operation and it signals a bug in the
+caller (`binco.Encode` sizes the buffer for you and never triggers it). Every
+codec panics with that same sentinel rather than with a raw index error, so one
+`recover` can recognise the case. `Unmarshal` and `Skip` never panic on malformed
+input: they return one of the errors in the
+[error reference](#10-error-reference), all prefixed with `binco: ` and all
+comparable with `errors.Is`.
+A value that exceeds `binco.MaxDepth` levels of nesting reports
+`binco.ErrTooDeep` instead of exhausting the stack.
+
+```go
+name, err := binco.Decode(composite.String, bs)
+switch {
+case errors.Is(err, binco.ErrTruncated):
+	// the payload ended inside the value
+case errors.Is(err, binco.ErrNegativeLength):
+	// a length field decoded as a negative number
 }
 ```
 
-Reading it back is a matter of knowing the schema:
+Streaming codecs additionally return whatever the `Writer` or `Reader` returned,
+unchanged and unwrapped, with one rule: `io.EOF` before the first byte of a value
+is a clean end of stream, and `io.ErrUnexpectedEOF` after it is a truncated
+message. The two are distinguishable.
 
-```go
-id, n1, err := varnum.Int.Unmarshal(bs)
-port, n2, err := scalar.Uint64.Unmarshal(bs[n1:])
-host, n3, err := composite.String.Unmarshal(bs[n1+n2:])
-// id = 300, port = 15828, host = "localhost", n1+n2+n3 == len(bs)
-```
+`Skip` applies the same range checks as `Unmarshal`: a value that `Unmarshal`
+would reject as out of range is not silently skipped either.
 
-Nothing in the bytes says which is which; the decode order does.
+### 4.5 Sizes skipping and the exactly-N-bytes invariant
 
-### 5.12 Compatibility rules
+Three guarantees make zero-allocation encoding safe and let you index into a
+payload without decoding it:
 
-A payload is compatible with a reader when the reader decodes the same field
-sequence with the same codecs. In practice:
+* `Size(v)` equals the number of bytes `Marshal(v, bs)` writes.
+* `Unmarshal` consumes exactly `Size` bytes of the value it returns.
+* `Skip` advances exactly as far as `Unmarshal` would.
 
-**Safe changes**
+The test suite asserts these invariants for every codec, including the
+generated ones.
 
-* Adding a trailing field, if old readers may stop early and new readers get a
-  payload that contains it. Old payloads lack the bytes, so new readers must
-  know the format version some other way (a DTM, an envelope, or a version field
-  at the front).
-* Changing a codec's *implementation* (`composite.String` to `zerocopy.String`, a
-  generator mode switch) - the bytes are identical.
-* Adding a new type with a new DTM.
 
-**Breaking changes**
-
-* Reordering or removing fields.
-* Changing a field's codec or unit (`varnum` to `scalar`, seconds to milliseconds).
-* Changing a length codec.
-* Reusing a DTM for different data.
-
-When a break is unavoidable, introduce a new version and keep the reader able to
-decode the old one; see [Versioning and migration](#810-versioning-and-migration).
-
-The generated `SchemaFingerprint` constant is the cheap check: store it beside a
-payload (or compare it at deployment time) and a reordered field is caught before
-the data is misread.
-
-## 6. Choosing codecs
+## 5. Choosing codecs
 
 Three families encode numbers, and they are interchangeable byte-wise only
 within a family:
@@ -817,7 +538,7 @@ within a family:
 |---------|----------|----------|
 | `varnum` | LEB128, ZigZag for signed | small and medium numbers, ids, counters |
 | `scalar` | fixed width, little-endian | large numbers, random-access data, speed |
-| `zerocopy` | fixed width through memory access | hot paths, zero-copy blobs |
+| `zerocopy` | fixed width, same bytes as `scalar`; zero-copy strings and blobs | hot paths, aliasing views |
 
 `zerocopy` is byte-compatible with `scalar` for numbers and with `composite` for
 strings and byte slices, so switching codecs never changes the format, only the
@@ -825,7 +546,7 @@ code.
 
 **Points to weigh**
 
-* Space: varint wins below the thresholds in [Fixed width](#54-fixed-width).
+* Space: varint wins below the thresholds in [Fixed width](#134-fixed-width).
 * Speed: `scalar` and `zerocopy` win, because they avoid branches and bit assembly.
 * Variance: `scalar` has constant size, which simplifies fixed-size records and
   random access into a stream of records.
@@ -846,350 +567,14 @@ extra and remove the local-time surprise.
 | `int8`, `uint8`, `byte`, `float32`, `float64` | `scalar` | `zerocopy` | `zerocopy` |
 | `bool`, `string`, `[]byte` | `composite` | `zerocopy` | `zerocopy` (`composite` for strings) |
 | `time.Time` | `scalar.TimeUnixUTC` | `zerocopy.TimeUnixUTC` | `zerocopy.TimeUnixUTC` |
-## 7. Package guide
 
-### 7.1 binco
-
-The root package holds everything the packages share.
-
-**The codec contract**
-
-```go
-type Serializer[T any] interface {
-	Marshal(t T, bs []byte) (n int)
-	Unmarshal(bs []byte) (t T, n int, err error)
-	Size(t T) (size int)
-	Skip(bs []byte) (n int, err error)
-}
-```
-
-**Self-marshalling types**
-
-```go
-type Marshaller interface {
-	MarshalBinco(bs []byte) (n int)
-	SizeBinco() (size int)
-}
-
-type MarshallerTyped interface {
-	MarshalTypedBinco(bs []byte) (n int)
-	SizeTypedBinco() (size int)
-}
-```
-
-Types implementing them can be encoded without naming a codec:
-
-```go
-bs := binco.Marshal(v)        // allocates SizeBinco bytes, then MarshalBinco
-bs = binco.MarshalTyped(v)    // the same, with the type identifier in front
-```
-
-The method names carry the package name so a type can also satisfy
-`encoding/json`, `encoding/binary` and friends without collisions.
-
-**Helpers**
-
-```go
-bs := binco.Encode(varnum.Int, 42)       // allocate + Marshal
-v, err := binco.Decode(varnum.Int, bs)   // Unmarshal without the byte count
-```
-
-**Type identifiers**
-
-```go
-type DTM int
-```
-
-**Validators**
-
-```go
-type Validator[T any] interface{ Validate(t T) error }
-type ValidatorFn[T any] func(t T) error
-
-limited := binco.ValidatorFn[int](func(n int) error {
-	if n > 100 {
-		return errors.New("too many")
-	}
-	return nil
-})
-```
-
-**Pointer maps** (used by `ptrmap`)
-
-```go
-ptrMap := binco.NewPtrMap()           // Put(unsafe.Pointer, reflect.Type) int,
-                                      // Get(unsafe.Pointer, reflect.Type), Len, Clear
-revPtrMap := binco.NewReversePtrMap() // Put(int, unsafe.Pointer, reflect.Type),
-                                      // Get(int), Len, Clear
-```
-
-**Limits and widths**
-
-```go
-binco.Num8RawSize, binco.Num16RawSize, binco.Num32RawSize, binco.Num64RawSize
-binco.Uint8MaxVarintLen ... binco.Uint64MaxVarintLen
-binco.Uint8MaxLastByte  ... binco.Uint64MaxLastByte
-```
-
-**Type constraints** for writing generic codecs: `Signed`, `Unsigned`,
-`Integer8`, `Integer16`, `Integer32`, `Integer64`, `Num32`, `Num64`.
-
-**Errors**: see the [error reference](#12-error-reference), plus
-`UnexpectedDTMError` (`DTM()`) and `WrongDTMError` (`Expected()`, `Actual()`).
-
-### 7.2 varnum
-
-Variable-length numbers. The full list:
-
-```go
-varnum.Byte
-
-varnum.Uint8, varnum.Uint16, varnum.Uint32, varnum.Uint64, varnum.Uint
-varnum.Int8,  varnum.Int16,  varnum.Int32,  varnum.Int64,  varnum.Int
-
-varnum.PositiveInt8, varnum.PositiveInt16, varnum.PositiveInt32,
-varnum.PositiveInt64, varnum.PositiveInt      // no ZigZag, non-negative
-
-varnum.Float32, varnum.Float64
-
-varnum.EncodeZigZag[T Signed](t T) T
-varnum.DecodeZigZag[T Unsigned](t T) T
-```
-
-* Use `Uint*`/`Int*` for general numbers.
-* Use `PositiveInt*` for lengths, ids and counts.
-* `Uint`/`Int` use a 64-bit wire width on every host; a value the host cannot
-  hold is `binco.ErrOverflow`.
-
-### 7.3 scalar
-
-Fixed-width numbers and timestamps, little-endian.
-
-```go
-scalar.Byte
-scalar.Uint8, scalar.Uint16, scalar.Uint32, scalar.Uint64, scalar.Uint
-scalar.Int8,  scalar.Int16,  scalar.Int32,  scalar.Int64,  scalar.Int
-scalar.Float32, scalar.Float64
-
-scalar.TimeUnix, scalar.TimeUnixMilli, scalar.TimeUnixMicro, scalar.TimeUnixNano
-scalar.TimeUnixUTC, scalar.TimeUnixMilliUTC, scalar.TimeUnixMicroUTC, scalar.TimeUnixNanoUTC
-
-scalar.SkipInteger8, scalar.SkipInteger16, scalar.SkipInteger32, scalar.SkipInteger64
-```
-
-### 7.4 composite
-
-Bools, strings, byte slices, pointers and the container codecs.
-
-```go
-composite.Bool
-composite.String
-composite.ByteSlice
-
-composite.NewStringSerializer(opts ...stropts.SetOption)         // string
-composite.NewByteSliceSerializer(opts ...bslopts.SetOption)      // []byte
-composite.NewPtrSerializer[T any](baseSerializer binco.Serializer[T]) // *T (flags 0 and 1)
-
-composite.NewSliceSerializer[T any](elemSerializer binco.Serializer[T], opts ...slopts.SetOption[T])
-composite.NewMapSerializer[T comparable, V any](keySerializer binco.Serializer[T],
-	valueSerializer binco.Serializer[V], opts ...mapopts.SetOption[T, V])
-```
-
-Every constructor honours the validators it is given, so there is one way to
-build a codec: pass the validator as an option. The constructors return
-`binco.Serializer[T]`, which is all a caller needs.
-
-Building blocks for hand-written codecs:
-
-```go
-composite.MarshalString, composite.SizeString, composite.SkipString
-composite.MarshalByteSlice, composite.SizeByteSlice, composite.SkipByteSlice
-composite.MarshalSlice, composite.UnmarshalSlice, composite.SizeSlice, composite.SkipSlice
-composite.UnmarshalValidSlice
-composite.SkipBool
-```
-
-### 7.5 zerocopy
-
-Same wire format as `scalar`/`composite`, faster, and zero-copy for strings and byte
-slices. Every scalar is available, plus arrays:
-
-```go
-zerocopy.Bool, zerocopy.String, zerocopy.ByteSlice
-zerocopy.Byte, zerocopy.Uint8 ... zerocopy.Uint64, zerocopy.Uint
-zerocopy.Int8 ... zerocopy.Int64, zerocopy.Int
-zerocopy.Float32, zerocopy.Float64
-zerocopy.TimeUnix ... zerocopy.TimeUnixNanoUTC
-
-zerocopy.NewStringSerializer(opts ...stropts.SetOption)
-zerocopy.NewByteSliceSerializer(opts ...bslopts.SetOption)
-zerocopy.NewArraySerializer[T, V any](elemSerializer binco.Serializer[V], opts ...arropts.SetOption[V])
-```
-
-Rules:
-
-* A decoded `string` or `[]byte` **aliases the input buffer**. It is valid while
-  the buffer is, and it must not be modified. Reusing the buffer (for example
-  from a `sync.Pool`) silently mutates values that were already decoded, and any
-  small string keeps the whole buffer alive.
-* Scalars are converted through `encoding/binary` with an explicit little-endian
-  order, so the codecs are correct on any host byte order and at an unaligned
-  offset. Only the array codec reinterprets memory, and it checks with reflection
-  that its two type parameters really describe an array of the element type
-  (panicking with `binco.ErrWrongArrayType` if they do not).
-* Arrays live only here: decoding into an array means reinterpreting the decoded
-  elements as the array type. The length is checked before any element is read,
-  and decoding fills the array in place.
-
-### 7.6 ptrmap
-
-Pointer mapping: pointer identity, shared references and cycles.
-
-```go
-ptrMap, revPtrMap := binco.NewPtrMap(), binco.NewReversePtrMap()
-
-ptrCodec := ptrmap.NewPtrSerializer(ptrMap, revPtrMap, baseCodec) // *Base
-wrapped := ptrmap.Wrap(ptrMap, revPtrMap, anyCodec)       // resets the maps per call
-```
-
-Wiring rules:
-
-1. Every `ptrmap` codec of one value shares the same pair of maps.
-2. The outermost codec is wrapped with `ptrmap.Wrap`, which clears both maps
-   around every operation (including `Size`, which assigns ids). Calling `Size` or
-   `Marshal` on an inner codec directly leaves ids behind and breaks the
-   `Size`/`Marshal` invariant.
-3. A wrapped codec is not safe for concurrent use; give each goroutine its own
-   maps (see [Concurrency](#818-concurrency)).
-
-An identifier is stored together with the type it was decoded as, and the encoder
-keys its table by `(address, type)`. Two pointers that share an address (a struct
-and its first field, or any two zero-size values) therefore get different ids, and
-a reference read as a different type fails with `binco.ErrWrongType` instead of
-being cast with `unsafe.Pointer`. Recursive references stop at
-`binco.MaxDepth` with `binco.ErrTooDeep`.
-
-### 7.7 typeid
-
-Type identifiers in front of payloads.
-
-```go
-typeid.DTMSerializer                                 // binco.Serializer[binco.DTM]
-typeid.NewSerializer[T any](dtm binco.DTM, serializer binco.Serializer[T]) typeid.Serializer[T]
-
-serializer.DTM() binco.DTM
-serializer.UnmarshalData(bs []byte) (T, int, error)  // data only
-serializer.SkipData(bs []byte) (int, error)
-```
-
-`typeid.Serializer[T]` itself implements `binco.Serializer[T]`, so it drops into any position
-where a codec is expected, including inside slices and maps.
-
-### 7.8 config
-
-Each container codec has a config package. Options are function values
-applied to an `Options` struct; `Apply` is exported so generated code and your
-own helpers can build option slices.
-
-| Package | Import alias | Options |
-|---------|--------------|---------|
-| `binco/config/array` | `arropts` | `WithLenSerializer`, `WithElemValidator` |
-| `binco/config/byte_slice` | `bslopts` | `WithLenSerializer`, `WithLenValidator` |
-| `binco/config/map` | `mapopts` | `WithLenSerializer`, `WithLenValidator`, `WithKeyValidator`, `WithValueValidator` |
-| `binco/config/slice` | `slopts` | `WithLenSerializer`, `WithLenValidator`, `WithElemValidator` |
-| `binco/config/string` | `stropts` | `WithLenSerializer`, `WithLenValidator` |
-
-```go
-bounded := composite.NewStringSerializer(
-	stropts.WithLenValidator(binco.ValidatorFn[int](func(n int) error {
-		if n > 64 {
-			return errors.New("string too long")
-		}
-		return nil
-	})),
-)
-
-fixedLengths := composite.NewSliceSerializer(varnum.Int, slopts.WithLenSerializer[int](scalar.Int))
-```
-
-The streaming tree has the same options under `binco/wirefmt/config/*`. In both
-trees the plain constructors honour the validators, so `WithLenValidator` is never
-silently ignored.
-
-### 7.9 wirefmt
-
-The streaming API mirrors the buffer API:
-
-```go
-type Writer interface { io.ByteWriter; io.Writer; io.StringWriter }
-type Reader interface { io.ByteReader; io.Reader }
-
-type Serializer[T any] interface {
-	Marshal(t T, w Writer) (n int, err error)
-	Unmarshal(r Reader) (t T, n int, err error)
-	Size(t T) (size int)
-	Skip(r Reader) (n int, err error)
-}
-```
-
-`*bufio.Writer`, `*bytes.Buffer` and `*strings.Builder` satisfy `Writer`;
-`*bufio.Reader` and `*bytes.Reader` satisfy `Reader`. For any other stream:
-
-```go
-w := wirefmt.NewWriter(conn)   // writes one byte at a time through Write
-r := wirefmt.NewReader(conn)   // never reads past the bytes it was asked for
-```
-
-The adapters are correct but slow; prefer `bufio` at the call site. The helpers
-do the buffering for you:
-
-```go
-n, err := wirefmt.Encode(wcomposite.String, w, "hello")
-v, n, err := wirefmt.Decode(wcomposite.String, r)
-
-// Reuse one buffer for a whole stream.
-enc := wirefmt.NewEncoder(w)
-dec := wirefmt.NewDecoder(r)
-n, err = wirefmt.EncodeTo(enc, wcomposite.String, "hello")
-v, n, err = wirefmt.DecodeFrom(dec, wcomposite.String)
-```
-
-`Decode` never buffers a reader it cannot read one byte from, because it cannot
-know whether the caller still needs the bytes it would read ahead; buffering per
-call used to swallow the next message of a shared stream. `NewDecoder` owns one
-`bufio.Reader` for the lifetime of the stream, buffers once and is the fast
-option. `Encode` reuses a pooled `bufio.Writer`.
-
-Truncation is `io.ErrUnexpectedEOF`; only a stream that ends before the first
-byte of a value returns `io.EOF`. `wirefmt.SliceWriter` adapts a `[]byte` to a
-`Writer`, which is useful for testing and for embedding a streaming codec.
-
-Marshalling and helper packages:
-
-```go
-type Marshaller interface {
-	MarshalBinco(w Writer) (n int, err error)
-	SizeBinco() (size int)
-}
-
-type MarshallerTyped interface {
-	MarshalTypedBinco(w Writer) (n int, err error)
-	SizeTypedBinco() (size int)
-}
-```
-
-Subpackages: `wirefmt/varnum`, `wirefmt/scalar`, `wirefmt/composite`, `wirefmt/zerocopy`,
-`wirefmt/ptrmap`, `wirefmt/typeid`, `wirefmt/config/*`. `wirefmt/zerocopy` has no byte slice
-codec: a wire cannot hand out a view of bytes it has not read yet, so byte slices
-go through `wirefmt/composite`.
-
-## 8. Use cases
+## 6. Use cases
 
 Each recipe shows a working shape: the helper types and codecs it uses are
 declared in the same recipe or in a neighbouring one, and the snippets compile
 as written once those declarations exist.
 
-### 8.1 Numbers and enums
+### 6.1 Numbers and enums
 
 **Plain numbers.** Pick a family once and use it everywhere for that field:
 
@@ -1271,7 +656,7 @@ func (millisCodec) Size(v Millis) (size int) { return varnum.Int64.Size(int64(v)
 func (millisCodec) Skip(bs []byte) (n int, err error) { return varnum.Int64.Skip(bs) }
 ```
 
-### 8.2 Strings and byte blobs
+### 6.2 Strings and byte blobs
 
 ```go
 name := "hello world"
@@ -1314,9 +699,9 @@ copy:
 s, n, err := zerocopy.String.Unmarshal(bs)   // s aliases bs
 ```
 
-Read [Zero-copy hot paths](#814-zero-copy-hot-paths) before using it.
+Read [Zero-copy hot paths](#614-zero-copy-hot-paths) before using it.
 
-### 8.3 Structs by hand
+### 6.3 Structs by hand
 
 The full pattern, with a nested container:
 
@@ -1410,7 +795,7 @@ func (c orderCodec) Unmarshal(bs []byte) (v Order, n int, err error) {
 This works because every value is self-delimiting and `Unmarshal` never reads
 past the buffer.
 
-### 8.4 Structs from the generator
+### 6.4 Structs from the generator
 
 The generator produces exactly the code above. For a type
 
@@ -1425,10 +810,10 @@ type Order struct {
 
 call `g.AddStruct(reflect.TypeFor[Order]())` and you get `OrderBinco` with the
 four methods. Nested structs, slices, maps and pointers are resolved
-automatically. Read [Code generation](#9-code-generation) for the options and
+automatically. Read [Code generation](#7-code-generation) for the options and
 the workflow.
 
-### 8.5 Collections
+### 6.5 Collections
 
 **Slices**
 
@@ -1524,7 +909,7 @@ fixed-width length lets a reader seek:
 seekable := composite.NewSliceSerializer(varnum.Int, slopts.WithLenSerializer[int](scalar.Int))
 ```
 
-### 8.6 Optional fields and nil
+### 6.6 Optional fields and nil
 
 There is no "optional" marker in the format; presence is decided by the schema.
 Three common patterns:
@@ -1557,7 +942,7 @@ type Maybe struct {
 
 Decode with a validator to keep the pair consistent.
 
-### 8.7 Shared pointers and identity
+### 6.7 Shared pointers and identity
 
 Two fields pointing at the same string must still point at the same string after
 decoding. `ptrmap` writes the value once and refers to it by id:
@@ -1618,12 +1003,12 @@ fmt.Println(back.A == back.B) // true
 ```
 
 The encoded form is `[2 0 5 hello 2 0]`: flag 2, id 0, the value, then flag 2
-and the same id with no data. See [Pointers](#58-pointers).
+and the same id with no data. See [Pointers](#138-pointers).
 
 **When not to use ptrmap.** If your data is a tree with no sharing, `composite.NewPtrSerializer`
 is smaller and faster: no ids, no maps, no bookkeeping.
 
-### 8.8 Cycles linked lists trees graphs
+### 6.8 Cycles linked lists trees graphs
 
 A cycle is a pointer graph where following pointers returns to a node. Plain
 pointer codecs cannot represent that; `ptrmap` can, because the second visit is
@@ -1767,7 +1152,7 @@ A runnable version lives in [`demos/pm/graph`](./demos/pm/graph).
 nested structure is written once and read once. Nesting is bounded by
 `binco.MaxDepth`; a pathologically deep graph reports `binco.ErrTooDeep` instead
 of exhausting the stack.
-### 8.9 Polymorphism with interfaces
+### 6.9 Polymorphism with interfaces
 
 An interface field can hold several concrete types. The payload must say which
 one, so each implementation gets a DTM and the interface codec dispatches on it.
@@ -1837,7 +1222,7 @@ func (commandCodec) Unmarshal(bs []byte) (v Command, n int, err error) {
 
 `Skip` mirrors it with `SkipData`. A finite switch is the fast, type-safe
 option; a `map[binco.DTM]func([]byte) (T, int, error)` is the extensible one. The
-generator writes the switch for you (see [Interfaces](#96-interfaces)).
+generator writes the switch for you (see [Interfaces](#76-interfaces)).
 
 **Interface inside a struct.** Nothing special: the field's codec is the
 interface codec, and the DTM is written where the field sits.
@@ -1854,7 +1239,7 @@ type Shape struct {
 
 DTMs cost the same byte and are less error-prone, so prefer them.
 
-### 8.10 Versioning and migration
+### 6.10 Versioning and migration
 
 Type versions are DTMs plus a dispatcher. There are three practical strategies.
 
@@ -1903,7 +1288,7 @@ func (versionedCodec) Unmarshal(bs []byte) (v AddLatest, n int, err error) {
 
 Old payloads stay readable forever; new payloads only ever contain the current
 version. The generator automates this with `AddVersioned`/`RegisterVersioned`
-(see [Versioned types](#97-versioned-types)).
+(see [Versioned types](#77-versioned-types)).
 
 **Strategy 2: a version field in the payload.** Add an explicit `uint8` version
 as the first field of a struct and branch on it. Cheaper than a DTM if the type
@@ -1923,7 +1308,7 @@ versions are semantically different rather than successive revisions.
 * A migration that cannot fail is easier to reason about; validate afterwards
   if needed.
 
-### 8.11 Streaming protocols
+### 6.11 Streaming protocols
 
 A stream has no structure of its own, so the codec supplies it. Three patterns
 cover most protocols.
@@ -2005,7 +1390,7 @@ trades one extra length field for buffering freedom.
 A runnable DTS example lives in
 [`demos/typed/stream`](./demos/typed/stream).
 
-### 8.12 Validating untrusted input
+### 6.12 Validating untrusted input
 
 A length read from the network is an allocation request. Validating codecs check
 it **before** the allocation happens, which turns a hostile payload into an
@@ -2081,7 +1466,7 @@ domain checks through `WithValidator`, or after decoding.
 widths, available bytes) but never calls validators, because it does not decode
 values. Do not use `Skip` as a trust boundary.
 
-### 8.13 Partial decoding and out-of-order reads
+### 6.13 Partial decoding and out-of-order reads
 
 Because `Skip` is exact and `Unmarshal` never reads past a value, you can index
 into a payload without decoding it.
@@ -2143,7 +1528,7 @@ if consumed != len(bs) {
 }
 ```
 
-### 8.14 Zero-copy hot paths
+### 6.14 Zero-copy hot paths
 
 `zerocopy` decodes strings and byte slices without copying: the returned value
 points into the input buffer.
@@ -2161,10 +1546,10 @@ This is the fastest option and the easiest to get wrong. Rules:
    ```go
    var buf []byte
    for _, msg := range messages {
-   	buf = binco.Encode(zerocopy.String, msg)
-   	s, _, _ := zerocopy.String.Unmarshal(buf)
-   	_ = s // fine here: processed before the next iteration
-   	keep = append(keep, s) // wrong: every kept string aliases the same buffer
+       buf = binco.Encode(zerocopy.String, msg)
+       s, _, _ := zerocopy.String.Unmarshal(buf)
+       _ = s // fine here: processed before the next iteration
+       keep = append(keep, s) // wrong: every kept string aliases the same buffer
    }
    ```
 
@@ -2180,7 +1565,7 @@ This is the fastest option and the easiest to get wrong. Rules:
 
 `demos/native` demonstrates the pitfall and its fixes.
 
-### 8.15 Custom codecs
+### 6.15 Custom codecs
 
 A codec is any type with four methods, so domain types are easy:
 
@@ -2261,7 +1646,7 @@ func (c countingCodec[T]) Size(v T) int { return c.inner.Size(v) }
 func (c countingCodec[T]) Skip(bs []byte) (int, error) { return c.inner.Skip(bs) }
 ```
 
-### 8.16 Composition recursion and generics
+### 6.16 Composition recursion and generics
 
 Codecs are values, and Go lets you build them with functions. That covers most
 "not invented here" needs without a DSL.
@@ -2354,7 +1739,7 @@ func (intCodec) Skip(bs []byte) (n int, err error) { return varnum.Int.Skip(bs) 
 
 The generator does exactly this for `AddDefinedType`.
 
-### 8.17 Zero-allocation encoding
+### 6.17 Zero-allocation encoding
 
 The buffer API exists so a hot path can allocate nothing.
 
@@ -2435,7 +1820,7 @@ reused fields (a slice's backing array can be reused by decoding into
 `v.Items[:0]` and appending, which is what `composite` cannot do for you - it
 allocates a new slice each time).
 
-### 8.18 Concurrency
+### 6.18 Concurrency
 
 * **Buffer codecs are stateless** (except `ptrmap`), so they are safe to share
   across goroutines. A single `varnum.Int` in a global is fine.
@@ -2461,7 +1846,7 @@ allocates a new slice each time).
   it renders, the packages it has seen and the names it has handed out; create one
   per generation run.
 
-### 8.19 Testing your codecs
+### 6.19 Testing your codecs
 
 **Round trip.** For every codec, test values that stress the encoding: zero,
 one, boundaries of the varint width, empty containers, nil pointers.
@@ -2529,7 +1914,7 @@ func FuzzOrder(f *testing.F) {
 **Deterministic maps.** When asserting bytes, encode a single-entry map or the
 sorted-slice form; multi-entry maps have random order.
 
-### 8.20 Interoperability
+### 6.20 Interoperability
 
 **With JSON.** The two encodings solve different problems; a service can return
 JSON to people and binco to services. Keep a single source of truth for the
@@ -2568,16 +1953,17 @@ the schema with the DTM strategy. Keep the codec of every version for as long as
 rows can exist.
 
 **Across languages.** The format rules are in
-[The wire format](#5-the-wire-format): LEB128 varint, ZigZag for signed values,
+[The wire format](#13-the-wire-format): LEB128 varint, ZigZag for signed values,
 little-endian raw numbers, positive varints for lengths, and the pointer flags.
 Any implementation that follows them interoperates.
-## 9. Code generation
+
+## 7. Code generation
 
 `binco/codegen` writes the serializer code you would otherwise write by hand. It
 inspects types through reflection **once**, at generation time; the generated
 code contains no reflection.
 
-### 9.1 Getting started
+### 7.1 Getting started
 
 ```
 app/
@@ -2659,7 +2045,7 @@ go build
 The generated code contains `ItemBinco` and `OrderBinco`, both implementing
 `binco.Serializer[Item]` and `binco.Serializer[Order]`.
 
-### 9.2 Generator configuration
+### 7.2 Generator configuration
 
 ```go
 g, err := codegen.NewGenerator(
@@ -2704,7 +2090,7 @@ expressions, an unexported field of a foreign struct and two types that would be
 generated under the same name are all reported when the type is added, not as a
 compile error inside the output.
 
-### 9.3 Generator methods
+### 7.3 Generator methods
 
 ```go
 g.AddDefinedType(t reflect.Type, opts ...tpopts.SetOption) error
@@ -2810,7 +2196,7 @@ g.RegisterVersioned(reflect.TypeFor[Foo](),
 
 Exactly one version must be the current one.
 
-### 9.4 Generated code and naming
+### 7.4 Generated code and naming
 
 For each added type the generator writes:
 
@@ -2843,7 +2229,7 @@ so tooling treats it as generated. Anonymous codecs (the serializer of a
 `[]Item` field, for example) are declared once in a single `var (...)` block at
 the top of the file.
 
-### 9.5 Serialization options
+### 7.5 Serialization options
 
 Options are attached to a type, then to a field with
 `fldopts.WithType(...)`.
@@ -2882,7 +2268,7 @@ func ValidateNoteLength(n int) error {
 }
 ```
 
-### 9.6 Interfaces
+### 7.6 Interfaces
 
 The generated interface codec writes a DTM and dispatches on it:
 
@@ -2916,10 +2302,10 @@ Either way the receiver switches on the DTM and reports `UnexpectedDTMError` for
 unknown ids. A nil interface value is written as the reserved identifier `0` and
 decodes back to nil, so `Marshal(nil)` no longer panics.
 
-### 9.7 Versioned types
+### 7.7 Versioned types
 
 The generated versioned codec is exactly the hand-written one from
-[Versioning and migration](#810-versioning-and-migration): `Marshal` writes the
+[Versioning and migration](#610-versioning-and-migration): `Marshal` writes the
 current version, `Unmarshal` accepts every version and migrates, `Skip` advances
 over every version.
 
@@ -2931,7 +2317,7 @@ generation with `binco.ErrDuplicateDTM`, and mixing pinned and automatic ids is
 rejected. `g.DTMRegistry()` returns the mapping so you can commit it as a golden
 file and compare it in CI.
 
-### 9.8 Multi-package and cross-package generation
+### 7.8 Multi-package and cross-package generation
 
 By default the generator assumes that `bar.Bar`'s serializer lives in package
 `bar` and is called `BarBinco`. If it lives elsewhere, say so:
@@ -2954,7 +2340,7 @@ block is built from the packages of every type the generator resolved, so a
 validator or migration expression, since no type refers to it. Unused imports are
 pruned and the result is gofmt-formatted.
 
-### 9.9 Streaming mode
+### 7.9 Streaming mode
 
 `genopts.WithStream()` changes the signatures:
 
@@ -2971,7 +2357,7 @@ else mirrors the buffer codecs. A streaming codec can also be used in the buffer
 API by copying through a `bytes.Buffer`, but normally you pick one mode per
 package.
 
-### 9.10 Workflow and troubleshooting
+### 7.10 Workflow and troubleshooting
 
 **Recommended workflow**
 
@@ -2995,122 +2381,347 @@ package.
 | `... is not a Go expression` | a validator or migration option contains a typo |
 | `... has the unexported field ...` | a struct from another package must export every field to be generated |
 
-## 10. Performance guide
 
-**Plan for the buffer.** `Size` is exact and cheap; use it to allocate once and
-reuse. The `Encoder` pattern in
-[Zero-allocation encoding](#817-zero-allocation-encoding) is the recommended
-shape for hot paths.
+## 8. Package guide
 
-**Encode fixed-width slices in bulk.** A slice whose element codec reports a
-fixed width (`scalar` and `zerocopy` scalars) is copied in one operation instead of
-one interface call per element, provided the host is little-endian. The fast path
-is automatic; element validators keep the per-element path.
+### 8.1 binco
 
-**Pick the codec family per field.**
+The root package holds everything the packages share.
 
-* `varnum` for small and medium integers, ids, counters, lengths.
-* `scalar` for values above the thresholds in [Fixed width](#54-fixed-width), for constant-size
-  records, and when CPU matters more than bytes.
-* `zerocopy` for scalars and blobs on paths where the aliasing rules are
-  acceptable; it is correct on every byte order.
-
-**Skip what you do not need.** `Skip` costs a few branches and no allocation.
-Decoding a field you immediately discard is pure overhead.
-
-**Prefer the streaming API for large payloads.** It never materializes the whole
-message. Use a `bufio` reader/writer at the boundary: the adapters write one
-byte at a time.
-
-**Batch small writes.** A stream of tiny messages is dominated by `Write`
-syscalls; buffer (bufio) and flush on message boundaries or when the buffer
-fills.
-
-**Avoid reflection.** The generated code is allocation-free and inlinable. If
-you must use reflection, do it once at startup to build codecs, not per value.
-
-**Benchmark the real shape.** The cost of a payload is dominated by memory
-traffic; measure with your structs rather than synthetic scalars. `go test
--bench` with `-benchmem` is enough to see whether a change allocates.
-
-## 11. Correctness guarantees and security
-
-**Guarantees**
-
-* `Size(v)` equals the bytes `Marshal(v, bs)` writes; `Unmarshal` consumes
-  exactly that many; `Skip` advances exactly as far.
-* Encoding is deterministic except for maps (iteration order) and pointer ids
-  (assignment order). Everything else is a pure function of the value.
-* Buffer codecs and streaming codecs emit identical bytes; `scalar`/`zerocopy` agree
-  on numbers; `composite`/`zerocopy` agree on strings and byte slices.
-* Decoding never reads past the value it returns and never panics on malformed
-  input.
-* Lengths are checked without overflow: a decoded `MaxInt64` length returns
-  `ErrTruncated` instead of wrapping into a slice panic.
-* A decoded length never drives an allocation larger than the input that could
-  contain it; a streaming blob grows with the bytes that actually arrive.
-* Varints are canonical: every value has exactly one byte representation.
-* The generator's output compiles and behaves like hand-written code; the test
-  suite regenerates, compiles and runs it, and CI fails when the committed output
-  differs from a fresh run.
-
-**Security notes**
-
-* Treat every length as hostile: the codecs already cap what a length can make
-  them allocate, and the validating codecs let you reject implausible ones before
-  they are read.
-* Reject unknown DTMs in protocols; do not attempt to skip them.
-* A payload can legitimately be empty; distinguish "empty message" from
-  "connection closed" by protocol design, not by guessing.
-* Pointer identifiers are typed: a payload cannot reinterpret one type as another
-  (`ErrWrongType`), and two values that share an address get different ids.
-* Nested pointers stop at `binco.MaxDepth` / `binco.MaxPointerDepth` with
-  `ErrTooDeep` instead of exhausting the stack. Containers whose elements consume
-  no bytes are capped by `binco.MaxZeroSizeElements`.
-* `binco/zerocopy` converts scalars explicitly, so it is safe on any byte order and
-  at unaligned offsets. Its strings and slices still alias the input buffer.
-* The generator validates validator and migration expressions before it emits
-  them, replaces panics with errors, and reports name collisions instead of
-  silently merging two types.
-
-## 12. Error reference
-
-| Error | Returned when |
-|-------|---------------|
-| `binco.ErrOverflow` | a varint carries more bits than the type has, or a value does not fit the host word |
-| `binco.ErrNegativeLength` | a decoded length is negative |
-| `binco.ErrNonCanonical` | a varint is not in its shortest form |
-| `binco.ErrWrongFormat` | a flag byte or shape is invalid (bool > 1, unknown pointer flag) |
-| `binco.ErrTruncated` | the input ends inside a value |
-| `binco.ErrBufferTooSmall` | Marshal would write past the output buffer |
-| `binco.ErrTooLargeLength` | a length exceeds a fixed maximum (zero-size elements, array overflow) |
-| `binco.ErrWrongLength` | a length does not match the type (array shorter or longer than its type) |
-| `binco.ErrTooDeep` | a value nests deeper than `binco.MaxDepth` / `binco.MaxPointerDepth` |
-| `binco.ErrWrongType` | a pointer identifier was defined by another type |
-| `binco.ErrTrailingBytes` | `binco.DecodeExact` read a complete value followed by more bytes |
-| `binco.ErrWrongArrayType` | `NewArraySerializer` was built with mismatched type parameters |
-| `binco.ErrNilInterface` | reserved for a nil interface where a value was required |
-| `binco.ErrDuplicateDTM` | the generator assigned the same type identifier twice |
-| `codegen.ErrNameCollision` | two types would be generated under the same name |
-| `binco.ErrUnsupportedIntSize` | kept for compatibility; no code path raises it now that `int` has a fixed wire width |
-| `binco.ErrUnsupportedArch` | kept for compatibility; `zerocopy` no longer requires a little-endian host |
-| `binco.UnexpectedDTMError` | a dispatcher read an unknown type identifier |
-| `binco.WrongDTMError` | `typeid.Serializer` read a different identifier than its own |
-| `io.EOF` (streams) | the stream ended cleanly between values |
-| `io.ErrUnexpectedEOF` (streams) | the stream ended inside a value |
-| `ErrCodeGenFailed` (`codegen`) | the generated source does not parse |
-
-All library errors are prefixed with `binco: ` and support `errors.Is`;
-the error types expose their details:
+**The codec contract**
 
 ```go
-var wrong binco.WrongDTMError
-if errors.As(err, &wrong) {
-	fmt.Println(wrong.Expected(), wrong.Actual())
+type Serializer[T any] interface {
+	Marshal(t T, bs []byte) (n int)
+	Unmarshal(bs []byte) (t T, n int, err error)
+	Size(t T) (size int)
+	Skip(bs []byte) (n int, err error)
 }
 ```
 
-## 13. Cheat sheet
+**Self-marshalling types**
+
+```go
+type Marshaller interface {
+	MarshalBinco(bs []byte) (n int)
+	SizeBinco() (size int)
+}
+
+type MarshallerTyped interface {
+	MarshalTypedBinco(bs []byte) (n int)
+	SizeTypedBinco() (size int)
+}
+```
+
+Types implementing them can be encoded without naming a codec:
+
+```go
+bs := binco.Marshal(v)        // allocates SizeBinco bytes, then MarshalBinco
+bs = binco.MarshalTyped(v)    // the same, with the type identifier in front
+```
+
+The method names carry the package name so a type can also satisfy
+`encoding/json`, `encoding/binary` and friends without collisions.
+
+**Helpers**
+
+```go
+bs := binco.Encode(varnum.Int, 42)       // allocate + Marshal
+v, err := binco.Decode(varnum.Int, bs)   // Unmarshal without the byte count
+```
+
+**Type identifiers**
+
+```go
+type DTM int
+```
+
+**Validators**
+
+```go
+type Validator[T any] interface{ Validate(t T) error }
+type ValidatorFn[T any] func(t T) error
+
+limited := binco.ValidatorFn[int](func(n int) error {
+	if n > 100 {
+		return errors.New("too many")
+	}
+	return nil
+})
+```
+
+**Pointer maps** (used by `ptrmap`)
+
+```go
+ptrMap := binco.NewPtrMap()           // Put(unsafe.Pointer, reflect.Type) int,
+                                      // Get(unsafe.Pointer, reflect.Type), Len, Next, Clear
+revPtrMap := binco.NewReversePtrMap() // Put(int, unsafe.Pointer, reflect.Type),
+                                      // Get(int) (unsafe.Pointer, reflect.Type, bool),
+                                      // Len, Enter, Leave, Clear
+```
+
+**Limits and widths**
+
+```go
+binco.Num8RawSize, binco.Num16RawSize, binco.Num32RawSize, binco.Num64RawSize
+binco.Uint8MaxVarintLen ... binco.Uint64MaxVarintLen
+binco.Uint8MaxLastByte  ... binco.Uint64MaxLastByte
+```
+
+**Type constraints** for writing generic codecs: `Signed`, `Unsigned`,
+`Integer8`, `Integer16`, `Integer32`, `Integer64`, `Num32`, `Num64`.
+
+**Errors**: see the [error reference](#10-error-reference), plus
+`UnexpectedDTMError` (`DTM()`) and `WrongDTMError` (`Expected()`, `Actual()`).
+
+### 8.2 varnum
+
+Variable-length numbers. The full list:
+
+```go
+varnum.Byte
+
+varnum.Uint8, varnum.Uint16, varnum.Uint32, varnum.Uint64, varnum.Uint
+varnum.Int8,  varnum.Int16,  varnum.Int32,  varnum.Int64,  varnum.Int
+
+varnum.PositiveInt8, varnum.PositiveInt16, varnum.PositiveInt32,
+varnum.PositiveInt64, varnum.PositiveInt      // no ZigZag, non-negative
+
+varnum.Float32, varnum.Float64
+
+varnum.EncodeZigZag[T Signed](t T) T
+varnum.DecodeZigZag[T Unsigned](t T) T
+```
+
+* Use `Uint*`/`Int*` for general numbers.
+* Use `PositiveInt*` for lengths, ids and counts.
+* `Uint`/`Int` use a 64-bit wire width on every host; a value the host cannot
+  hold is `binco.ErrOverflow`.
+
+### 8.3 scalar
+
+Fixed-width numbers and timestamps, little-endian.
+
+```go
+scalar.Byte
+scalar.Uint8, scalar.Uint16, scalar.Uint32, scalar.Uint64, scalar.Uint
+scalar.Int8,  scalar.Int16,  scalar.Int32,  scalar.Int64,  scalar.Int
+scalar.Float32, scalar.Float64
+
+scalar.TimeUnix, scalar.TimeUnixMilli, scalar.TimeUnixMicro, scalar.TimeUnixNano
+scalar.TimeUnixUTC, scalar.TimeUnixMilliUTC, scalar.TimeUnixMicroUTC, scalar.TimeUnixNanoUTC
+
+scalar.SkipInteger8, scalar.SkipInteger16, scalar.SkipInteger32, scalar.SkipInteger64
+```
+
+### 8.4 composite
+
+Bools, strings, byte slices, pointers and the container codecs.
+
+```go
+composite.Bool
+composite.String
+composite.ByteSlice
+
+composite.NewStringSerializer(opts ...stropts.SetOption)         // string
+composite.NewByteSliceSerializer(opts ...bslopts.SetOption)      // []byte
+composite.NewPtrSerializer[T any](baseSerializer binco.Serializer[T]) // *T (flags 0 and 1)
+
+composite.NewSliceSerializer[T any](elemSerializer binco.Serializer[T], opts ...slopts.SetOption[T])
+composite.NewMapSerializer[T comparable, V any](keySerializer binco.Serializer[T],
+	valueSerializer binco.Serializer[V], opts ...mapopts.SetOption[T, V])
+```
+
+Every constructor honours the validators it is given, so there is one way to
+build a codec: pass the validator as an option. The constructors return
+`binco.Serializer[T]`, which is all a caller needs.
+
+Building blocks for hand-written codecs:
+
+```go
+composite.MarshalString, composite.SizeString, composite.SkipString
+composite.MarshalByteSlice, composite.SizeByteSlice, composite.SkipByteSlice
+composite.MarshalSlice, composite.UnmarshalSlice, composite.SizeSlice, composite.SkipSlice
+composite.UnmarshalValidSlice
+composite.SkipBool
+```
+
+### 8.5 zerocopy
+
+Same wire format as `scalar`/`composite`, faster, and zero-copy for strings and byte
+slices. Every scalar is available, plus arrays:
+
+```go
+zerocopy.Bool, zerocopy.String, zerocopy.ByteSlice
+zerocopy.Byte, zerocopy.Uint8 ... zerocopy.Uint64, zerocopy.Uint
+zerocopy.Int8 ... zerocopy.Int64, zerocopy.Int
+zerocopy.Float32, zerocopy.Float64
+zerocopy.TimeUnix ... zerocopy.TimeUnixNanoUTC
+
+zerocopy.NewStringSerializer(opts ...stropts.SetOption)
+zerocopy.NewByteSliceSerializer(opts ...bslopts.SetOption)
+zerocopy.NewArraySerializer[T, V any](elemSerializer binco.Serializer[V], opts ...arropts.SetOption[V])
+```
+
+Rules:
+
+* A decoded `string` or `[]byte` **aliases the input buffer**. It is valid while
+  the buffer is, and it must not be modified. Reusing the buffer (for example
+  from a `sync.Pool`) silently mutates values that were already decoded, and any
+  small string keeps the whole buffer alive.
+* Scalars are converted through `encoding/binary` with an explicit little-endian
+  order, so the codecs are correct on any host byte order and at an unaligned
+  offset. Only the array codec reinterprets memory, and it checks with reflection
+  that its two type parameters really describe an array of the element type
+  (panicking with `binco.ErrWrongArrayType` if they do not).
+* Arrays live only here: decoding into an array means reinterpreting the decoded
+  elements as the array type. The length is checked before any element is read,
+  and decoding fills the array in place.
+
+### 8.6 ptrmap
+
+Pointer mapping: pointer identity, shared references and cycles.
+
+```go
+ptrMap, revPtrMap := binco.NewPtrMap(), binco.NewReversePtrMap()
+
+ptrCodec := ptrmap.NewPtrSerializer(ptrMap, revPtrMap, baseCodec) // *Base
+wrapped := ptrmap.Wrap(ptrMap, revPtrMap, anyCodec)       // resets the maps per call
+```
+
+Wiring rules:
+
+1. Every `ptrmap` codec of one value shares the same pair of maps.
+2. The outermost codec is wrapped with `ptrmap.Wrap`, which clears both maps
+   around every operation (including `Size`, which assigns ids). Calling `Size` or
+   `Marshal` on an inner codec directly leaves ids behind and breaks the
+   `Size`/`Marshal` invariant.
+3. A wrapped codec is not safe for concurrent use; give each goroutine its own
+   maps (see [Concurrency](#618-concurrency)).
+
+An identifier is stored together with the type it was decoded as, and the encoder
+keys its table by `(address, type)`. Two pointers that share an address (a struct
+and its first field, or any two zero-size values) therefore get different ids, and
+a reference read as a different type fails with `binco.ErrWrongType` instead of
+being cast with `unsafe.Pointer`. Recursive references stop at
+`binco.MaxDepth` with `binco.ErrTooDeep`.
+
+### 8.7 typeid
+
+Type identifiers in front of payloads.
+
+```go
+typeid.DTMSerializer                                 // binco.Serializer[binco.DTM]
+typeid.NewSerializer[T any](dtm binco.DTM, serializer binco.Serializer[T]) typeid.Serializer[T]
+
+serializer.DTM() binco.DTM
+serializer.UnmarshalData(bs []byte) (T, int, error)  // data only
+serializer.SkipData(bs []byte) (int, error)
+```
+
+`typeid.Serializer[T]` itself implements `binco.Serializer[T]`, so it drops into any position
+where a codec is expected, including inside slices and maps.
+
+### 8.8 config
+
+Each container codec has a config package. Options are function values
+applied to an `Options` struct; `Apply` is exported so generated code and your
+own helpers can build option slices.
+
+| Package | Import alias | Options |
+|---------|--------------|---------|
+| `binco/config/array` | `arropts` | `WithLenSerializer`, `WithElemValidator` |
+| `binco/config/byte_slice` | `bslopts` | `WithLenSerializer`, `WithLenValidator` |
+| `binco/config/map` | `mapopts` | `WithLenSerializer`, `WithLenValidator`, `WithKeyValidator`, `WithValueValidator` |
+| `binco/config/slice` | `slopts` | `WithLenSerializer`, `WithLenValidator`, `WithElemValidator` |
+| `binco/config/string` | `stropts` | `WithLenSerializer`, `WithLenValidator` |
+
+```go
+bounded := composite.NewStringSerializer(
+	stropts.WithLenValidator(binco.ValidatorFn[int](func(n int) error {
+		if n > 64 {
+			return errors.New("string too long")
+		}
+		return nil
+	})),
+)
+
+fixedLengths := composite.NewSliceSerializer(varnum.Int, slopts.WithLenSerializer[int](scalar.Int))
+```
+
+The streaming tree has the same options under `binco/wirefmt/config/*`. In both
+trees the plain constructors honour the validators, so `WithLenValidator` is never
+silently ignored.
+
+### 8.9 wirefmt
+
+The streaming API mirrors the buffer API:
+
+```go
+type Writer interface { io.ByteWriter; io.Writer; io.StringWriter }
+type Reader interface { io.ByteReader; io.Reader }
+
+type Serializer[T any] interface {
+	Marshal(t T, w Writer) (n int, err error)
+	Unmarshal(r Reader) (t T, n int, err error)
+	Size(t T) (size int)
+	Skip(r Reader) (n int, err error)
+}
+```
+
+`*bufio.Writer`, `*bytes.Buffer` and `*strings.Builder` satisfy `Writer`;
+`*bufio.Reader` and `*bytes.Reader` satisfy `Reader`. For any other stream:
+
+```go
+w := wirefmt.NewWriter(conn)   // writes one byte at a time through Write
+r := wirefmt.NewReader(conn)   // never reads past the bytes it was asked for
+```
+
+The adapters are correct but slow; prefer `bufio` at the call site. The helpers
+do the buffering for you:
+
+```go
+n, err := wirefmt.Encode(wcomposite.String, w, "hello")
+v, n, err := wirefmt.Decode(wcomposite.String, r)
+
+// Reuse one buffer for a whole stream.
+enc := wirefmt.NewEncoder(w)
+dec := wirefmt.NewDecoder(r)
+n, err = wirefmt.EncodeTo(enc, wcomposite.String, "hello")
+v, n, err = wirefmt.DecodeFrom(dec, wcomposite.String)
+```
+
+`Decode` never buffers a reader it cannot read one byte from, because it cannot
+know whether the caller still needs the bytes it would read ahead; buffering per
+call used to swallow the next message of a shared stream. `NewDecoder` owns one
+`bufio.Reader` for the lifetime of the stream, buffers once and is the fast
+option. `Encode` reuses a pooled `bufio.Writer`.
+
+Truncation is `io.ErrUnexpectedEOF`; only a stream that ends before the first
+byte of a value returns `io.EOF`. `wirefmt.SliceWriter` adapts a `[]byte` to a
+`Writer`, which is useful for testing and for embedding a streaming codec.
+
+Marshalling and helper packages:
+
+```go
+type Marshaller interface {
+	MarshalBinco(w Writer) (n int, err error)
+	SizeBinco() (size int)
+}
+
+type MarshallerTyped interface {
+	MarshalTypedBinco(w Writer) (n int, err error)
+	SizeTypedBinco() (size int)
+}
+```
+
+Subpackages: `wirefmt/varnum`, `wirefmt/scalar`, `wirefmt/composite`, `wirefmt/zerocopy`,
+`wirefmt/ptrmap`, `wirefmt/typeid`, `wirefmt/config/*`. `wirefmt/zerocopy` has no byte slice
+codec: a wire cannot hand out a view of bytes it has not read yet, so byte slices
+go through `wirefmt/composite`.
+
+
+## 9. Cheat sheet
 
 ```go
 // Encoding and decoding
@@ -3160,10 +2771,450 @@ g.AddStruct(reflect.TypeFor[T]())
 bs, err := g.Generate()
 ```
 
+
+## 10. Error reference
+
+| Error | Returned when |
+|-------|---------------|
+| `binco.ErrOverflow` | a varint carries more bits than the type has, or a value does not fit the host word |
+| `binco.ErrNegativeLength` | a decoded length is negative |
+| `binco.ErrNonCanonical` | a varint is not in its shortest form |
+| `binco.ErrWrongFormat` | a flag byte or shape is invalid (bool > 1, unknown pointer flag) |
+| `binco.ErrTruncated` | the input ends inside a value |
+| `binco.ErrBufferTooSmall` | Marshal would write past the output buffer |
+| `binco.ErrTooLargeLength` | a length exceeds a fixed maximum (zero-size elements, array overflow) |
+| `binco.ErrWrongLength` | a length does not match the type (array shorter or longer than its type) |
+| `binco.ErrTooDeep` | a value nests deeper than `binco.MaxDepth` / `binco.MaxPointerDepth` |
+| `binco.ErrWrongType` | a pointer identifier was defined by another type |
+| `binco.ErrTrailingBytes` | `binco.DecodeExact` read a complete value followed by more bytes |
+| `binco.ErrWrongArrayType` | `NewArraySerializer` was built with mismatched type parameters |
+| `binco.ErrNilInterface` | reserved for a nil interface where a value was required |
+| `binco.ErrDuplicateDTM` | the generator assigned the same type identifier twice |
+| `codegen.ErrNameCollision` | two types would be generated under the same name |
+| `binco.ErrUnsupportedIntSize` | kept for compatibility; no code path raises it now that `int` has a fixed wire width |
+| `binco.ErrUnsupportedArch` | kept for compatibility; `zerocopy` no longer requires a little-endian host |
+| `binco.UnexpectedDTMError` | a dispatcher read an unknown type identifier |
+| `binco.WrongDTMError` | `typeid.Serializer` read a different identifier than its own |
+| `io.EOF` (streams) | the stream ended cleanly between values |
+| `io.ErrUnexpectedEOF` (streams) | the stream ended inside a value |
+| `ErrCodeGenFailed` (`codegen`) | the generated source does not parse |
+
+All library errors are prefixed with `binco: ` and support `errors.Is`;
+the error types expose their details:
+
+```go
+var wrong binco.WrongDTMError
+if errors.As(err, &wrong) {
+	fmt.Println(wrong.Expected(), wrong.Actual())
+}
+```
+
+
+## 11. Correctness guarantees and security
+
+**Guarantees**
+
+* `Size(v)` equals the bytes `Marshal(v, bs)` writes; `Unmarshal` consumes
+  exactly that many; `Skip` advances exactly as far.
+* Encoding is deterministic except for maps (iteration order) and pointer ids
+  (assignment order). Everything else is a pure function of the value.
+* Buffer codecs and streaming codecs emit identical bytes; `scalar`/`zerocopy` agree
+  on numbers; `composite`/`zerocopy` agree on strings and byte slices.
+* Decoding never reads past the value it returns and never panics on malformed
+  input.
+* Lengths are checked without overflow: a decoded `MaxInt64` length returns
+  `ErrTruncated` instead of wrapping into a slice panic.
+* A decoded length never drives an allocation larger than the input that could
+  contain it; a streaming blob grows with the bytes that actually arrive.
+* Varints are canonical: every value has exactly one byte representation.
+* The generator's output compiles and behaves like hand-written code; the test
+  suite regenerates, compiles and runs it, and CI fails when the committed output
+  differs from a fresh run.
+
+**Security notes**
+
+* Treat every length as hostile: the codecs already cap what a length can make
+  them allocate, and the validating codecs let you reject implausible ones before
+  they are read.
+* Reject unknown DTMs in protocols; do not attempt to skip them.
+* A payload can legitimately be empty; distinguish "empty message" from
+  "connection closed" by protocol design, not by guessing.
+* Pointer identifiers are typed: a payload cannot reinterpret one type as another
+  (`ErrWrongType`), and two values that share an address get different ids.
+* Nested pointers stop at `binco.MaxDepth` / `binco.MaxPointerDepth` with
+  `ErrTooDeep` instead of exhausting the stack. Containers whose elements consume
+  no bytes are capped by `binco.MaxZeroSizeElements`.
+* `binco/zerocopy` converts scalars explicitly, so it is safe on any byte order and
+  at unaligned offsets. Its strings and slices still alias the input buffer.
+* The generator validates validator and migration expressions before it emits
+  them, replaces panics with errors, and reports name collisions instead of
+  silently merging two types.
+
+
+## 12. Performance guide
+
+**Plan for the buffer.** `Size` is exact and cheap; use it to allocate once and
+reuse. The `Encoder` pattern in
+[Zero-allocation encoding](#617-zero-allocation-encoding) is the recommended
+shape for hot paths.
+
+**Encode fixed-width slices in bulk.** A slice whose element codec reports a
+fixed width (`scalar` and `zerocopy` scalars) is copied in one operation instead of
+one interface call per element, provided the host is little-endian. The fast path
+is automatic; element validators keep the per-element path.
+
+**Pick the codec family per field.**
+
+* `varnum` for small and medium integers, ids, counters, lengths.
+* `scalar` for values above the thresholds in [Fixed width](#134-fixed-width), for constant-size
+  records, and when CPU matters more than bytes.
+* `zerocopy` for scalars and blobs on paths where the aliasing rules are
+  acceptable; it is correct on every byte order.
+
+**Skip what you do not need.** `Skip` costs a few branches and no allocation.
+Decoding a field you immediately discard is pure overhead.
+
+**Prefer the streaming API for large payloads.** It never materializes the whole
+message. Use a `bufio` reader/writer at the boundary: the adapters write one
+byte at a time.
+
+**Batch small writes.** A stream of tiny messages is dominated by `Write`
+syscalls; buffer (bufio) and flush on message boundaries or when the buffer
+fills.
+
+**Avoid reflection.** The generated code is allocation-free and inlinable. If
+you must use reflection, do it once at startup to build codecs, not per value.
+
+**Benchmark the real shape.** The cost of a payload is dominated by memory
+traffic; measure with your structs rather than synthetic scalars. `go test
+-bench` with `-benchmem` is enough to see whether a change allocates.
+
+
+## 13. The wire format
+
+### 13.1 Anatomy of a payload
+
+A payload is a sequence of encoded values with no separators:
+
+```
+[ field 1 ][ field 2 ][ field 3 ] ...
+```
+
+There is no header, no version, no length, no checksum and no padding. The
+receiver reads values in the order the schema declares them. Every value is
+self-delimiting: a number by its width or its LEB128 continuation bits, a
+container by its length prefix, a pointer by its flag byte.
+
+### 13.2 Booleans and bytes
+
+`bool` and `byte` occupy exactly one byte.
+
+```
+true     ->  [1]
+false    ->  [0]
+byte 7   ->  [7]
+```
+
+A `bool` byte other than 0 or 1 is rejected with `binco.ErrWrongFormat`.
+
+### 13.3 Varint
+
+`package varnum` encodes unsigned integers in LEB128 form: seven bits per byte,
+least significant group first, the high bit set on every byte but the last.
+
+```
+40          ->  [40]
+127         ->  [127]
+128         ->  [128 1]
+300         ->  [172 2]
+2^64-1      ->  [255 255 255 255 255 255 255 255 255 1]
+```
+
+Signed integers are ZigZag-mapped first, so that small negative numbers stay
+small:
+
+```
+ 0          ->  [0]
+-1          ->  [1]
+ 1          ->  [2]
+-2          ->  [3]
+ 63         ->  [126]
+-64         ->  [127]
+ 64         ->  [128 1]
+ 300        ->  [216 4]
+-300        ->  [215 4]
+```
+
+`varnum.PositiveInt` and its sized variants skip the ZigZag step. They are meant
+for values that cannot be negative: lengths, type identifiers, pointer ids.
+
+An encoding must be *canonical*: the shortest form of the value. A multi-byte
+encoding whose final byte is zero (`[128 128 128 0]`) is rejected with
+`binco.ErrNonCanonical`, so every value has exactly one byte representation and
+hashing, signing or de-duplicating payloads by their bytes is meaningful.
+
+An encoding may not exceed the width of its type. When it does, decoding fails
+with `binco.ErrOverflow`:
+
+| Type | Longest encoding | Largest final byte |
+|------|------------------|--------------------|
+| `uint8` | 2 bytes | 1 |
+| `uint16` | 3 bytes | 3 |
+| `uint32` | 5 bytes | 15 |
+| `uint64` | 10 bytes | 1 |
+
+Floats are stored as the unsigned varint of their IEEE 754 bit pattern (64 or 32
+bits), which keeps `0.0` and small denormals short and `1.5` at nine bytes.
+
+### 13.4 Fixed width
+
+`package scalar` writes numbers in little-endian byte order using the width of
+their Go type: eight bytes for 64-bit values, four for 32-bit, two for 16-bit,
+one for 8-bit. `int` and `uint` are always encoded as eight bytes, whatever the
+host word size is, so a payload written on amd64 reads back on a 32-bit build; a
+value the host cannot hold is reported as `binco.ErrOverflow`.
+
+```
+uint64 40     ->  [40 0 0 0 0 0 0 0]
+uint64 max    ->  [255 255 255 255 255 255 255 255]
+uint16 0x1234 ->  [52 18]
+int64 -1      ->  [255 255 255 255 255 255 255 255]
+float64 1.0   ->  [0 0 0 0 0 0 240 63]
+float32 1.5   ->  [0 0 192 63]
+byte 7        ->  [7]
+```
+
+Raw beats varint in size only for large values:
+
+| Type | Raw becomes smaller above |
+|------|---------------------------|
+| `uint64` | 2^56 |
+| `uint32` | 2^28 |
+| `uint16` | 2^14 |
+| `uint8` | never |
+
+Its advantage is speed: no shifts, no branches, and the compiler usually turns
+the `encoding/binary` calls into a single load or store.
+
+### 13.5 Strings and byte slices
+
+Both are a length followed by raw bytes. The length is a positive integer
+(`varnum.PositiveInt` by default).
+
+```
+"hello world"   ->  [11 104 101 108 108 111 32 119 111 114 108 100]
+[]byte{1,2,3}   ->  [3 1 2 3]
+""              ->  [0]
+nil []byte      ->  [0]
+```
+
+A nil string/byte slice and an empty one produce the same bytes and both decode
+to an empty, non-nil value. Byte slices carry no UTF-8 meaning, so invalid UTF-8
+survives a round trip inside `[]byte` but not necessarily inside `string`
+(Go does not validate on conversion, so in practice it survives there too).
+
+### 13.6 Slices and arrays
+
+A slice is a length followed by its elements. An array is encoded the same way,
+but its type fixes the length.
+
+```
+[]int{1,2,3}        ->  [3 2 4 6]
+[3]int{1,2,3}       ->  [3 2 4 6]
+[]string{"hello", "world"}
+                    ->  [2 5 104 101 108 108 111 5 119 111 114 108 100]
+```
+
+Decoding into an array requires the length prefix to match the array type: a
+payload of a different length fails with `binco.ErrWrongLength`. That keeps the
+decode memory-safe.
+
+### 13.7 Maps
+
+A map is a length followed by key/value pairs:
+
+```
+map[int]string{1: "hello"}  ->  [1 2 5 104 101 108 108 111]
+```
+
+Entries appear in Go's map iteration order, which is random. Two marshals of the
+same map may produce different bytes, though both decode to equal maps. If you
+need canonical bytes, encode a sorted slice of pairs instead; see
+[Collections](#65-collections).
+
+### 13.8 Pointers
+
+A pointer starts with a one-byte flag:
+
+| Flag | Name | Meaning |
+|------|------|---------|
+| `0` | `binco.PtrNotNil` | the pointed-to value follows |
+| `1` | `binco.PtrNil` | nil, nothing follows |
+| `2` | `binco.PtrMapping` | an identifier follows; data only the first time |
+
+The plain pointer codec (`composite.NewPtrSerializer`) writes flags 0 and 1 and rejects flag 2:
+
+```
+nil *string        ->  [1]
+&"hello world"     ->  [0 11 104 101 ... 100]
+```
+
+Pointer mapping (`package ptrmap`) uses flag 2 to write a pointer graph once:
+
+```go
+ptr1, ptr2 := &10, &20
+list := []*int{ptr1, ptr1, ptr2}
+
+list               ->  [3 2 0 20 2 0 2 1 40]
+```
+
+```
+[3]      number of elements
+[2 0]    mapping flag, id 0, then the value 10 (ZigZag 20)
+[2 0]    the same pointer again: flag and id only
+[2 1]    mapping flag, id 1, then the value 20 (ZigZag 40)
+```
+
+Ids start at zero in encounter order and are shared by every `ptrmap` codec of one
+value. An id remembers the type it was decoded as, and a reference is only
+resolved when that type matches: a payload cannot make a `*string` out of an
+`*int`, and the mismatch is reported as `binco.ErrWrongType`.
+
+Both pointer codecs bound their recursion. `ptrmap` counts depth per decoded
+value and stops at `binco.MaxDepth` (1000); the plain pointer codec shares one
+atomic counter per serializer and stops at `binco.MaxPointerDepth` (10000). A
+payload of nested pointers therefore returns `binco.ErrTooDeep` instead of
+exhausting the goroutine stack. See
+[Shared pointers and identity](#67-shared-pointers-and-identity).
+
+### 13.9 Time
+
+`time.Time` is stored as a Unix timestamp, using a fixed eight bytes:
+
+```
+time.Date(2024, 5, 6, 7, 8, 9, 0, time.UTC)
+  with scalar.TimeUnixUTC  ->  [217 129 56 102 0 0 0 0]
+```
+
+Four units are available: seconds, milliseconds, microseconds and nanoseconds.
+Every variant decodes to UTC, so the same payload compares equal on machines in
+different zones; the `...UTC` names are kept for compatibility and mean the same
+thing. Precision the unit cannot represent is lost, and `UnixNano` overflows
+silently outside roughly 1678-2262 (`UnixMilli` has a far wider range).
+
+### 13.10 Type identifiers
+
+A DTM (data type metadata) is a positive integer written in front of a payload
+to name its type:
+
+```
+DTM 7 + int 300    ->  [7 216 4]
+```
+
+It is written with `varnum.PositiveInt`, so ids below 128 cost one byte. The
+receiver reads the id first and dispatches to the matching codec:
+
+```go
+dtm, n, err := typeid.DTMSerializer.Unmarshal(bs)
+switch dtm {
+case LoginDTM:
+	// decode the rest with the Login codec
+case ChatDTM:
+	// decode the rest with the Chat codec
+default:
+	err = binco.NewUnexpectedDTMError(dtm)
+}
+```
+
+DTMs are the only "framing" the format has, which makes them the tool of choice
+for streams and files of heterogeneous values.
+
+Ids are positive: a zero or negative id would be written as a huge unsigned
+number, so `typeid.DTMSerializer` rejects it with `binco.ErrOverflow`. In the
+generator, pin the id of every registered type with `genopts.WithDTM`; without it
+the generator numbers the types in registration order, and adding or removing one
+renumbers the others. Generated constants carry literal values, duplicate ids are
+rejected, and `Generator.DTMRegistry` returns the mapping for a golden file.
+
+### 13.11 A payload dissected
+
+Consider a record encoded as its three fields, using a varint for the number, an
+8-byte raw integer for the source port and a string for the host:
+
+```go
+bs := []byte{
+	216, 4, // 300 as a ZigZag varint
+	0xD4, 0x3D, 0, 0, 0, 0, 0, 0, // 15828 as an 8-byte raw integer
+	9, 'l', 'o', 'c', 'a', 'l', 'h', 'o', 's', 't', // length + bytes
+}
+```
+
+Reading it back is a matter of knowing the schema:
+
+```go
+id, n1, err := varnum.Int.Unmarshal(bs)
+port, n2, err := scalar.Uint64.Unmarshal(bs[n1:])
+host, n3, err := composite.String.Unmarshal(bs[n1+n2:])
+// id = 300, port = 15828, host = "localhost", n1+n2+n3 == len(bs)
+```
+
+Nothing in the bytes says which is which; the decode order does.
+
+### 13.12 Compatibility rules
+
+A payload is compatible with a reader when the reader decodes the same field
+sequence with the same codecs. In practice:
+
+**Safe changes**
+
+* Adding a trailing field, if old readers may stop early and new readers get a
+  payload that contains it. Old payloads lack the bytes, so new readers must
+  know the format version some other way (a DTM, an envelope, or a version field
+  at the front).
+* Changing a codec's *implementation* (`composite.String` to `zerocopy.String`, a
+  generator mode switch) - the bytes are identical.
+* Adding a new type with a new DTM.
+
+**Breaking changes**
+
+* Reordering or removing fields.
+* Changing a field's codec or unit (`varnum` to `scalar`, seconds to milliseconds).
+* Changing a length codec.
+* Reusing a DTM for different data.
+
+When a break is unavoidable, introduce a new version and keep the reader able to
+decode the old one; see [Versioning and migration](#610-versioning-and-migration).
+
+The generated `SchemaFingerprint` constant is the cheap check: store it beside a
+payload (or compare it at deployment time) and a reordered field is caught before
+the data is misread.
+
+
 ## 14. FAQ
 
+**Where should I start?** The [Start here](#start-here) table maps a task to the
+section that answers it. [Quick start](#3-quick-start) encodes and decodes a
+value in three steps and ends with a short reading list.
+
+**Buffer API or streaming API?** Use the buffer API unless the payload is a flow
+that is too large to hold in memory or arrives on a connection;
+[Buffers and streams](#42-buffers-and-streams) compares them. The bytes are
+identical, so a buffer payload can be decoded by a streaming codec and vice
+versa (through a `bytes.Reader`/`bytes.Buffer`).
+
+**How do I debug a payload that will not decode?** Check the error with
+`errors.Is` first - `ErrTruncated` means the payload ended inside a value,
+`ErrWrongFormat` means a byte is not a valid flag. Then dissect the bytes with
+[A payload dissected](#1311-a-payload-dissected) and the rest of
+[The wire format](#13-the-wire-format). `binco.DecodeExact` reports leftover
+bytes with `ErrTrailingBytes`.
+
+**Can I modify a decoded string or byte slice?** With `composite`, yes: its
+codecs copy. With `zerocopy`, no: the value aliases the input buffer. Copy it
+with `strings.Clone`/`bytes.Clone`, or use the `composite` codecs.
+
 **Can I use binco for data that must be readable by a program in another
-language?** Yes. The format is described in [The wire format](#5-the-wire-format)
+language?** Yes. The format is described in [The wire format](#13-the-wire-format)
 and uses only LEB128 varints, ZigZag, little-endian fixed-width integers, length
 prefixes and the pointer flags. You need to replicate the schema, not a runtime.
 
@@ -3175,7 +3226,7 @@ bytes to every payload; the receiver already knows the order.
 stop and report it.
 
 **Do I need the generator?** No. The hand-written codec in
-[Structs by hand](#83-structs-by-hand) is exactly what the generator emits.
+[Structs by hand](#63-structs-by-hand) is exactly what the generator emits.
 
 **Can I serialize a struct with unexported fields?** Yes, in the same package
 where it is declared (`reflect` is only used by the generator, which cannot see
@@ -3203,13 +3254,17 @@ same rules apply.
 source can change when the generator improves. Commit the generated file and
 review diffs, exactly like any other generated code.
 
+
 ## 15. Working on binco
 
 The architecture, repository layout, commands, testing strategy, conventions
 and the full list of runnable examples live in [`AGENTS.md`](./AGENTS.md),
-which is the entry point for contributors and coding agents. The user-facing
-documentation is this file; the wire format in
-[The wire format](#5-the-wire-format) is the shared reference.
+which is the entry point for contributors and coding agents. The everyday
+commands are `go test ./...`, `make cover-check`, `make doc-check`,
+`make portable` and `go generate ./...`; AGENTS.md explains each one. The user-facing documentation
+is this file; the wire format in
+[The wire format](#13-the-wire-format) is the shared reference.
+
 
 ## License
 

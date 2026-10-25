@@ -43,6 +43,11 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # The race run below exercises the same tests; this plain run keeps the
+      # result readable and also covers the demo packages.
+      - name: Test (no race detector)
+        run: go test ./...
+
       # The demos are example programs, not library code: they are built, never
       # measured. Every other package is in the coverage profile.
       - name: Test
@@ -145,6 +150,27 @@ jobs:
       - name: Run golangci-lint
         run: golangci-lint run --timeout=5m --build-tags=fuzz
 
+  # README.md and AGENTS.md are part of the contract. This job verifies every
+  # internal link, every documented symbol (through `go doc`), the section
+  # numbering, the table of contents and that no retired name survives; see
+  # scripts/doccheck.py.
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.mod
+
+      - name: Check documentation
+        run: python3 scripts/doccheck.py
+
   # Fuzz targets live behind the "fuzz" build tag, so `go test ./...` does not
   # run them. Each target gets a short run here; run them longer with
   # `go test -tags=fuzz -run='^$' -fuzz=<target> ./<package>`.
@@ -238,7 +264,7 @@ jobs:
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [test, test-386, lint]
+    needs: [test, test-386, portability, lint, docs]
     runs-on: ubuntu-latest
     permissions:
       contents: write
