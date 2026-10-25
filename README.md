@@ -1,11 +1,6 @@
-# binco
+# <img alt="rumo logo" src="binco.png" width="200" style="margin-bottom:-15px;"> [![Go Reference](https://pkg.go.dev/badge/github.com/malivvan/binco.svg)](https://pkg.go.dev/github.com/malivvan/binco) [![Release](https://img.shields.io/github/v/release/malivvan/binco.svg?sort=semver)](https://github.com/malivvan/binco/releases/latest) [![CI](https://github.com/malivvan/binco/actions/workflows/ci.yml/badge.svg)](https://github.com/malivvan/binco/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/github/malivvan/binco/badge.svg)](https://coveralls.io/github/malivvan/binco) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/malivvan/binco.svg)](https://pkg.go.dev/github.com/malivvan/binco)
-[![CI](https://github.com/malivvan/binco/actions/workflows/ci.yml/badge.svg)](https://github.com/malivvan/binco/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/malivvan/binco/badge.svg)](https://coveralls.io/github/malivvan/binco)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-
-`binco` is a binary serialization toolkit for Go. It gives you codecs for every
+`binco` is a binary codec toolkit for Go. It gives you codecs for every
 built-in type, a zero-copy fast path, pointer mapping for graphs, type
 identifiers for polymorphic data, a streaming API, and a code generator that
 writes serializers for your own types.
