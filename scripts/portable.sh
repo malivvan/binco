@@ -76,7 +76,7 @@ if [ "${1:-}" = "--quick" ]; then
 	quick=1
 fi
 
-library_pkgs=$(go list ./... | grep -v '/demos')
+library_pkgs=$(go list ./...)
 
 if [ "$quick" -eq 0 ]; then
 	count=0

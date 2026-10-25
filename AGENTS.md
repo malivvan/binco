@@ -57,16 +57,15 @@ documentation, tests and generated files are updated with it.
    network, no ordering that depends on Go's map iteration. The generated-code
    test runs the real `go` tool in a temporary module and is skipped by
    `go test -short`.
-8. **Generated files are committed.** `demos/gen/pkg/binco.gen.go` and
-   `demos/gen_options/pkg/binco.gen.go` are regenerated with `go generate ./...`;
-   CI fails when the committed output differs from a fresh run.
-9. **Do not edit a generated file by hand.** Change the generator or the source
-   type, then regenerate.
+8. **No generated files are committed.** The generator is exercised by
+   `TestGeneratedCodeCompilesAndRuns`, which writes its output into a temporary
+   module and compiles it; the README's code-generation guides are the
+   reference. Never add generated code to the repository by hand.
 
 ## 2. Commands
 
 ```bash
-# Build and test everything, including the demos.
+# Build and test everything.
 go build ./...
 go test ./...
 
@@ -75,14 +74,13 @@ gofmt -l .                       # must print nothing
 go vet ./...
 go test -race ./...
 GOARCH=386 go test ./...          # the 32-bit wire-width and overflow paths
-go generate ./... && git diff --exit-code   # generated code is current
-make cover-check                 # 100% statement coverage, demos excluded
+make cover-check                 # 100% statement coverage, whole module
 make doc-check                   # README/AGENTS links, symbols, numbering
 make portable                    # builds every target Go supports (slow)
 make portable-quick              # the cross-section only, for iteration
 
 # Every Go command above has a Makefile entry:
-make build test race vet fmt generate lint cover cover-check doc-check portable portable-quick demos
+make build test race vet fmt lint cover cover-check doc-check portable portable-quick
 
 # Faster iteration.
 go test ./composite/ -run TestSorted -v
@@ -125,11 +123,10 @@ it, and delete it if a stray copy is left behind.
 ├── wirefmt/            the streaming mirror of everything above, package by package
 ├── codegen/            the generator: API, spec model, builder, templates, scanner
 ├── internal/           shared implementation details (see §4.6)
-├── demos/              runnable main packages, one per feature (see §10)
 ├── testdata/           fixture types used by the generator tests
 ├── scripts/            covercheck.sh (coverage gate), doccheck.py (docs),
 │                       portable.sh (every target)
-├── Makefile            build/test/cover/lint entry points (demos excluded)
+├── Makefile            build/test/cover/lint entry points
 ├── NOCOVER.md          the few branches coverage cannot reach, with reasons
 └── .github/workflows/  CI
 ```
@@ -195,10 +192,10 @@ Four invariants hold for every codec, including generated ones:
 ### 4.2 Layering
 
 ```
-demos ──────────────► codegen ──► templates ──► internal/importfix
-                         │
-                         ├─► spec ◄── spec/builder ◄── scanner, classifier, typename
-                         └─► spec/converter
+codegen ──► templates ──► internal/importfix
+   │
+   ├─► spec ◄── spec/builder ◄── scanner, classifier, typename
+   └─► spec/converter
 user code ──► ptrmap, typeid ──► composite, zerocopy ──► varnum, scalar ──► binco
                                     │
                               config/* options
@@ -372,9 +369,8 @@ expression** has no type to derive it from and must be named with
 2. Carry it through `spec` and `spec/builder`; validate expressions with
    `builder.ValidateExpr`/`ValidateIdent` where user text is pasted into source.
 3. Teach the relevant template(s), both `Stream` and non-`Stream` branches.
-4. Regenerate the demos and add a generator test that asserts the emitted
-   fragment and, where the change is substantial, that the output compiles
-   (`TestGeneratedCodeCompilesAndRuns`).
+4. Add a generator test that asserts the emitted fragment and, where the change
+   is substantial, that the output compiles (`TestGeneratedCodeCompilesAndRuns`).
 
 ### Adding a type kind
 
@@ -497,9 +493,8 @@ A new documentation rule belongs in the script, not in a reviewer's memory.
 
 ### Coverage
 
-Every library package must stay at **100% statement coverage**. The demos are
-example programs and are excluded from the profile by the package list in the
-Makefile (`go list ./... | grep -v /demos`).
+Every package in the module must stay at **100% statement coverage**; the
+Makefile measures `go list ./...`.
 
 ```bash
 make cover-check   # go test -coverprofile over the non-demo packages, then
@@ -521,30 +516,14 @@ unreachable branch or making the dependency injectable over adding an entry.
 
 ## 10. Examples
 
-`demos/` contains a runnable `main` package for every feature; the compiler checks
-them on every build, so a stale example is a broken build.
+Every task guide in README §6 is a complete, copyable program: the full source
+(types, codecs and a `main` that prints its values and the encoded bytes) sits
+next to the explanation, with its expected output below it. The generator guides
+in §7 include the type, the generator program, the generated file and the code
+that uses it.
 
-| Example | Shows |
-|---------|-------|
-| `types/array` | arrays, wrong-length rejection |
-| `types/slice` | slices, length codecs, nil vs empty |
-| `types/map` | maps, ordering caveat |
-| `types/struct` | a hand-written struct codec |
-| `validation/string`, `validation/slice`, `validation/map` | the three validator families |
-| `out_of_order` | `Skip` offsets, reverse decoding |
-| `typed/different`, `typed/oneof`, `typed/versioning`, `typed/stream` | DTMs, interfaces, versions, streaming messages |
-| `pm/simple`, `pm/linked_list`, `pm/graph` | shared pointers, cycles, graphs |
-| `native` | zero-copy pitfalls and fixes |
-| `marshal_func` | `binco.Marshal`/`MarshalTyped` |
-| `gen`, `gen_options` | code generation (regenerated; their `gen/` subpackages hold the generator programs) |
-
-```bash
-go run ./demos/types/struct
-go generate ./demos/gen ./demos/gen_options   # regenerate committed code
-```
-
-New demos should be small, self-contained `main` packages that print what they
-show, and should be added to this table.
+There is no examples directory to keep in sync: an example that is not in the
+README does not exist, so it cannot drift.
 
 ## 11. Style
 
@@ -567,7 +546,7 @@ show, and should be added to this table.
 
 | Job | What it does |
 |-----|--------------|
-| `Test` | gofmt check, `go vet`, `go test -race -covermode=atomic -coverprofile=coverage.out` over the non-demo packages, `scripts/covercheck.sh`, generated-code diff (`go generate`), `go build ./...`, Coveralls upload |
+| `Test` | gofmt check, `go vet`, `go test -race -covermode=atomic -coverprofile=coverage.out ./...`, `scripts/covercheck.sh`, `go build ./...`, Coveralls upload |
 | `Test (GOARCH=386)` | `GOARCH=386 go test ./...` on 32-bit |
 | `Portability` | `scripts/portable.sh`: build every Go target, test-compile the cross-section |
 | `Docs` | `python3 scripts/doccheck.py`: links, documented symbols, numbering, retired names |
@@ -583,23 +562,19 @@ A change is ready when all of these hold:
 2. `go test ./...`, `go test -race ./...` and `GOARCH=386 go test ./...` pass.
 3. `make cover-check` reports 100% (or `NOCOVER.md` explains the gap).
 4. `make portable-quick` passes; before a release, run `make portable`.
-5. `go generate ./...` leaves the committed generated files unchanged.
-6. `golangci-lint run --build-tags=fuzz` reports no issues.
-7. `make doc-check` passes, and README and this file describe the new behaviour.
-8. `CHANGELOG.md` has an entry for the change.
+5. `golangci-lint run --build-tags=fuzz` reports no issues.
+6. `make doc-check` passes, and README and this file describe the new behaviour.
+7. `CHANGELOG.md` has an entry for the change.
 
 Release checklist:
 
-1. `go generate ./...` and commit any regenerated file.
-2. Update `CHANGELOG.md`: move `Unreleased` into the new version and date it.
-3. `gofmt -l .`, `go vet ./...`, `go test ./...`, `go test -race ./...`,
+1. Update `CHANGELOG.md`: move `Unreleased` into the new version and date it.
+2. `gofmt -l .`, `go vet ./...`, `go test ./...`, `go test -race ./...`,
    `GOARCH=386 go test ./...`, `make cover-check`.
-4. Tag `vX.Y.Z` and push the tag; CI publishes the release.
+3. Tag `vX.Y.Z` and push the tag; CI publishes the release.
 
 ## 13. Traps to know about
 
-* **Generated drift.** Changing a template without running `go generate ./...`
-  fails CI. Run it before you finish.
 * **Import guessing does not exist.** A validator that references another package
   needs `WithImport`; see §7.
 * **DTM renumbering.** Adding a version or implementation renumbers unpinned ids.
@@ -619,8 +594,7 @@ Release checklist:
   not delete it.
 * **Generated artifacts.** `make cover-check` writes `coverage.out`; `go test
   -c` writes `*.test`; `go tool cover -html` writes `coverage.html`. All three
-  are ignored and must not be committed. Nothing generated belongs in git
-  except the two demo files named in rule 8.
+  are ignored and must not be committed. Nothing generated belongs in git.
 * **Documentation drift.** README and this file are part of the contract:
   changing a command, an error, a default or a limit means updating both.
 * **`/tmp` size.** Some sandboxes have a small `/tmp`; if `go test -race` fails

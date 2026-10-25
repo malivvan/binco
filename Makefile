@@ -1,15 +1,10 @@
 # Developer entry points.
-#
-# Every target except `demos` works on the library packages only. The demos are
-# example programs, not library code, and are excluded from coverage on purpose
-# (see NOCOVER.md).
 
 GO        ?= go
-DEMO      := /demos
-PKGS      := $(shell $(GO) list ./... | grep -v '$(DEMO)')
+PKGS      := $(shell $(GO) list ./...)
 COVEROUT  ?= coverage.out
 
-.PHONY: build test race vet fmt generate lint cover cover-check doc-check demos
+.PHONY: build test race vet fmt lint cover cover-check doc-check portable portable-quick
 
 build:
 	$(GO) build ./...
@@ -26,18 +21,11 @@ vet:
 fmt:
 	@gofmt -l .
 
-generate:
-	$(GO) generate ./...
-
 lint:
 	golangci-lint run --build-tags=fuzz
 
-# Coverage of every library package. If the package list ever contains a demo
-# path the target fails instead of silently measuring example code.
+# Coverage of every package in the module.
 cover:
-	@if echo '$(PKGS)' | grep -q '$(DEMO)'; then \
-		echo "demos must be excluded from coverage"; exit 1; \
-	fi
 	$(GO) test -coverprofile=$(COVEROUT) $(PKGS)
 	$(GO) tool cover -func=$(COVEROUT) | tail -1
 
@@ -59,6 +47,3 @@ portable-quick:
 # documented symbols, numbering and table of contents.
 doc-check:
 	python3 scripts/doccheck.py
-
-demos:
-	$(GO) build ./demos/...

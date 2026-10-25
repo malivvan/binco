@@ -4,8 +4,8 @@
 #
 # usage: covercheck.sh [coverage.out] [NOCOVER.md]
 #
-# The demos are excluded by the command that produces the profile (see the
-# Makefile). A statement listed in the "nocover" block of NOCOVER.md, one
+# The profile covers every package in the module. A statement listed in the
+# "nocover" block of NOCOVER.md, one
 # module-relative "path:line" per line, is treated as covered. Every other
 # statement must be covered, and every entry must still name an uncovered
 # block, so the exception list cannot rot.

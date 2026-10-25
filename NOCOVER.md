@@ -2,12 +2,10 @@
 
 `binco` aims for **100% statement coverage** of every library package.
 
-The `demos/` tree is excluded from coverage by definition: those are example
-`main` programs, not library code, and they are built (not tested) on every run.
-Every other package is measured.
+Every package in the module is measured.
 
 ```bash
-make cover-check   # go test -coverprofile over the non-demo packages, then
+make cover-check   # go test -coverprofile over every package, then
                    # scripts/covercheck.sh fails unless everything is covered
 ```
 

@@ -44,27 +44,17 @@ jobs:
         run: go vet ./...
 
       # The race run below exercises the same tests; this plain run keeps the
-      # result readable and also covers the demo packages.
+      # result readable.
       - name: Test (no race detector)
         run: go test ./...
 
-      # The demos are example programs, not library code: they are built, never
-      # measured. Every other package is in the coverage profile.
       - name: Test
-        run: go test -race -covermode=atomic -coverprofile=coverage.out $(go list ./... | grep -v '/demos')
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
 
       # 100% statement coverage of the library, with the exceptions recorded in
       # NOCOVER.md. `make cover-check` runs the same check locally.
       - name: Check coverage
         run: sh scripts/covercheck.sh coverage.out NOCOVER.md
-
-      # The demos contain generated files. Regenerating them here keeps the
-      # generator and its output in sync: a template change that was not
-      # followed by `go generate ./...` fails this step.
-      - name: Check generated code is up to date
-        run: |
-          go generate ./...
-          git diff --exit-code
 
       - name: Build every package
         run: go build ./...

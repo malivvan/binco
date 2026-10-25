@@ -263,7 +263,8 @@ reuse.
 
 ### 3.3 A struct by hand
 
-A codec for a struct is the concatenation of its fields' codecs:
+A codec for a struct is the concatenation of its fields' codecs, in declaration
+order. For
 
 ```go
 type Person struct {
@@ -271,13 +272,17 @@ type Person struct {
 	Age  int
 	Tags []string
 }
+```
 
-type PersonCodec struct{}
+the core of the codec is:
+
+```go
+var tagsSerializer = composite.NewSliceSerializer(composite.String)
 
 func (PersonCodec) Marshal(v Person, bs []byte) (n int) {
 	n = composite.String.Marshal(v.Name, bs)
 	n += varnum.Int.Marshal(v.Age, bs[n:])
-	return n + composite.NewSliceSerializer(composite.String).Marshal(v.Tags, bs[n:])
+	return n + tagsSerializer.Marshal(v.Tags, bs[n:])
 }
 
 func (PersonCodec) Unmarshal(bs []byte) (v Person, n int, err error) {
@@ -291,93 +296,52 @@ func (PersonCodec) Unmarshal(bs []byte) (v Person, n int, err error) {
 	if err != nil {
 		return
 	}
-	v.Tags, n1, err = composite.NewSliceSerializer(composite.String).Unmarshal(bs[n:])
+	v.Tags, n1, err = tagsSerializer.Unmarshal(bs[n:])
 	n += n1
 	return
 }
-
-func (PersonCodec) Size(v Person) (size int) {
-	return composite.String.Size(v.Name) +
-		varnum.Int.Size(v.Age) +
-		composite.NewSliceSerializer(composite.String).Size(v.Tags)
-}
-
-func (PersonCodec) Skip(bs []byte) (n int, err error) {
-	n, err = composite.String.Skip(bs)
-	if err != nil {
-		return
-	}
-	var n1 int
-	n1, err = varnum.Int.Skip(bs[n:])
-	n += n1
-	if err != nil {
-		return
-	}
-	n1, err = composite.NewSliceSerializer(composite.String).Skip(bs[n:])
-	return n + n1, err
-}
-
-var PersonSerializer = PersonCodec{}
-
-// Usage:
-p := Person{Name: "ada", Age: 36, Tags: []string{"math", "code"}}
-bs := binco.Encode(PersonSerializer, p)      // 13 bytes
-back, err := binco.Decode(PersonSerializer, bs)
 ```
 
+`Size` sums the field sizes, and `Skip` advances exactly as `Unmarshal` reads.
 The pattern is always the same: encode field by field into `bs[n:]`, decode
-field by field from `bs[n:]`, and accumulate `n`.
+field by field from `bs[n:]`, and accumulate `n`. The complete program, with all
+four methods and a runnable `main`, is in
+[Structs by hand](#63-structs-by-hand).
 
 ### 3.4 The same struct from the generator
 
-Writing that by hand does not scale. The generator writes it for you:
+Writing that by hand does not scale. Add a directive to the file that declares
+the type:
 
 ```go
 //go:generate go run ./gen
-
-type Person struct {
-	Name string
-	Age  int
-	Tags []string
-}
 ```
+
+and a small generator program:
 
 ```go
 // gen/main.go
-package main
-
-import (
-	"log"
-	"os"
-	"reflect"
-
-	"example.com/app"
-
-	"github.com/malivvan/binco/codegen"
-	genopts "github.com/malivvan/binco/codegen/config/gen"
-)
-
-func main() {
-	g, err := codegen.NewGenerator(genopts.WithPath("example.com/app"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err = g.AddStruct(reflect.TypeFor[app.Person]()); err != nil {
-		log.Fatal(err)
-	}
-	bs, err := g.Generate()
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err = os.WriteFile("person_binco.gen.go", bs, 0o644); err != nil {
-		log.Fatal(err)
-	}
+g, err := codegen.NewGenerator(genopts.WithPath("example.com/app"))
+if err != nil {
+	log.Fatal(err)
+}
+if err = g.AddStruct(reflect.TypeFor[app.Person]()); err != nil {
+	log.Fatal(err)
+}
+bs, err := g.Generate()
+if err != nil {
+	log.Fatal(err)
+}
+if err = os.WriteFile("person_binco.gen.go", bs, 0o644); err != nil {
+	log.Fatal(err)
 }
 ```
 
 `go generate` now produces `PersonBinco`, a `binco.Serializer[Person]` with the
-same behaviour as the hand-written codec. The full story is in
-[Code generation](#7-code-generation).
+same behaviour as the hand-written codec. The complete program - types,
+generator, generated file and the code that uses it - is in
+[Getting started](#71-getting-started); the options are in
+[Generator configuration](#72-generator-configuration).
 
 ### 3.5 Over a stream
 
@@ -703,97 +667,160 @@ Read [Zero-copy hot paths](#614-zero-copy-hot-paths) before using it.
 
 ### 6.3 Structs by hand
 
-The full pattern, with a nested container:
+A struct is the concatenation of its fields in declaration order, so a struct
+codec is the concatenation of its field codecs. `Size` is exact, `Skip` advances
+in step with `Unmarshal`, and the same four methods work in the buffer and the
+streaming API.
+
+The complete program below defines a type, implements `binco.Serializer[Foo]`
+by hand, gives `Foo` the `MarshalBinco`/`SizeBinco` methods (so `binco.Marshal`
+works), and prints the bytes at every step.
+
+**`types/struct/foo.go`**
 
 ```go
-type Order struct {
-	ID     UserID
-	Items  []Item
-	Note   string
-	Total  int64
+package main
+
+type Foo struct {
+	Str string
+	Sl  []int
+}
+```
+
+**`types/struct/serializer.go`**
+
+```go
+// FooSerializer is a hand-written codec; the generated code has the same shape.
+package main
+
+import (
+	"github.com/malivvan/binco/composite"
+	"github.com/malivvan/binco/varnum"
+)
+
+var (
+	FooSerializer  = fooSerializer{}
+	intsSerializer = composite.NewSliceSerializer(varnum.Int)
+)
+
+type fooSerializer struct{}
+
+func (s fooSerializer) Marshal(v Foo, bs []byte) (n int) {
+
+	n = composite.String.Marshal(v.Str, bs)
+
+	return n + intsSerializer.Marshal(v.Sl, bs[n:])
 }
 
-type orderCodec struct{}
+func (s fooSerializer) Unmarshal(bs []byte) (v Foo, n int, err error) {
 
-func (orderCodec) Marshal(v Order, bs []byte) (n int) {
-	n = userIDCodec{}.Marshal(v.ID, bs)
-	n += composite.NewSliceSerializer[Item](ItemCodec{}).Marshal(v.Items, bs[n:])
-	n += composite.String.Marshal(v.Note, bs[n:])
-	return n + varnum.Int64.Marshal(v.Total, bs[n:])
-}
-
-func (orderCodec) Unmarshal(bs []byte) (v Order, n int, err error) {
-	v.ID, n, err = userIDCodec{}.Unmarshal(bs)
+	v.Str, n, err = composite.String.Unmarshal(bs)
 	if err != nil {
 		return
 	}
+
 	var n1 int
-	v.Items, n1, err = composite.NewSliceSerializer[Item](ItemCodec{}).Unmarshal(bs[n:])
-	n += n1
-	if err != nil {
-		return
-	}
-	v.Note, n1, err = composite.String.Unmarshal(bs[n:])
-	n += n1
-	if err != nil {
-		return
-	}
-	v.Total, n1, err = varnum.Int64.Unmarshal(bs[n:])
+	v.Sl, n1, err = intsSerializer.Unmarshal(bs[n:])
+
 	n += n1
 	return
 }
 
-func (orderCodec) Size(v Order) (size int) {
-	return userIDCodec{}.Size(v.ID) +
-		composite.NewSliceSerializer[Item](ItemCodec{}).Size(v.Items) +
-		composite.String.Size(v.Note) +
-		varnum.Int64.Size(v.Total)
+func (s fooSerializer) Size(v Foo) (size int) {
+	return composite.String.Size(v.Str) + intsSerializer.Size(v.Sl)
 }
 
-func (orderCodec) Skip(bs []byte) (n int, err error) {
-	n, err = userIDCodec{}.Skip(bs)
+func (s fooSerializer) Skip(bs []byte) (n int, err error) {
+	n, err = composite.String.Skip(bs)
 	if err != nil {
 		return
 	}
 	var n1 int
-	n1, err = composite.NewSliceSerializer[Item](ItemCodec{}).Skip(bs[n:])
-	n += n1
-	if err != nil {
-		return
-	}
-	n1, err = composite.String.Skip(bs[n:])
-	n += n1
-	if err != nil {
-		return
-	}
-	n1, err = varnum.Int64.Skip(bs[n:])
+	n1, err = intsSerializer.Skip(bs[n:])
 	return n + n1, err
 }
-```
 
-**Required errors when no data is consumed.** Returning `err` from
-`Unmarshal` stops the caller immediately; `Skip` must propagate errors the same
-way. A codec that ignores an error produces confusing failures far from the
-cause.
+func (f Foo) MarshalBinco(bs []byte) (n int) {
+	return FooSerializer.Marshal(f, bs)
+}
 
-**Trailing fields.** If you append a field to the schema, old payloads do not
-contain it. Either version the type, or make the reader tolerate a truncated
-tail by checking `n` against `len(bs)`:
-
-```go
-func (c orderCodec) Unmarshal(bs []byte) (v Order, n int, err error) {
-	// ... decode the original fields ...
-	if n == len(bs) {
-		return v, n, nil // an old payload without the new field
-	}
-	v.Total, n1, err = varnum.Int64.Unmarshal(bs[n:])
-	n += n1
-	return
+func (f Foo) SizeBinco() (size int) {
+	return FooSerializer.Size(f)
 }
 ```
 
-This works because every value is self-delimiting and `Unmarshal` never reads
-past the buffer.
+**`types/struct/main.go`**
+
+```go
+// Command struct uses the hand-written FooSerializer serializer to show the shape of an encoded struct.
+package main
+
+import (
+	"fmt"
+
+	"github.com/malivvan/binco"
+)
+
+func main() {
+	v := Foo{
+		Str: "hello, binco",
+		Sl:  []int{1, 2, 3},
+	}
+
+	bs := make([]byte, FooSerializer.Size(v))
+	n := FooSerializer.Marshal(v, bs)
+	fmt.Printf("value:   %+v\n", v)
+	fmt.Printf("size:    %d bytes\n", len(bs))
+	fmt.Printf("encoded: %v (wrote %d)\n", bs, n)
+
+	back, n, err := FooSerializer.Unmarshal(bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("decoded: %+v (read %d)\n", back, n)
+
+	n, err = FooSerializer.Skip(bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("skipped: %d bytes\n", n)
+
+	bs = binco.Marshal(v)
+	fmt.Printf("binco.Marshal: %v\n", bs)
+
+	if _, _, err = FooSerializer.Unmarshal(bs[:len(bs)-1]); err != nil {
+		fmt.Printf("truncated payload: %v\n", err)
+	}
+}
+```
+
+Output:
+
+```text
+value:   {Str:hello, binco Sl:[1 2 3]}
+size:    17 bytes
+encoded: [12 104 101 108 108 111 44 32 98 105 110 99 111 3 2 4 6] (wrote 17)
+decoded: {Str:hello, binco Sl:[1 2 3]} (read 17)
+skipped: 17 bytes
+binco.Marshal: [12 104 101 108 108 111 44 32 98 105 110 99 111 3 2 4 6]
+truncated payload: binco: truncated input
+```
+
+**Trailing fields.** Appending a field changes the payload, and old payloads do
+not contain it. Either version the type (see
+[Versioning and migration](#610-versioning-and-migration)), or let the reader
+detect the short tail before reading the new field:
+
+```go
+if n == len(bs) {
+	return v, n, nil // a payload written before the field existed
+}
+v.Extra, n1, err = extraSerializer.Unmarshal(bs[n:])
+n += n1
+```
+
+**Propagate errors.** `Unmarshal` stops at the first error, and `Skip` must do
+the same, or the failure surfaces far from its cause.
 
 ### 6.4 Structs from the generator
 
@@ -815,99 +842,228 @@ the workflow.
 
 ### 6.5 Collections
 
-**Slices**
+Slices and arrays are a length followed by the elements; maps are a length
+followed by key/value pairs. An array is encoded exactly like a slice, but its
+type fixes the length: a payload with a different element count is rejected with
+`binco.ErrWrongLength`. Map entry order is not deterministic on encode; decoding
+is.
+
+The three programs below are complete `main` packages.
+
+**`types/array/main.go`**
 
 ```go
-ints := composite.NewSliceSerializer(varnum.Int)
-names := composite.NewSliceSerializer(composite.String)
-matrix := composite.NewSliceSerializer(composite.NewSliceSerializer(varnum.Int))
+// Command array encodes an array, decodes it, skips it and shows that a payload whose length differs from the array type is rejected.
+package main
 
-bs := binco.Encode(names, []string{"hello", "world"})
-// [2 5 104 101 108 108 111 5 119 111 114 108 100]
-```
+import (
+	"fmt"
 
-**Arrays** need the `zerocopy` package (the length must match the array type):
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/composite"
+	"github.com/malivvan/binco/varnum"
+	"github.com/malivvan/binco/zerocopy"
+)
 
-```go
-arrSerializer := zerocopy.NewArraySerializer[[3]int, int](varnum.Int)
-bs := binco.Encode(arrSerializer, [3]int{1, 2, 3})   // [3 2 4 6]
+func main() {
+	var (
+		value      = [3]int{1, 2, 3}
+		serializer = zerocopy.NewArraySerializer[[3]int, int](varnum.Int)
+	)
 
-// A payload with a different length is rejected:
-_, _, err := arrSerializer.Unmarshal(binco.Encode(composite.NewSliceSerializer(varnum.Int), []int{1, 2}))
-// err: binco: wrong length
-```
+	size := serializer.Size(value)
+	bs := make([]byte, size)
+	n := serializer.Marshal(value, bs)
 
-**Maps**
+	fmt.Printf("value:   %v\n", value)
+	fmt.Printf("size:    %d bytes\n", size)
+	fmt.Printf("encoded: %v (wrote %d)\n", bs, n)
 
-```go
-byName := composite.NewMapSerializer(composite.String, varnum.Int)
-bs := binco.Encode(byName, map[string]int{"a": 1}) // [1 1 97 2]
-```
-
-Map iteration order is random, so the bytes of a multi-entry map vary between
-runs. Decoding is deterministic. If a payload must be canonical (content
-addressing, signatures, golden files), sort the entries and encode a slice:
-
-```go
-type Entry struct {
-	Key   string
-	Value int
-}
-
-type entryCodec struct{}
-
-func (entryCodec) Marshal(v Entry, bs []byte) (n int) {
-	n = composite.String.Marshal(v.Key, bs)
-	return n + varnum.Int.Marshal(v.Value, bs[n:])
-}
-
-func (entryCodec) Unmarshal(bs []byte) (v Entry, n int, err error) {
-	v.Key, n, err = composite.String.Unmarshal(bs)
+	back, n, err := serializer.Unmarshal(bs)
 	if err != nil {
-		return
+		panic(err)
 	}
-	var n1 int
-	v.Value, n1, err = varnum.Int.Unmarshal(bs[n:])
-	n += n1
-	return
-}
+	fmt.Printf("decoded: %v (read %d)\n", back, n)
 
-func (entryCodec) Size(v Entry) (size int) {
-	return composite.String.Size(v.Key) + varnum.Int.Size(v.Value)
-}
-
-func (entryCodec) Skip(bs []byte) (n int, err error) {
-	n, err = composite.String.Skip(bs)
+	n, err = serializer.Skip(bs)
 	if err != nil {
-		return
+		panic(err)
 	}
-	var n1 int
-	n1, err = varnum.Int.Skip(bs[n:])
-	return n + n1, err
-}
+	fmt.Printf("skipped: %d bytes\n", n)
 
-func CanonicalMap(m map[string]int) []byte {
-	entries := make([]Entry, 0, len(m))
-	for k, v := range m {
-		entries = append(entries, Entry{Key: k, Value: v})
+	shorter := binco.Encode(composite.NewSliceSerializer(varnum.Int), []int{1, 2})
+	if _, _, err = serializer.Unmarshal(shorter); err != nil {
+		fmt.Printf("shorter payload: %v\n", err)
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Key < entries[j].Key })
-	return binco.Encode(composite.NewSliceSerializer[Entry](entryCodec{}), entries)
 }
 ```
 
-**Sets.** A set is a map with an empty value, or a sorted slice of keys:
+Output:
+
+```text
+value:   [1 2 3]
+size:    4 bytes
+encoded: [3 2 4 6] (wrote 4)
+decoded: [1 2 3] (read 4)
+skipped: 4 bytes
+shorter payload: binco: wrong length
+```
+
+**`types/slice/main.go`**
 
 ```go
-setSerializer := composite.NewSliceSerializer(composite.String) // sorted on the writer side
+// Command slice encodes a slice with the default length codec and with a fixed-width one, and shows how nil and empty slices behave.
+package main
+
+import (
+	"fmt"
+
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/composite"
+	slopts "github.com/malivvan/binco/config/slice"
+	"github.com/malivvan/binco/scalar"
+	"github.com/malivvan/binco/varnum"
+)
+
+func main() {
+	var (
+		value = []int{1, 2, 3}
+
+		serializer = composite.NewSliceSerializer(varnum.Int)
+
+		rawLenSerializer = composite.NewSliceSerializer(varnum.Int, slopts.WithLenSerializer[int](scalar.Int))
+	)
+
+	bs := binco.Encode(serializer, value)
+	fmt.Printf("value:     %v\n", value)
+	fmt.Printf("encoded:   %v (%d bytes)\n", bs, len(bs))
+
+	back, n, err := serializer.Unmarshal(bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("decoded:   %v (%d bytes)\n", back, n)
+
+	bs = binco.Encode(rawLenSerializer, value)
+	fmt.Printf("raw len:   %v (%d bytes)\n", bs, len(bs))
+
+	for _, v := range [][]int{nil, {}} {
+		back, err = binco.Decode(serializer, binco.Encode(serializer, v))
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("nil=%v → len=%d, nil=%v\n", v == nil, len(back), back == nil)
+	}
+
+	n, err = serializer.Skip(bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("skipped:   %d bytes\n", n)
+}
 ```
 
-**Length codecs.** If you need random access over a stream of slices, a
-fixed-width length lets a reader seek:
+Output:
+
+```text
+value:     [1 2 3]
+encoded:   [3 2 4 6] (4 bytes)
+decoded:   [1 2 3] (4 bytes)
+raw len:   [3 0 0 0 0 0 0 0 2 4 6] (11 bytes)
+nil=true → len=0, nil=false
+nil=false → len=0, nil=false
+skipped:   4 bytes
+```
+
+**`types/map/main.go`**
+
+```go
+// Command map encodes a map and decodes it back. Entry order is Go's map order, so only decoding is deterministic.
+package main
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/composite"
+	"github.com/malivvan/binco/varnum"
+)
+
+func main() {
+	var (
+		value = map[int]string{1: "one", 2: "two", 3: "three"}
+
+		serializer = composite.NewMapSerializer(varnum.Int, composite.String)
+	)
+
+	bs := make([]byte, serializer.Size(value))
+	n := serializer.Marshal(value, bs)
+	fmt.Printf("value:    %v\n", sorted(value))
+	fmt.Printf("size:     %d bytes\n", len(bs))
+	fmt.Printf("encoded:  %v (wrote %d)\n", bs, n)
+
+	back, n, err := serializer.Unmarshal(bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("decoded:  %v (read %d)\n", sorted(back), n)
+
+	n, err = serializer.Skip(bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("skipped:  %d bytes\n", n)
+
+	empty, err := binco.Decode(serializer, binco.Encode(serializer, map[int]string(nil)))
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("empty:    len=%d, nil=%v\n", len(empty), empty == nil)
+}
+
+func sorted(m map[int]string) string {
+	keys := make([]int, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+
+	out := make([]string, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, fmt.Sprintf("%d:%q", k, m[k]))
+	}
+	return "{" + strings.Join(out, ", ") + "}"
+}
+```
+
+Output:
+
+```text
+value:    {1:"one", 2:"two", 3:"three"}
+size:     18 bytes
+encoded:  [3 2 3 111 110 101 4 3 116 119 111 6 5 116 104 114 101 101] (wrote 18)
+decoded:  {1:"one", 2:"two", 3:"three"} (read 18)
+skipped:  18 bytes
+empty:    len=0, nil=false
+```
+
+**Length codecs.** The default length is `varnum.PositiveInt`; replace it when a
+fixed-size record matters:
 
 ```go
 seekable := composite.NewSliceSerializer(varnum.Int, slopts.WithLenSerializer[int](scalar.Int))
 ```
+
+**Canonical maps.** Use the sorted map codec when the bytes must be reproducible
+(signatures, content addressing, golden files):
+
+```go
+canonical := composite.NewSortedMapSerializer(composite.String, varnum.Int)
+```
+
+**Sets.** A set is a map with an empty value, or a sorted slice of keys.
 
 ### 6.6 Optional fields and nil
 
@@ -944,291 +1100,1298 @@ Decode with a validator to keep the pair consistent.
 
 ### 6.7 Shared pointers and identity
 
-Two fields pointing at the same string must still point at the same string after
-decoding. `ptrmap` writes the value once and refers to it by id:
+A plain pointer codec writes every pointer by value: two fields pointing at
+the same value store it twice, and a cycle cannot be encoded at all. Pointer
+mapping (`ptrmap`) assigns an id to each pointer and writes the pointed-to data
+only the first time; later occurrences are the mapping flag plus the id.
+
+The complete program below stores one string in two fields and proves that the
+identity survives the round trip.
+
+**`pm/simple/two_ptrs.go`**
 
 ```go
-type Shared struct {
-	A *string
-	B *string
-}
+package main
 
-func SharedSerializer() binco.Serializer[Shared] {
+type TwoPtrs struct {
+	Ptr1 *string
+	Ptr2 *string
+}
+```
+
+**`pm/simple/embedded_ptrs.go`**
+
+```go
+package main
+
+type EmbeddedPtrs struct {
+	TwoPtrs
+	Ptr3 *string
+}
+```
+
+**`pm/simple/serializers.go`**
+
+```go
+package main
+
+import (
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/composite"
+	"github.com/malivvan/binco/ptrmap"
+)
+
+func MakeTwoPtrsSerializer() binco.Serializer[TwoPtrs] {
 	ptrMap, revPtrMap := binco.NewPtrMap(), binco.NewReversePtrMap()
-	strPtr := ptrmap.NewPtrSerializer(ptrMap, revPtrMap, composite.String)
-	return ptrmap.Wrap(ptrMap, revPtrMap, sharedCodec{strPtr})
+	return ptrmap.Wrap(ptrMap, revPtrMap, newTwoPtrsSerializer(ptrMap, revPtrMap))
 }
 
-type sharedCodec struct {
-	strPtr binco.Serializer[*string]
+func MakeEmbeddedPtrsSerializer() binco.Serializer[EmbeddedPtrs] {
+	ptrMap, revPtrMap := binco.NewPtrMap(), binco.NewReversePtrMap()
+	return ptrmap.Wrap(ptrMap, revPtrMap, newEmbeddedPtrsSerializer(ptrMap, revPtrMap))
 }
 
-func (s sharedCodec) Marshal(v Shared, bs []byte) (n int) {
-	n = s.strPtr.Marshal(v.A, bs)
-	return n + s.strPtr.Marshal(v.B, bs[n:])
+func newTwoPtrsSerializer(ptrMap *binco.PtrMap, revPtrMap *binco.ReversePtrMap) twoPtrsSerializer {
+	return twoPtrsSerializer{strPtrSerializer: ptrmap.NewPtrSerializer(ptrMap, revPtrMap, composite.String)}
 }
 
-func (s sharedCodec) Unmarshal(bs []byte) (v Shared, n int, err error) {
-	v.A, n, err = s.strPtr.Unmarshal(bs)
+func newEmbeddedPtrsSerializer(ptrMap *binco.PtrMap, revPtrMap *binco.ReversePtrMap) embeddedPtrsSerializer {
+	return embeddedPtrsSerializer{
+
+		twoSerializer:  newTwoPtrsSerializer(ptrMap, revPtrMap),
+		ptr3Serializer: ptrmap.NewPtrSerializer(ptrMap, revPtrMap, composite.String),
+	}
+}
+
+type twoPtrsSerializer struct {
+	strPtrSerializer binco.Serializer[*string]
+}
+
+func (s twoPtrsSerializer) Marshal(v TwoPtrs, bs []byte) (n int) {
+	n = s.strPtrSerializer.Marshal(v.Ptr1, bs)
+	return n + s.strPtrSerializer.Marshal(v.Ptr2, bs[n:])
+}
+
+func (s twoPtrsSerializer) Unmarshal(bs []byte) (v TwoPtrs, n int, err error) {
+	v.Ptr1, n, err = s.strPtrSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
 	var n1 int
-	v.B, n1, err = s.strPtr.Unmarshal(bs[n:])
+	v.Ptr2, n1, err = s.strPtrSerializer.Unmarshal(bs[n:])
 	n += n1
 	return
 }
 
-func (s sharedCodec) Size(v Shared) (size int) {
-	return s.strPtr.Size(v.A) + s.strPtr.Size(v.B)
+func (s twoPtrsSerializer) Size(v TwoPtrs) (size int) {
+	return s.strPtrSerializer.Size(v.Ptr1) + s.strPtrSerializer.Size(v.Ptr2)
 }
 
-func (s sharedCodec) Skip(bs []byte) (n int, err error) {
-	n, err = s.strPtr.Skip(bs)
+func (s twoPtrsSerializer) Skip(bs []byte) (n int, err error) {
+	n, err = s.strPtrSerializer.Skip(bs)
 	if err != nil {
 		return
 	}
 	var n1 int
-	n1, err = s.strPtr.Skip(bs[n:])
+	n1, err = s.strPtrSerializer.Skip(bs[n:])
+	return n + n1, err
+}
+
+type embeddedPtrsSerializer struct {
+	twoSerializer  twoPtrsSerializer
+	ptr3Serializer binco.Serializer[*string]
+}
+
+func (s embeddedPtrsSerializer) Marshal(v EmbeddedPtrs, bs []byte) (n int) {
+	n = s.twoSerializer.Marshal(v.TwoPtrs, bs)
+	return n + s.ptr3Serializer.Marshal(v.Ptr3, bs[n:])
+}
+
+func (s embeddedPtrsSerializer) Unmarshal(bs []byte) (v EmbeddedPtrs, n int, err error) {
+	v.TwoPtrs, n, err = s.twoSerializer.Unmarshal(bs)
+	if err != nil {
+		return
+	}
+	var n1 int
+	v.Ptr3, n1, err = s.ptr3Serializer.Unmarshal(bs[n:])
+	n += n1
+	return
+}
+
+func (s embeddedPtrsSerializer) Size(v EmbeddedPtrs) (size int) {
+	return s.twoSerializer.Size(v.TwoPtrs) + s.ptr3Serializer.Size(v.Ptr3)
+}
+
+func (s embeddedPtrsSerializer) Skip(bs []byte) (n int, err error) {
+	n, err = s.twoSerializer.Skip(bs)
+	if err != nil {
+		return
+	}
+	var n1 int
+	n1, err = s.ptr3Serializer.Skip(bs[n:])
 	return n + n1, err
 }
 ```
 
+**`pm/simple/main.go`**
+
 ```go
-s := "hello"
-v := Shared{A: &s, B: &s}
-bs := binco.Encode(SharedSerializer(), v)
-back, _ := binco.Decode(SharedSerializer(), bs)
-fmt.Println(back.A == back.B) // true
+// Command simple shows how pointer mapping keeps one pointer shared by several fields.
+package main
+
+import (
+	"fmt"
+
+	"github.com/malivvan/binco"
+)
+
+func main() {
+
+	two := NewTwoPtrs("the same pointer in two fields")
+	bs := binco.Encode(MakeTwoPtrsSerializer(), two)
+	fmt.Printf("TwoPtrs: %v\n", bs)
+	fmt.Printf("  [2 0 ...] flag 2 (mapping), ID 0, then the string\n")
+	fmt.Printf("  [2 0]     the same ID again, no string\n")
+
+	back := decodeTwoPtrs(bs)
+	fmt.Printf("  decoded: %q, %q\n", *back.Ptr1, *back.Ptr2)
+	fmt.Printf("  identity preserved: %v\n\n", back.Ptr1 == back.Ptr2)
+
+	embedded := NewEmbeddedPtrs("the same pointer in a composite struct")
+	bs = binco.Encode(MakeEmbeddedPtrsSerializer(), embedded)
+	fmt.Printf("EmbeddedPtrs: %v (%d bytes)\n", bs, len(bs))
+
+	backE := decodeEmbeddedPtrs(bs)
+	fmt.Printf("  decoded: %q, %q, %q\n", *backE.Ptr1, *backE.Ptr2, *backE.Ptr3)
+	fmt.Printf("  identity preserved: %v (all three are the same pointer)\n",
+		backE.Ptr1 == backE.Ptr2 && backE.Ptr1 == backE.Ptr3)
+
+	var nilPtrs TwoPtrs
+	bs = binco.Encode(MakeTwoPtrsSerializer(), nilPtrs)
+	fmt.Printf("\nnil pointers: %v\n", bs)
+	back = decodeTwoPtrs(bs)
+	fmt.Printf("  decoded nil: %v, %v\n", back.Ptr1 == nil, back.Ptr2 == nil)
+}
+
+func NewTwoPtrs(s string) TwoPtrs {
+	ptr := &s
+	return TwoPtrs{Ptr1: ptr, Ptr2: ptr}
+}
+
+func NewEmbeddedPtrs(s string) EmbeddedPtrs {
+	ptr := &s
+	return EmbeddedPtrs{
+		Ptr1: ptr,
+		Ptr2: ptr,
+		Ptr3: ptr,
+	}
+}
+
+func decodeTwoPtrs(bs []byte) TwoPtrs {
+	v, err := binco.Decode(MakeTwoPtrsSerializer(), bs)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+func decodeEmbeddedPtrs(bs []byte) EmbeddedPtrs {
+	v, err := binco.Decode(MakeEmbeddedPtrsSerializer(), bs)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
 ```
 
-The encoded form is `[2 0 5 hello 2 0]`: flag 2, id 0, the value, then flag 2
-and the same id with no data. See [Pointers](#138-pointers).
+Output:
 
-**When not to use ptrmap.** If your data is a tree with no sharing, `composite.NewPtrSerializer`
-is smaller and faster: no ids, no maps, no bookkeeping.
+```text
+TwoPtrs: [2 0 30 116 104 101 32 115 97 109 101 32 112 111 105 110 116 101 114 32 105 110 32 116 119 111 32 102 105 101 108 100 115 2 0]
+  [2 0 ...] flag 2 (mapping), ID 0, then the string
+  [2 0]     the same ID again, no string
+  decoded: "the same pointer in two fields", "the same pointer in two fields"
+  identity preserved: true
+
+EmbeddedPtrs: [2 0 38 116 104 101 32 115 97 109 101 32 112 111 105 110 116 101 114 32 105 110 32 97 32 99 111 109 112 111 115 105 116 101 32 115 116 114 117 99 116 2 0 2 0] (45 bytes)
+  decoded: "the same pointer in a composite struct", "the same pointer in a composite struct", "the same pointer in a composite struct"
+  identity preserved: true (all three are the same pointer)
+
+nil pointers: [1 1]
+  decoded nil: true, true
+```
+
+The wiring rules:
+
+1. Every `ptrmap` codec of one value shares the same `PtrMap` and
+   `ReversePtrMap`, or the ids will not match.
+2. Wrap the outermost codec with `ptrmap.Wrap`, which clears both maps around
+   every operation (including `Size`, which assigns ids). A wrapped codec is
+   stateful: give each goroutine its own maps.
+3. Ids start at zero in encounter order and remember the type they were defined
+   as; a mismatched reference is `binco.ErrWrongType`, never a reinterpreted
+   pointer.
+
+**When not to use it.** For a tree without shared references, the plain
+`composite.NewPtrSerializer` is smaller and faster: no ids, no maps, no
+bookkeeping per pointer.
 
 ### 6.8 Cycles linked lists trees graphs
 
-A cycle is a pointer graph where following pointers returns to a node. Plain
-pointer codecs cannot represent that; `ptrmap` can, because the second visit is
-written as an id.
+A cycle is a pointer graph where following pointers returns to a node. The
+plain pointer codec cannot represent it; `ptrmap` can, because the second visit
+is written as an id. Each element is written once, and the back references become
+ids.
 
-**Doubly linked list.** Each element has `Prev` and `Next`; the list has `Head`,
-`Tail` and `Len`:
+**A doubly linked list.** Only the head, the tail and the length are data; the
+elements are reached through pointers. The program also walks the list backwards
+after decoding, which only works if `next.Prev == current` everywhere.
+
+**`pm/linked_list/elem.go`**
 
 ```go
-type Elem struct {
-	Value int
-	Prev  *Elem
-	Next  *Elem
-}
+package main
 
-type List struct {
-	Head *Elem
-	Tail *Elem
+type Elem[T any] struct {
+	Val  T
+	Prev *Elem[T]
+	Next *Elem[T]
+}
+```
+
+**`pm/linked_list/linked_list.go`**
+
+```go
+package main
+
+import (
+	"strconv"
+	"strings"
+)
+
+type LinkedList[T any] struct {
+	Head *Elem[T]
+	Tail *Elem[T]
 	Len  int
 }
 
-type elemCodec struct {
-	next binco.Serializer[*Elem]
+func (l *LinkedList[T]) AddFront(v T) {
+	elem := &Elem[T]{Val: v}
+	if l.Head == nil {
+		l.Tail = elem
+	} else {
+		elem.Next = l.Head
+		l.Head.Prev = elem
+	}
+	l.Head = elem
+	l.Len++
 }
 
-func (s *elemCodec) Marshal(v Elem, bs []byte) (n int) {
-	n = varnum.Int.Marshal(v.Value, bs)
-	n += s.next.Marshal(v.Prev, bs[n:])
-	return n + s.next.Marshal(v.Next, bs[n:])
+func (l *LinkedList[T]) AddBack(v T) {
+	elem := &Elem[T]{Val: v}
+	if l.Tail == nil {
+		l.Head = elem
+	} else {
+		elem.Prev = l.Tail
+		l.Tail.Next = elem
+	}
+	l.Tail = elem
+	l.Len++
 }
 
-func (s *elemCodec) Unmarshal(bs []byte) (v Elem, n int, err error) {
-	v.Value, n, err = varnum.Int.Unmarshal(bs)
+func (l *LinkedList[T]) Remove(e *Elem[T]) {
+	switch {
+	case e == l.Head && e == l.Tail:
+		l.Head, l.Tail = nil, nil
+	case e == l.Head:
+		l.Head = e.Next
+		l.Head.Prev = nil
+	case e == l.Tail:
+		l.Tail = e.Prev
+		l.Tail.Next = nil
+	default:
+		e.Prev.Next = e.Next
+		e.Next.Prev = e.Prev
+	}
+	l.Len--
+}
+
+func (l LinkedList[T]) Forward() (values []T) {
+	for e := l.Head; e != nil; e = e.Next {
+		values = append(values, e.Val)
+	}
+	return
+}
+
+func (l LinkedList[T]) Backward() (values []T) {
+	for e := l.Tail; e != nil; e = e.Prev {
+		values = append(values, e.Val)
+	}
+	return
+}
+
+func (l LinkedList[T]) String() string {
+	parts := make([]string, 0, l.Len)
+	for _, v := range l.Forward() {
+		parts = append(parts, strconv.FormatInt(int64(toInt(v)), 10))
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+func toInt[T any](v T) int {
+	if n, ok := any(v).(int); ok {
+		return n
+	}
+	return 0
+}
+```
+
+**`pm/linked_list/serializers.go`**
+
+```go
+package main
+
+import (
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/ptrmap"
+	"github.com/malivvan/binco/varnum"
+)
+
+func MakeLinkedListSerializer[T any](valSerializer binco.Serializer[T]) binco.Serializer[LinkedList[T]] {
+	ptrMap, revPtrMap := binco.NewPtrMap(), binco.NewReversePtrMap()
+	return ptrmap.Wrap(ptrMap, revPtrMap, newLinkedListSerializer(ptrMap, revPtrMap, valSerializer))
+}
+
+func newLinkedListSerializer[T any](ptrMap *binco.PtrMap, revPtrMap *binco.ReversePtrMap,
+	valSerializer binco.Serializer[T],
+) linkedListSerializer[T] {
+	var (
+		elem              elemSerializer[T]
+		elemPtrSerializer binco.Serializer[*Elem[T]]
+	)
+
+	elem = elemSerializer[T]{valSerializer: valSerializer, elemPtrSerializer: &elemPtrSerializer}
+	elemPtrSerializer = ptrmap.NewPtrSerializer(ptrMap, revPtrMap, elem)
+
+	return linkedListSerializer[T]{elemPtrSerializer: elemPtrSerializer}
+}
+
+type elemSerializer[T any] struct {
+	valSerializer     binco.Serializer[T]
+	elemPtrSerializer *binco.Serializer[*Elem[T]]
+}
+
+func (s elemSerializer[T]) Marshal(v Elem[T], bs []byte) (n int) {
+	n = s.valSerializer.Marshal(v.Val, bs)
+	n += (*s.elemPtrSerializer).Marshal(v.Prev, bs[n:])
+	return n + (*s.elemPtrSerializer).Marshal(v.Next, bs[n:])
+}
+
+func (s elemSerializer[T]) Unmarshal(bs []byte) (v Elem[T], n int, err error) {
+	v.Val, n, err = s.valSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
 	var n1 int
-	v.Prev, n1, err = s.next.Unmarshal(bs[n:])
+	v.Prev, n1, err = (*s.elemPtrSerializer).Unmarshal(bs[n:])
 	n += n1
 	if err != nil {
 		return
 	}
-	v.Next, n1, err = s.next.Unmarshal(bs[n:])
+	v.Next, n1, err = (*s.elemPtrSerializer).Unmarshal(bs[n:])
 	n += n1
 	return
 }
 
-func (s *elemCodec) Size(v Elem) (size int) {
-	return varnum.Int.Size(v.Value) + s.next.Size(v.Prev) + s.next.Size(v.Next)
+func (s elemSerializer[T]) Size(v Elem[T]) (size int) {
+	return s.valSerializer.Size(v.Val) +
+		(*s.elemPtrSerializer).Size(v.Prev) +
+		(*s.elemPtrSerializer).Size(v.Next)
 }
 
-func (s *elemCodec) Skip(bs []byte) (n int, err error) {
+func (s elemSerializer[T]) Skip(bs []byte) (n int, err error) {
+	n, err = s.valSerializer.Skip(bs)
+	if err != nil {
+		return
+	}
+	var n1 int
+	n1, err = (*s.elemPtrSerializer).Skip(bs[n:])
+	n += n1
+	if err != nil {
+		return
+	}
+	n1, err = (*s.elemPtrSerializer).Skip(bs[n:])
+	return n + n1, err
+}
+
+type linkedListSerializer[T any] struct {
+	elemPtrSerializer binco.Serializer[*Elem[T]]
+}
+
+func (s linkedListSerializer[T]) Marshal(v LinkedList[T], bs []byte) (n int) {
+	n = s.elemPtrSerializer.Marshal(v.Head, bs)
+	n += s.elemPtrSerializer.Marshal(v.Tail, bs[n:])
+	return n + varnum.PositiveInt.Marshal(v.Len, bs[n:])
+}
+
+func (s linkedListSerializer[T]) Unmarshal(bs []byte) (v LinkedList[T], n int, err error) {
+	v.Head, n, err = s.elemPtrSerializer.Unmarshal(bs)
+	if err != nil {
+		return
+	}
+	var n1 int
+	v.Tail, n1, err = s.elemPtrSerializer.Unmarshal(bs[n:])
+	n += n1
+	if err != nil {
+		return
+	}
+	v.Len, n1, err = varnum.PositiveInt.Unmarshal(bs[n:])
+	n += n1
+	return
+}
+
+func (s linkedListSerializer[T]) Size(v LinkedList[T]) (size int) {
+	return s.elemPtrSerializer.Size(v.Head) +
+		s.elemPtrSerializer.Size(v.Tail) +
+		varnum.PositiveInt.Size(v.Len)
+}
+
+func (s linkedListSerializer[T]) Skip(bs []byte) (n int, err error) {
+	n, err = s.elemPtrSerializer.Skip(bs)
+	if err != nil {
+		return
+	}
+	var n1 int
+	n1, err = s.elemPtrSerializer.Skip(bs[n:])
+	n += n1
+	if err != nil {
+		return
+	}
+	n1, err = varnum.PositiveInt.Skip(bs[n:])
+	return n + n1, err
+}
+```
+
+**`pm/linked_list/main.go`**
+
+```go
+// Command linked_list encodes a doubly linked list; the pointers are restored, so the decoded list is fully functional.
+package main
+
+import (
+	"fmt"
+
+	"github.com/malivvan/binco/varnum"
+)
+
+func main() {
+	list := ShortLinkedList()
+	serializer := MakeLinkedListSerializer[int](varnum.Int)
+
+	bs := make([]byte, serializer.Size(list))
+	n := serializer.Marshal(list, bs)
+	fmt.Printf("list:     %v (%d elements)\n", list, list.Len)
+	fmt.Printf("size:     %d bytes\n", len(bs))
+	fmt.Printf("encoded:  %v (wrote %d)\n", bs, n)
+
+	back, n, err := serializer.Unmarshal(bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("decoded:  %v (read %d bytes)\n", back, n)
+	fmt.Printf("forward:  %v\n", back.Forward())
+	fmt.Printf("backward: %v\n", back.Backward())
+
+	ok := true
+	for e := back.Head; e != nil && e.Next != nil; e = e.Next {
+		if e.Next.Prev != e {
+			ok = false
+		}
+	}
+	fmt.Printf("prev/next links consistent: %v\n", ok)
+	fmt.Printf("Head.Prev == nil: %v, Tail.Next == nil: %v\n",
+		back.Head.Prev == nil, back.Tail.Next == nil)
+
+	second := back.Head.Next
+	back.Remove(second)
+	fmt.Printf("\nafter removing %v: %v (len=%d)\n", second.Val, back, back.Len)
+	fmt.Printf("new head.Next.Prev == head: %v\n", back.Head.Next.Prev == back.Head)
+
+	n, err = serializer.Skip(bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("skipped:  %d bytes\n", n)
+}
+
+func ShortLinkedList() LinkedList[int] {
+	var l LinkedList[int]
+	for _, v := range []int{8, 9, 10, 11} {
+		l.AddBack(v)
+	}
+	return l
+}
+```
+
+Output:
+
+```text
+list:     [8, 9, 10, 11] (4 elements)
+size:     23 bytes
+encoded:  [2 0 16 1 2 1 18 2 0 2 2 20 2 1 2 3 22 2 2 1 2 3 4] (wrote 23)
+decoded:  [8, 9, 10, 11] (read 23 bytes)
+forward:  [8 9 10 11]
+backward: [11 10 9 8]
+prev/next links consistent: true
+Head.Prev == nil: true, Tail.Next == nil: true
+
+after removing 9: [8, 10, 11] (len=3)
+new head.Next.Prev == head: true
+skipped:  23 bytes
+```
+
+**A graph.** A vertex points at its edges and every edge points back at a
+vertex, so the serializer graph itself is cyclic. The serializers are wired
+through variables that are assigned at the end of the constructor.
+
+**`pm/graph/vertex.go`**
+
+```go
+package main
+
+type Vertex[T comparable, V any] struct {
+	Val   V
+	Edges map[T]*Edge[T, V]
+}
+```
+
+**`pm/graph/edge.go`**
+
+```go
+package main
+
+type Edge[T comparable, V any] struct {
+	Weight int
+	Vertex *Vertex[T, V]
+}
+```
+
+**`pm/graph/graph.go`**
+
+```go
+package main
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+)
+
+func NewGraph[T comparable, V any]() Graph[T, V] {
+	return Graph[T, V]{Vertices: make(map[T]*Vertex[T, V])}
+}
+
+type Graph[T comparable, V any] struct {
+	Vertices map[T]*Vertex[T, V]
+}
+
+func (g Graph[T, V]) AddVertex(id T, val V) {
+	g.Vertices[id] = &Vertex[T, V]{Val: val}
+}
+
+func (g Graph[T, V]) AddEdge(from, to T, weight int) error {
+	fromVertex, ok := g.Vertices[from]
+	if !ok {
+		return fmt.Errorf("vertex %v not found", from)
+	}
+	toVertex, ok := g.Vertices[to]
+	if !ok {
+		return fmt.Errorf("vertex %v not found", to)
+	}
+	if fromVertex.Edges == nil {
+		fromVertex.Edges = make(map[T]*Edge[T, V])
+	}
+	fromVertex.Edges[to] = &Edge[T, V]{Vertex: toVertex, Weight: weight}
+	return nil
+}
+
+func (g Graph[T, V]) Render() string {
+	var b strings.Builder
+	for _, id := range sortedKeys(g.Vertices) {
+		vertex := g.Vertices[id]
+		fmt.Fprintf(&b, "  vertex %v: %v", id, vertex.Val)
+		if len(vertex.Edges) > 0 {
+			b.WriteString(" → ")
+			edges := make([]string, 0, len(vertex.Edges))
+			for _, to := range sortedKeys(vertex.Edges) {
+				edges = append(edges, fmt.Sprintf("%v (weight %d)", to, vertex.Edges[to].Weight))
+			}
+			b.WriteString(strings.Join(edges, ", "))
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func sortedKeys[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.SortFunc(keys, func(a, b K) int {
+		return strings.Compare(fmt.Sprint(a), fmt.Sprint(b))
+	})
+	return keys
+}
+```
+
+**`pm/graph/serializers.go`**
+
+```go
+package main
+
+import (
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/composite"
+	"github.com/malivvan/binco/ptrmap"
+	"github.com/malivvan/binco/varnum"
+)
+
+func MakeGraphSerializer[T comparable, V any](keySerializer binco.Serializer[T],
+	valSerializer binco.Serializer[V],
+) binco.Serializer[Graph[T, V]] {
+	ptrMap, revPtrMap := binco.NewPtrMap(), binco.NewReversePtrMap()
+	return ptrmap.Wrap(ptrMap, revPtrMap, newGraphSerializer(ptrMap, revPtrMap, keySerializer, valSerializer))
+}
+
+func newGraphSerializer[T comparable, V any](ptrMap *binco.PtrMap,
+	revPtrMap *binco.ReversePtrMap, keySerializer binco.Serializer[T], valSerializer binco.Serializer[V],
+) graphSerializer[T, V] {
+	var (
+		edgesSerializer    binco.Serializer[map[T]*Edge[T, V]]
+		verticesSerializer binco.Serializer[map[T]*Vertex[T, V]]
+
+		edgePtrSerializer   binco.Serializer[*Edge[T, V]]
+		vertexPtrSerializer binco.Serializer[*Vertex[T, V]]
+
+		edge   = edgeSerializer[T, V]{vertexPtrSerializer: &vertexPtrSerializer}
+		vertex = vertexSerializer[T, V]{valSerializer: valSerializer, edgesSerializer: &edgesSerializer}
+	)
+	edgePtrSerializer = ptrmap.NewPtrSerializer(ptrMap, revPtrMap, edge)
+	vertexPtrSerializer = ptrmap.NewPtrSerializer(ptrMap, revPtrMap, vertex)
+
+	edgesSerializer = composite.NewMapSerializer(keySerializer, edgePtrSerializer)
+	verticesSerializer = composite.NewMapSerializer(keySerializer, vertexPtrSerializer)
+
+	return graphSerializer[T, V]{verticesSerializer: verticesSerializer}
+}
+
+type edgeSerializer[T comparable, V any] struct {
+	vertexPtrSerializer *binco.Serializer[*Vertex[T, V]]
+}
+
+func (s edgeSerializer[T, V]) Marshal(v Edge[T, V], bs []byte) (n int) {
+	n = varnum.Int.Marshal(v.Weight, bs)
+	return n + (*s.vertexPtrSerializer).Marshal(v.Vertex, bs[n:])
+}
+
+func (s edgeSerializer[T, V]) Unmarshal(bs []byte) (v Edge[T, V], n int, err error) {
+	v.Weight, n, err = varnum.Int.Unmarshal(bs)
+	if err != nil {
+		return
+	}
+	var n1 int
+	v.Vertex, n1, err = (*s.vertexPtrSerializer).Unmarshal(bs[n:])
+	n += n1
+	return
+}
+
+func (s edgeSerializer[T, V]) Size(v Edge[T, V]) (size int) {
+	return varnum.Int.Size(v.Weight) + (*s.vertexPtrSerializer).Size(v.Vertex)
+}
+
+func (s edgeSerializer[T, V]) Skip(bs []byte) (n int, err error) {
 	n, err = varnum.Int.Skip(bs)
 	if err != nil {
 		return
 	}
 	var n1 int
-	n1, err = s.next.Skip(bs[n:])
-	n += n1
-	if err != nil {
-		return
-	}
-	n1, err = s.next.Skip(bs[n:])
+	n1, err = (*s.vertexPtrSerializer).Skip(bs[n:])
 	return n + n1, err
 }
 
-func ListSerializer() binco.Serializer[List] {
-	ptrMap, revPtrMap := binco.NewPtrMap(), binco.NewReversePtrMap()
-	codec := &elemCodec{}
-	codec.next = ptrmap.NewPtrSerializer(ptrMap, revPtrMap, codec)
-
-	serializer := listSerializer{codec.next}
-	return ptrmap.Wrap(ptrMap, revPtrMap, serializer)
+type vertexSerializer[T comparable, V any] struct {
+	valSerializer   binco.Serializer[V]
+	edgesSerializer *binco.Serializer[map[T]*Edge[T, V]]
 }
 
-type listSerializer struct {
-	elemPtr binco.Serializer[*Elem]
+func (s vertexSerializer[T, V]) Marshal(v Vertex[T, V], bs []byte) (n int) {
+	n = s.valSerializer.Marshal(v.Val, bs)
+	return n + (*s.edgesSerializer).Marshal(v.Edges, bs[n:])
 }
 
-func (s listSerializer) Marshal(v List, bs []byte) (n int) {
-	n = s.elemPtr.Marshal(v.Head, bs)
-	n += s.elemPtr.Marshal(v.Tail, bs[n:])
-	return n + varnum.Int.Marshal(v.Len, bs[n:])
-}
-
-func (s listSerializer) Unmarshal(bs []byte) (v List, n int, err error) {
-	v.Head, n, err = s.elemPtr.Unmarshal(bs)
+func (s vertexSerializer[T, V]) Unmarshal(bs []byte) (v Vertex[T, V], n int, err error) {
+	v.Val, n, err = s.valSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
 	var n1 int
-	v.Tail, n1, err = s.elemPtr.Unmarshal(bs[n:])
-	n += n1
-	if err != nil {
-		return
-	}
-	v.Len, n1, err = varnum.Int.Unmarshal(bs[n:])
+	v.Edges, n1, err = (*s.edgesSerializer).Unmarshal(bs[n:])
 	n += n1
 	return
 }
-```
 
-`Size` and `Skip` follow the same pattern. The cycle between elements is
-captured by the pointer codec: each element is written once, and the back
-pointers become ids.
+func (s vertexSerializer[T, V]) Size(v Vertex[T, V]) (size int) {
+	return s.valSerializer.Size(v.Val) + (*s.edgesSerializer).Size(v.Edges)
+}
 
-**Trees.** A tree with parent pointers is the same shape:
+func (s vertexSerializer[T, V]) Skip(bs []byte) (n int, err error) {
+	n, err = s.valSerializer.Skip(bs)
+	if err != nil {
+		return
+	}
+	var n1 int
+	n1, err = (*s.edgesSerializer).Skip(bs[n:])
+	return n + n1, err
+}
 
-```go
-type Node struct {
-	Value    int
-	Children []*Node
-	Parent   *Node
+type graphSerializer[T comparable, V any] struct {
+	verticesSerializer binco.Serializer[map[T]*Vertex[T, V]]
+}
+
+func (s graphSerializer[T, V]) Marshal(v Graph[T, V], bs []byte) (n int) {
+	return s.verticesSerializer.Marshal(v.Vertices, bs)
+}
+
+func (s graphSerializer[T, V]) Unmarshal(bs []byte) (v Graph[T, V], n int, err error) {
+	v = Graph[T, V]{}
+	v.Vertices, n, err = s.verticesSerializer.Unmarshal(bs)
+	return
+}
+
+func (s graphSerializer[T, V]) Size(v Graph[T, V]) (size int) {
+	return s.verticesSerializer.Size(v.Vertices)
+}
+
+func (s graphSerializer[T, V]) Skip(bs []byte) (n int, err error) {
+	return s.verticesSerializer.Skip(bs)
 }
 ```
 
-Use `ptrmap.NewPtrSerializer` for `Parent` and `Children`; the root has `Parent == nil`.
-
-**Graphs.** Vertices and edges form cycles (edge → vertex → edge). The wiring is
-the interesting part: the codecs refer to each other, so build them with
-variables and assign in dependency order:
+**`pm/graph/main.go`**
 
 ```go
-var (
-	edgesSerializer    binco.Serializer[map[int]*Edge]
-	verticesSerializer binco.Serializer[map[int]*Vertex]
-	edgePtrSerializer  binco.Serializer[*Edge]
-	vertexPtrSerializer binco.Serializer[*Vertex]
+// Command graph encodes a cyclic graph. Edges point back at vertices, and the pointer identities survive the round trip.
+package main
+
+import (
+	"fmt"
+
+	"github.com/malivvan/binco/composite"
+	"github.com/malivvan/binco/varnum"
 )
-edge := edgeCodec{vertexPtr: &vertexPtrSerializer}
-vertex := vertexCodec{edges: &edgesSerializer}
-edgePtrSerializer = ptrmap.NewPtrSerializer(ptrMap, revPtrMap, edge)
-vertexPtrSerializer = ptrmap.NewPtrSerializer(ptrMap, revPtrMap, vertex)
-edgesSerializer = composite.NewMapSerializer(varnum.Int, edgePtrSerializer)
-verticesSerializer = composite.NewMapSerializer(varnum.Int, vertexPtrSerializer)
+
+func main() {
+	graph := CyclicGraph()
+	serializer := MakeGraphSerializer[int, string](varnum.Int, composite.String)
+
+	bs := make([]byte, serializer.Size(graph))
+	n := serializer.Marshal(graph, bs)
+	fmt.Printf("graph:\n%s", graph.Render())
+	fmt.Printf("size:    %d bytes\n", len(bs))
+	fmt.Printf("encoded: %v (wrote %d)\n\n", bs, n)
+
+	back, n, err := serializer.Unmarshal(bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("decoded %d bytes:\n%s\n", n, back.Render())
+
+	v1, v2, v3 := back.Vertices[1], back.Vertices[2], back.Vertices[3]
+	fmt.Printf("edge 1→2 → vertex 2: %v\n", v1.Edges[2].Vertex == v2)
+	fmt.Printf("edge 2→3 → vertex 3: %v\n", v2.Edges[3].Vertex == v3)
+	fmt.Printf("edge 3→1 → vertex 1: %v\n", v3.Edges[1].Vertex == v1)
+
+	n, err = serializer.Skip(bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("skipped: %d bytes\n", n)
+}
+
+func CyclicGraph() Graph[int, string] {
+	g := NewGraph[int, string]()
+	g.AddVertex(1, "one")
+	g.AddVertex(2, "two")
+	g.AddVertex(3, "three")
+
+	edges := [][3]int{{1, 2, 10}, {2, 3, 20}, {3, 1, 30}}
+	for _, e := range edges {
+		if err := g.AddEdge(e[0], e[1], e[2]); err != nil {
+			panic(err)
+		}
+	}
+	return g
+}
 ```
 
-A runnable version lives in [`demos/pm/graph`](./demos/pm/graph).
+Output:
 
-**Depth.** `ptrmap` writes data the first time it meets a pointer, so a deeply
-nested structure is written once and read once. Nesting is bounded by
-`binco.MaxDepth`; a pathologically deep graph reports `binco.ErrTooDeep` instead
-of exhausting the stack.
+```text
+graph:
+  vertex 1: one → 2 (weight 10)
+  vertex 2: two → 3 (weight 20)
+  vertex 3: three → 1 (weight 30)
+size:    45 bytes
+encoded: [3 2 2 0 3 111 110 101 1 4 2 1 20 2 2 3 116 119 111 1 6 2 3 40 2 4 5 116 104 114 101 101 1 2 2 5 60 2 0 4 2 2 6 2 4] (wrote 45)
+
+decoded 45 bytes:
+  vertex 1: one → 2 (weight 10)
+  vertex 2: two → 3 (weight 20)
+  vertex 3: three → 1 (weight 30)
+
+edge 1→2 → vertex 2: true
+edge 2→3 → vertex 3: true
+edge 3→1 → vertex 1: true
+skipped: 45 bytes
+```
+
+**Trees.** A tree with parent pointers has the same shape: use
+`ptrmap.NewPtrSerializer` for the parent and child pointers, and leave the root's
+parent nil.
+
+**Depth.** `ptrmap` writes data the first time it meets a pointer, so a value is
+written and read once. Recursion is bounded by `binco.MaxDepth`; a
+pathologically deep graph reports `binco.ErrTooDeep` instead of exhausting the
+stack.
+
 ### 6.9 Polymorphism with interfaces
 
-An interface field can hold several concrete types. The payload must say which
-one, so each implementation gets a DTM and the interface codec dispatches on it.
+An interface field can hold several concrete types, so the payload must say
+which one. Each implementation gets a DTM and the interface codec dispatches on
+it.
 
 **Marshalling without a type switch.** If every implementation satisfies
-`binco.MarshallerTyped`, the interface codec just delegates:
+`binco.MarshallerTyped`, the interface codec delegates to
+`MarshalTypedBinco`; adding an implementation then needs no change to the
+interface codec. The first program sends two unrelated types through typed
+serializers.
+
+**`typed/different/foo.go`**
 
 ```go
-type Command interface {
-	Run() string
+package main
+
+type Foo struct {
+	Num int
 }
-
-type Add struct{ Value int }
-
-func (a Add) Run() string { return "add" }
-
-func (a Add) MarshalTypedBinco(bs []byte) (n int) { return AddSerializer.Marshal(a, bs) }
-func (a Add) SizeTypedBinco() (size int)           { return AddSerializer.Size(a) }
-
-var AddSerializer = typeid.NewSerializer(AddDTM, addCodec{})
 ```
 
-```go
-type commandCodec struct{}
+**`typed/different/bar.go`**
 
-func (commandCodec) Marshal(v Command, bs []byte) (n int) {
+```go
+package main
+
+type Bar struct {
+	Str string
+}
+```
+
+**`typed/different/serializers.go`**
+
+```go
+package main
+
+import (
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/composite"
+	"github.com/malivvan/binco/typeid"
+	"github.com/malivvan/binco/varnum"
+)
+
+const (
+	FooDTM binco.DTM = iota + 1
+	BarDTM
+)
+
+var (
+	FooSerializer = fooSerializer{}
+	BarSerializer = barSerializer{}
+)
+
+var (
+	FooTypedSerializer = typeid.NewSerializer[Foo](FooDTM, FooSerializer)
+	BarTypedSerializer = typeid.NewSerializer[Bar](BarDTM, BarSerializer)
+)
+
+type fooSerializer struct{}
+
+func (fooSerializer) Marshal(v Foo, bs []byte) (n int) {
+	return varnum.Int.Marshal(v.Num, bs)
+}
+
+func (fooSerializer) Unmarshal(bs []byte) (v Foo, n int, err error) {
+	v.Num, n, err = varnum.Int.Unmarshal(bs)
+	return
+}
+
+func (fooSerializer) Size(v Foo) (size int) {
+	return varnum.Int.Size(v.Num)
+}
+
+func (fooSerializer) Skip(bs []byte) (n int, err error) {
+	return varnum.Int.Skip(bs)
+}
+
+type barSerializer struct{}
+
+func (barSerializer) Marshal(v Bar, bs []byte) (n int) {
+	return composite.String.Marshal(v.Str, bs)
+}
+
+func (barSerializer) Unmarshal(bs []byte) (v Bar, n int, err error) {
+	v.Str, n, err = composite.String.Unmarshal(bs)
+	return
+}
+
+func (barSerializer) Size(v Bar) (size int) {
+	return composite.String.Size(v.Str)
+}
+
+func (barSerializer) Skip(bs []byte) (n int, err error) {
+	return composite.String.Skip(bs)
+}
+```
+
+**`typed/different/main.go`**
+
+```go
+// Command different puts unrelated types behind type identifiers and dispatches on them.
+package main
+
+import (
+	"errors"
+	"fmt"
+
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/typeid"
+)
+
+func main() {
+
+	fooBS := binco.Encode(FooTypedSerializer, Foo{Num: 5})
+	barBS := binco.Encode(BarTypedSerializer, Bar{Str: "hello world"})
+	fmt.Printf("Foo: %v (DTM %d)\n", fooBS, FooDTM)
+	fmt.Printf("Bar: %v (DTM %d)\n\n", barBS, BarDTM)
+
+	for _, bs := range [][]byte{fooBS, barBS} {
+		if err := receive(bs); err != nil {
+			panic(err)
+		}
+	}
+
+	_, _, err := BarTypedSerializer.Unmarshal(fooBS)
+	if wrong, ok := errors.AsType[binco.WrongDTMError](err); ok {
+		fmt.Printf("Bar reader got a Foo payload: expected %d, actual %d\n",
+			wrong.Expected(), wrong.Actual())
+	}
+
+	dtm, n, err := typeid.DTMSerializer.Unmarshal(fooBS)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("DTM prefix: %d (%d byte), data: %v\n", dtm, n, fooBS[n:])
+}
+
+func receive(bs []byte) (err error) {
+
+	dtm, n, err := typeid.DTMSerializer.Unmarshal(bs)
+	if err != nil {
+		return
+	}
+
+	switch dtm {
+	case FooDTM:
+		foo, _, err := FooTypedSerializer.UnmarshalData(bs[n:])
+		if err != nil {
+			return err
+		}
+		fmt.Printf("received Foo %+v\n", foo)
+	case BarDTM:
+		bar, _, err := BarTypedSerializer.UnmarshalData(bs[n:])
+		if err != nil {
+			return err
+		}
+		fmt.Printf("received Bar %+v\n", bar)
+	default:
+		return fmt.Errorf("unexpected message: %w", binco.NewUnexpectedDTMError(dtm))
+	}
+	return nil
+}
+```
+
+Output:
+
+```text
+Foo: [1 10] (DTM 1)
+Bar: [2 11 104 101 108 108 111 32 119 111 114 108 100] (DTM 2)
+
+received Foo {Num:5}
+received Bar {Str:hello world}
+Bar reader got a Foo payload: expected 2, actual 1
+DTM prefix: 1 (1 byte), data: [10]
+```
+
+**An interface with a dispatch table.** Unmarshalling needs the concrete type,
+which is unknown until the DTM is read, so the interface codec switches on it
+(or looks it up in a `map[binco.DTM]`). The second program implements an
+`Instruction` interface with two concrete instructions and reports unknown ids
+with `binco.NewUnexpectedDTMError`.
+
+**`typed/oneof/instruction.go`**
+
+```go
+// The implementations carry their own marshalling, so the interface codec never names them.
+package main
+
+import "fmt"
+
+type Instruction interface {
+	Do()
+}
+
+type Copy struct {
+	Start int
+	End   int
+}
+
+func (c Copy) Do() {
+	fmt.Printf("copy from %d to %d\n", c.Start, c.End)
+}
+
+func (c Copy) MarshalTypedBinco(bs []byte) (n int) {
+	return CopyTypedSerializer.Marshal(c, bs)
+}
+
+func (c Copy) SizeTypedBinco() (size int) {
+	return CopyTypedSerializer.Size(c)
+}
+
+type Insert struct {
+	Str string
+}
+
+func (i Insert) Do() {
+	fmt.Printf("insert %q\n", i.Str)
+}
+
+func (i Insert) MarshalTypedBinco(bs []byte) (n int) {
+	return InsertTypedSerializer.Marshal(i, bs)
+}
+
+func (i Insert) SizeTypedBinco() (size int) {
+	return InsertTypedSerializer.Size(i)
+}
+```
+
+**`typed/oneof/serializers.go`**
+
+```go
+package main
+
+import (
+	"fmt"
+	"reflect"
+
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/composite"
+	"github.com/malivvan/binco/typeid"
+	"github.com/malivvan/binco/varnum"
+)
+
+const (
+	CopyDTM binco.DTM = iota + 1
+	InsertDTM
+)
+
+var (
+	CopySerializer   = copySerializer{}
+	InsertSerializer = insertSerializer{}
+
+	CopyTypedSerializer   = typeid.NewSerializer[Copy](CopyDTM, CopySerializer)
+	InsertTypedSerializer = typeid.NewSerializer[Insert](InsertDTM, InsertSerializer)
+
+	InstructionSerializer = instructionSerializer{}
+)
+
+type copySerializer struct{}
+
+func (copySerializer) Marshal(v Copy, bs []byte) (n int) {
+	n = varnum.Int.Marshal(v.Start, bs)
+	return n + varnum.Int.Marshal(v.End, bs[n:])
+}
+
+func (copySerializer) Unmarshal(bs []byte) (v Copy, n int, err error) {
+	v.Start, n, err = varnum.Int.Unmarshal(bs)
+	if err != nil {
+		return
+	}
+	var n1 int
+	v.End, n1, err = varnum.Int.Unmarshal(bs[n:])
+	n += n1
+	return
+}
+
+func (copySerializer) Size(v Copy) (size int) {
+	return varnum.Int.Size(v.Start) + varnum.Int.Size(v.End)
+}
+
+func (copySerializer) Skip(bs []byte) (n int, err error) {
+	n, err = varnum.Int.Skip(bs)
+	if err != nil {
+		return
+	}
+	var n1 int
+	n1, err = varnum.Int.Skip(bs[n:])
+	return n + n1, err
+}
+
+type insertSerializer struct{}
+
+func (insertSerializer) Marshal(v Insert, bs []byte) (n int) {
+	return composite.String.Marshal(v.Str, bs)
+}
+
+func (insertSerializer) Unmarshal(bs []byte) (v Insert, n int, err error) {
+	v.Str, n, err = composite.String.Unmarshal(bs)
+	return
+}
+
+func (insertSerializer) Size(v Insert) (size int) {
+	return composite.String.Size(v.Str)
+}
+
+func (insertSerializer) Skip(bs []byte) (n int, err error) {
+	return composite.String.Skip(bs)
+}
+
+type instructionSerializer struct{}
+
+func (instructionSerializer) Marshal(v Instruction, bs []byte) (n int) {
 	m, ok := v.(binco.MarshallerTyped)
 	if !ok {
-		panic(fmt.Sprintf("%T does not implement binco.MarshallerTyped", v))
+		panic(fmt.Sprintf("%v doesn't implement binco.MarshallerTyped", reflect.TypeOf(v)))
 	}
 	return m.MarshalTypedBinco(bs)
 }
 
-func (commandCodec) Size(v Command) (size int) {
+func (instructionSerializer) Size(v Instruction) (size int) {
 	m, ok := v.(binco.MarshallerTyped)
 	if !ok {
-		panic(fmt.Sprintf("%T does not implement binco.MarshallerTyped", v))
+		panic(fmt.Sprintf("%v doesn't implement binco.MarshallerTyped", reflect.TypeOf(v)))
 	}
 	return m.SizeTypedBinco()
 }
-```
 
-The win: a new implementation needs no change to the interface codec.
-
-**Unmarshalling needs the table.** The concrete type is unknown until the DTM is
-read:
-
-```go
-func (commandCodec) Unmarshal(bs []byte) (v Command, n int, err error) {
+func (instructionSerializer) Unmarshal(bs []byte) (v Instruction, n int, err error) {
 	dtm, n, err := typeid.DTMSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
 	var n1 int
 	switch dtm {
-	case AddDTM:
-		v, n1, err = AddSerializer.UnmarshalData(bs[n:])
-	case RemoveDTM:
-		v, n1, err = RemoveSerializer.UnmarshalData(bs[n:])
+	case CopyDTM:
+		v, n1, err = CopyTypedSerializer.UnmarshalData(bs[n:])
+	case InsertDTM:
+		v, n1, err = InsertTypedSerializer.UnmarshalData(bs[n:])
 	default:
-		err = binco.NewUnexpectedDTMError(dtm)
+		err = fmt.Errorf("unexpected instruction: %w", binco.NewUnexpectedDTMError(dtm))
+	}
+	n += n1
+	return
+}
+
+func (instructionSerializer) Skip(bs []byte) (n int, err error) {
+	dtm, n, err := typeid.DTMSerializer.Unmarshal(bs)
+	if err != nil {
+		return
+	}
+	var n1 int
+	switch dtm {
+	case CopyDTM:
+		n1, err = CopyTypedSerializer.SkipData(bs[n:])
+	case InsertDTM:
+		n1, err = InsertTypedSerializer.SkipData(bs[n:])
+	default:
+		err = fmt.Errorf("unexpected instruction: %w", binco.NewUnexpectedDTMError(dtm))
 	}
 	n += n1
 	return
 }
 ```
 
-`Skip` mirrors it with `SkipData`. A finite switch is the fast, type-safe
-option; a `map[binco.DTM]func([]byte) (T, int, error)` is the extensible one. The
-generator writes the switch for you (see [Interfaces](#76-interfaces)).
+**`typed/oneof/main.go`**
+
+```go
+// Command oneof encodes a Go interface: a type identifier followed by the concrete value.
+package main
+
+import (
+	"fmt"
+
+	"github.com/malivvan/binco"
+)
+
+func main() {
+
+	values := []Instruction{
+		Copy{Start: 10, End: 20},
+		Insert{Str: "hello world"},
+	}
+	for _, v := range values {
+		bs := binco.Encode(InstructionSerializer, v)
+		fmt.Printf("marshaled %T %+v → %v (%d bytes)\n", v, v, bs, len(bs))
+
+		back, n, err := InstructionSerializer.Unmarshal(bs)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("  unmarshaled %T (read %d bytes): ", back, n)
+		back.Do()
+	}
+
+	var copyIns Instruction = Copy{Start: 1, End: 2}
+	bs := binco.Encode(InstructionSerializer, copyIns)
+	n, err := InstructionSerializer.Skip(bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("\nskipped %d of %d bytes\n", n, len(bs))
+
+	unknown := append([]byte{99}, bs[1:]...)
+	if _, _, err = InstructionSerializer.Unmarshal(unknown); err != nil {
+		fmt.Printf("unknown instruction: %v\n", err)
+	}
+}
+```
+
+Output:
+
+```text
+marshaled main.Copy {Start:10 End:20} → [1 20 40] (3 bytes)
+  unmarshaled main.Copy (read 3 bytes): copy from 10 to 20
+marshaled main.Insert {Str:hello world} → [2 11 104 101 108 108 111 32 119 111 114 108 100] (13 bytes)
+  unmarshaled main.Insert (read 13 bytes): insert "hello world"
+
+skipped 3 of 3 bytes
+unknown instruction: unexpected instruction: binco: unexpected DTM 99
+```
 
 **Interface inside a struct.** Nothing special: the field's codec is the
 interface codec, and the DTM is written where the field sits.
 
-**"Oneof" with a marker field.** If you prefer explicit tags over DTMs, encode a
-small enum before the value:
+**"Oneof" with a marker field.** If you prefer explicit tags over DTMs, encode
+a small enum before the value:
 
 ```go
 type Shape struct {
@@ -1241,139 +2404,633 @@ DTMs cost the same byte and are less error-prone, so prefer them.
 
 ### 6.10 Versioning and migration
 
-Type versions are DTMs plus a dispatcher. There are three practical strategies.
+Type versions are DTMs plus a dispatcher. The recommended strategy is one
+DTM per version: each version has its own codec, the current codec reads all of
+them, and old payloads are converted by a migration function. Old payloads stay
+readable forever, and new payloads only ever contain the current version.
 
-**Strategy 1: one DTM per version (recommended).** Each version has its own
-codec and its own type id. The current codec reads all versions and converts old
-ones:
+The complete program below has `FooV1` and `FooV2`, writes the current version,
+decodes both, and shows `binco.Marshal`/`binco.MarshalTyped` on the same value.
+
+**`typed/versioning/foo.go`**
 
 ```go
-type AddV1 struct{ Value int16 }
-type AddV2 struct{ Value int }
-type AddLatest AddV2
+package main
 
-func MigrateAddV1(v AddV1) AddLatest { return AddLatest{Value: int(v.Value)} }
+type Foo FooV2
 
-type versionedCodec struct{}
-
-func (versionedCodec) Marshal(v AddLatest, bs []byte) (n int) {
-	return AddV2Serializer.Marshal(AddV2(v), bs) // always writes the current version
+func (f Foo) MarshalBinco(bs []byte) (n int) {
+	return FooSerializer.Marshal(f, bs)
 }
 
-func (versionedCodec) Unmarshal(bs []byte) (v AddLatest, n int, err error) {
+func (f Foo) SizeBinco() (size int) {
+	return FooSerializer.Size(f)
+}
+
+func (f Foo) String() string {
+	return FooV2(f).Str
+}
+```
+
+**`typed/versioning/foo_v1.go`**
+
+```go
+package main
+
+type FooV1 struct {
+	Num int
+}
+
+func (v FooV1) MarshalTypedBinco(bs []byte) (n int) {
+	return FooV1TypedSerializer.Marshal(v, bs)
+}
+
+func (v FooV1) SizeTypedBinco() (size int) {
+	return FooV1TypedSerializer.Size(v)
+}
+```
+
+**`typed/versioning/foo_v2.go`**
+
+```go
+package main
+
+type FooV2 struct {
+	Str string
+}
+
+func (v FooV2) MarshalTypedBinco(bs []byte) (n int) {
+	return FooV2TypedSerializer.Marshal(v, bs)
+}
+
+func (v FooV2) SizeTypedBinco() (size int) {
+	return FooV2TypedSerializer.Size(v)
+}
+```
+
+**`typed/versioning/serializers.go`**
+
+```go
+package main
+
+import (
+	"fmt"
+	"strconv"
+
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/composite"
+	"github.com/malivvan/binco/typeid"
+	"github.com/malivvan/binco/varnum"
+)
+
+const (
+	FooV1DTM binco.DTM = iota + 1
+	FooV2DTM
+)
+
+var (
+	FooV1Serializer = fooV1Serializer{}
+	FooV2Serializer = fooV2Serializer{}
+
+	FooV1TypedSerializer = typeid.NewSerializer[FooV1](FooV1DTM, FooV1Serializer)
+	FooV2TypedSerializer = typeid.NewSerializer[FooV2](FooV2DTM, FooV2Serializer)
+
+	FooSerializer = fooSerializer{}
+)
+
+type fooV1Serializer struct{}
+
+func (fooV1Serializer) Marshal(v FooV1, bs []byte) (n int) {
+	return varnum.Int.Marshal(v.Num, bs)
+}
+
+func (fooV1Serializer) Unmarshal(bs []byte) (v FooV1, n int, err error) {
+	v.Num, n, err = varnum.Int.Unmarshal(bs)
+	return
+}
+
+func (fooV1Serializer) Size(v FooV1) (size int) {
+	return varnum.Int.Size(v.Num)
+}
+
+func (fooV1Serializer) Skip(bs []byte) (n int, err error) {
+	return varnum.Int.Skip(bs)
+}
+
+type fooV2Serializer struct{}
+
+func (fooV2Serializer) Marshal(v FooV2, bs []byte) (n int) {
+	return composite.String.Marshal(v.Str, bs)
+}
+
+func (fooV2Serializer) Unmarshal(bs []byte) (v FooV2, n int, err error) {
+	v.Str, n, err = composite.String.Unmarshal(bs)
+	return
+}
+
+func (fooV2Serializer) Size(v FooV2) (size int) {
+	return composite.String.Size(v.Str)
+}
+
+func (fooV2Serializer) Skip(bs []byte) (n int, err error) {
+	return composite.String.Skip(bs)
+}
+
+type fooSerializer struct{}
+
+func (fooSerializer) Marshal(v Foo, bs []byte) (n int) {
+	return FooV2TypedSerializer.Marshal(FooV2(v), bs)
+}
+
+func (fooSerializer) Size(v Foo) (size int) {
+	return FooV2TypedSerializer.Size(FooV2(v))
+}
+
+func (fooSerializer) Unmarshal(bs []byte) (v Foo, n int, err error) {
 	dtm, n, err := typeid.DTMSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
 	var n1 int
 	switch dtm {
-	case AddV1DTM:
-		var old AddV1
-		old, n1, err = AddV1Serializer.UnmarshalData(bs[n:])
+	case FooV1DTM:
+		var old FooV1
+		old, n1, err = FooV1TypedSerializer.UnmarshalData(bs[n:])
 		if err != nil {
 			return
 		}
-		v = MigrateAddV1(old)
-	case AddV2DTM:
-		var cur AddV2
-		cur, n1, err = AddV2Serializer.UnmarshalData(bs[n:])
-		v = AddLatest(cur)
+		v = migrateFooV1(old)
+	case FooV2DTM:
+		var cur FooV2
+		cur, n1, err = FooV2TypedSerializer.UnmarshalData(bs[n:])
+		v = Foo(cur)
 	default:
-		err = binco.NewUnexpectedDTMError(dtm)
+		err = fmt.Errorf("unexpected version: %w", binco.NewUnexpectedDTMError(dtm))
 	}
 	n += n1
 	return
 }
+
+func (fooSerializer) Skip(bs []byte) (n int, err error) {
+	dtm, n, err := typeid.DTMSerializer.Unmarshal(bs)
+	if err != nil {
+		return
+	}
+	var n1 int
+	switch dtm {
+	case FooV1DTM:
+		n1, err = FooV1TypedSerializer.SkipData(bs[n:])
+	case FooV2DTM:
+		n1, err = FooV2TypedSerializer.SkipData(bs[n:])
+	default:
+		err = fmt.Errorf("unexpected version: %w", binco.NewUnexpectedDTMError(dtm))
+	}
+	return n + n1, err
+}
+
+func migrateFooV1(v FooV1) Foo {
+	return Foo(FooV2{Str: strconv.Itoa(v.Num)})
+}
 ```
 
-Old payloads stay readable forever; new payloads only ever contain the current
-version. The generator automates this with `AddVersioned`/`RegisterVersioned`
-(see [Versioned types](#77-versioned-types)).
-
-**Strategy 2: a version field in the payload.** Add an explicit `uint8` version
-as the first field of a struct and branch on it. Cheaper than a DTM if the type
-is already inside a typed envelope, but it cannot express a change of the
-payload's overall shape.
-
-**Strategy 3: side-by-side types.** Keep `UserV1` and `UserV2` as separate,
-complete types with their own DTMs and no migration. Suitable when the two
-versions are semantically different rather than successive revisions.
-
-**Migration rules of thumb**
-
-* Never change the meaning of an existing DTM.
-* Migrations run while decoding; keep them allocation-free where possible.
-* Keep the old version's codec, not just its data, for as long as payloads can
-  exist (logs, queues, archives).
-* A migration that cannot fail is easier to reason about; validate afterwards
-  if needed.
-
-### 6.11 Streaming protocols
-
-A stream has no structure of its own, so the codec supplies it. Three patterns
-cover most protocols.
-
-**Fixed sequence.** Both sides know the order, like a buffer payload:
+**`typed/versioning/main.go`**
 
 ```go
-// client
-wirefmt.Encode(wvarnum.Int, conn, version)
-wirefmt.Encode(wcomposite.String, conn, user)
-wirefmt.Encode(wcomposite.ByteSlice, conn, payload)
+// Command versioning reads payloads written by an older version and converts them to the current type.
+package main
 
-// server
-version, _, err := wirefmt.Decode(wvarnum.Int, conn)
-user, _, err := wirefmt.Decode(wcomposite.String, conn)
-payload, _, err := wirefmt.Decode(wcomposite.ByteSlice, conn)
-```
+import (
+	"fmt"
 
-**Type-tagged messages (DTS).** Read a DTM per message and dispatch:
+	"github.com/malivvan/binco"
+)
 
-```go
-func Serve(conn net.Conn) error {
-	r := bufio.NewReader(conn)
-	w := bufio.NewWriter(conn)
-	for {
-		dtm, _, err := wtypeid.DTMSerializer.Unmarshal(r)
-		if errors.Is(err, io.EOF) {
-			return nil // clean end of stream
-		}
+func main() {
+
+	v1 := FooV1{Num: 10}
+	v1BS := binco.Encode(FooV1TypedSerializer, v1)
+	fmt.Printf("V1 payload: %v (%d bytes)\n", v1BS, len(v1BS))
+
+	v2 := FooV2{Str: "current"}
+	v2BS := binco.Encode(FooV2TypedSerializer, v2)
+	fmt.Printf("V2 payload: %v (%d bytes)\n\n", v2BS, len(v2BS))
+
+	for _, bs := range [][]byte{v1BS, v2BS} {
+		foo, n, err := FooSerializer.Unmarshal(bs)
 		if err != nil {
-			return err
+			panic(err)
 		}
-		switch dtm {
-		case LoginDTM:
-			msg, n, err := LoginSerializer.UnmarshalData(r)
-			if err != nil {
-				return err
-			}
-			if _, err := wcomposite.String.Marshal("welcome "+msg.User, w); err != nil {
-				return err
-			}
-			if err := w.Flush(); err != nil { // publish this message now
-				return err
-			}
-		case UploadDTM:
-			// Known, but not needed: skip the payload without allocating.
-			if _, err := UploadSerializer.SkipData(r); err != nil {
-				return err
-			}
-		default:
-			// The size of an unknown message is unknown, so the stream cannot be
-			// resynchronized: report the id and stop.
-			return fmt.Errorf("unknown message: %w", binco.NewUnexpectedDTMError(dtm))
+		fmt.Printf("decoded %d bytes: %q\n", n, foo)
+	}
+
+	foo := Foo(FooV2{Str: "rewritten"})
+	bs := binco.Encode(FooSerializer, foo)
+	fmt.Printf("\nmarshaled %q → %v\n", foo, bs)
+	back, err := binco.Decode(FooSerializer, bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("decoded back: %q\n", back)
+
+	fmt.Printf("binco.Marshal:      %v\n", binco.Marshal(foo))
+	fmt.Printf("binco.MarshalTyped: %v\n", binco.MarshalTyped(v1))
+
+	for _, bs := range [][]byte{v1BS, v2BS} {
+		n, err := FooSerializer.Skip(bs)
+		if err != nil {
+			panic(err)
 		}
+		fmt.Printf("skipped %d of %d bytes\n", n, len(bs))
+	}
+
+	unknown := append([]byte{99}, v2BS[1:]...)
+	if _, _, err = FooSerializer.Unmarshal(unknown); err != nil {
+		fmt.Printf("\nunknown version: %v\n", err)
 	}
 }
 ```
 
-Three rules that make this robust:
+Output:
 
-* Treat `io.EOF` **between** messages as a clean shutdown; `io.ErrUnexpectedEOF`
-  **inside** a message is a truncated wire.
+```text
+V1 payload: [1 20] (2 bytes)
+V2 payload: [2 7 99 117 114 114 101 110 116] (9 bytes)
+
+decoded 2 bytes: "10"
+decoded 9 bytes: "current"
+
+marshaled "rewritten" → [2 9 114 101 119 114 105 116 116 101 110]
+decoded back: "rewritten"
+binco.Marshal:      [2 9 114 101 119 114 105 116 116 101 110]
+binco.MarshalTyped: [1 20]
+skipped 2 of 2 bytes
+skipped 9 of 9 bytes
+
+unknown version: unexpected version: binco: unexpected DTM 99
+```
+
+**Other strategies.** A version field inside the payload (a `uint8` first field)
+is cheaper than a DTM when the type is already inside a typed envelope, but it
+cannot express a change of the payload's overall shape. Side-by-side types with
+their own DTMs work when the versions are semantically different rather than
+successive revisions.
+
+**Rules of thumb.**
+
+* Never change the meaning of an existing DTM.
+* Keep the old version's codec, not just its data, for as long as payloads can
+  exist (logs, queues, archives).
+* Migrations run while decoding; keep them allocation-free where possible.
+* Validate after migrating if the migration cannot fail.
+
+### 6.11 Streaming protocols
+
+A stream has no structure of its own, so the codec supplies it. Three patterns
+cover most protocols: a fixed sequence both sides know, type-tagged messages
+(DTS), and length-prefixed frames.
+
+The complete program below is a DTS: it writes a login, a chat message, an
+upload (which the reader skips without allocating) and another chat message on
+one connection, then demonstrates that an unknown message type stops the
+reader.
+
+**`typed/stream/messages.go`**
+
+```go
+// The messages of the stream share the connection; each one is written as identifier followed by data.
+package main
+
+import (
+	"time"
+
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/wirefmt"
+	wcomposite "github.com/malivvan/binco/wirefmt/composite"
+	wscalar "github.com/malivvan/binco/wirefmt/scalar"
+	wtypeid "github.com/malivvan/binco/wirefmt/typeid"
+)
+
+const (
+	LoginDTM binco.DTM = iota + 1
+	ChatDTM
+	UploadDTM
+)
+
+type Login struct {
+	User string
+}
+
+type Chat struct {
+	From string
+	Text string
+	At   time.Time
+}
+
+type Upload struct {
+	Name string
+	Data []byte
+}
+
+type typedMessage interface {
+	writeTo(w wirefmt.Writer) (n int, err error)
+}
+
+func (m Login) writeTo(w wirefmt.Writer) (n int, err error) {
+	return LoginTyped.Marshal(m, w)
+}
+
+func (m Chat) writeTo(w wirefmt.Writer) (n int, err error) {
+	return ChatTyped.Marshal(m, w)
+}
+
+func (m Upload) writeTo(w wirefmt.Writer) (n int, err error) {
+	return UploadTyped.Marshal(m, w)
+}
+
+var (
+	LoginTyped  = wtypeid.NewSerializer(LoginDTM, loginSerializer{})
+	ChatTyped   = wtypeid.NewSerializer(ChatDTM, chatSerializer{})
+	UploadTyped = wtypeid.NewSerializer(UploadDTM, uploadSerializer{})
+)
+
+type loginSerializer struct{}
+
+func (loginSerializer) Marshal(v Login, w wirefmt.Writer) (n int, err error) {
+	return wcomposite.String.Marshal(v.User, w)
+}
+
+func (loginSerializer) Unmarshal(r wirefmt.Reader) (v Login, n int, err error) {
+	v.User, n, err = wcomposite.String.Unmarshal(r)
+	return
+}
+
+func (loginSerializer) Size(v Login) (size int) {
+	return wcomposite.String.Size(v.User)
+}
+
+func (loginSerializer) Skip(r wirefmt.Reader) (n int, err error) {
+	return wcomposite.String.Skip(r)
+}
+
+type chatSerializer struct{}
+
+func (chatSerializer) Marshal(v Chat, w wirefmt.Writer) (n int, err error) {
+	n, err = wcomposite.String.Marshal(v.From, w)
+	if err != nil {
+		return
+	}
+	var n1 int
+	n1, err = wcomposite.String.Marshal(v.Text, w)
+	n += n1
+	if err != nil {
+		return
+	}
+	n1, err = wscalar.TimeUnixUTC.Marshal(v.At, w)
+	return n + n1, err
+}
+
+func (chatSerializer) Unmarshal(r wirefmt.Reader) (v Chat, n int, err error) {
+	v.From, n, err = wcomposite.String.Unmarshal(r)
+	if err != nil {
+		return
+	}
+	var n1 int
+	v.Text, n1, err = wcomposite.String.Unmarshal(r)
+	n += n1
+	if err != nil {
+		return
+	}
+	v.At, n1, err = wscalar.TimeUnixUTC.Unmarshal(r)
+	n += n1
+	return
+}
+
+func (chatSerializer) Size(v Chat) (size int) {
+	return wcomposite.String.Size(v.From) + wcomposite.String.Size(v.Text) +
+		wscalar.TimeUnixUTC.Size(v.At)
+}
+
+func (chatSerializer) Skip(r wirefmt.Reader) (n int, err error) {
+	n, err = wcomposite.String.Skip(r)
+	if err != nil {
+		return
+	}
+	var n1 int
+	n1, err = wcomposite.String.Skip(r)
+	n += n1
+	if err != nil {
+		return
+	}
+	n1, err = wscalar.TimeUnixUTC.Skip(r)
+	return n + n1, err
+}
+
+type uploadSerializer struct{}
+
+func (uploadSerializer) Marshal(v Upload, w wirefmt.Writer) (n int, err error) {
+	n, err = wcomposite.String.Marshal(v.Name, w)
+	if err != nil {
+		return
+	}
+	var n1 int
+	n1, err = wcomposite.ByteSlice.Marshal(v.Data, w)
+	return n + n1, err
+}
+
+func (uploadSerializer) Unmarshal(r wirefmt.Reader) (v Upload, n int, err error) {
+	v.Name, n, err = wcomposite.String.Unmarshal(r)
+	if err != nil {
+		return
+	}
+	var n1 int
+	v.Data, n1, err = wcomposite.ByteSlice.Unmarshal(r)
+	n += n1
+	return
+}
+
+func (uploadSerializer) Size(v Upload) (size int) {
+	return wcomposite.String.Size(v.Name) + wcomposite.ByteSlice.Size(v.Data)
+}
+
+func (uploadSerializer) Skip(r wirefmt.Reader) (n int, err error) {
+	n, err = wcomposite.String.Skip(r)
+	if err != nil {
+		return
+	}
+	var n1 int
+	n1, err = wcomposite.ByteSlice.Skip(r)
+	return n + n1, err
+}
+```
+
+**`typed/stream/main.go`**
+
+```go
+// Command stream receives messages of different types over one connection, skipping the ones it does not need and stopping at an unknown type.
+package main
+
+import (
+	"bufio"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"time"
+
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/wirefmt"
+	wtypeid "github.com/malivvan/binco/wirefmt/typeid"
+)
+
+func main() {
+	fmt.Println("1. receiving a stream of typed messages")
+	stats, err := transfer(sampleMessages())
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("   received %d messages, skipped %d, consumed %d bytes\n",
+		stats.received, stats.skipped, stats.bytes)
+
+	fmt.Println("\n2. an unknown message type stops the reader")
+	stats, err = transfer([]typedMessage{unknownMessage{}})
+	if unexpected, ok := errors.AsType[binco.UnexpectedDTMError](err); ok {
+		fmt.Printf("   stopped with %v (DTM %d)\n", err, unexpected.DTM())
+	} else {
+		fmt.Printf("   stopped with %v\n", err)
+	}
+	fmt.Printf("   %d messages were received before the unknown one\n", stats.received)
+}
+
+func transfer(messages []typedMessage) (stats, error) {
+	client, server := net.Pipe()
+
+	sendErr := make(chan error, 1)
+	go func() {
+		defer func() { _ = client.Close() }()
+		w := bufio.NewWriter(client)
+		for _, m := range messages {
+			if _, err := m.writeTo(w); err != nil {
+				sendErr <- err
+				return
+			}
+			if err := w.Flush(); err != nil {
+				sendErr <- err
+				return
+			}
+		}
+		sendErr <- nil
+	}()
+
+	stats, err := receive(bufio.NewReader(server))
+
+	_ = server.Close()
+	if sendErr := <-sendErr; sendErr != nil && err == nil {
+		err = sendErr
+	}
+	return stats, err
+}
+
+type stats struct {
+	received int
+	skipped  int
+	bytes    int
+}
+
+func receive(r wirefmt.Reader) (stats, error) {
+	var st stats
+	for {
+
+		dtm, n, err := wtypeid.DTMSerializer.Unmarshal(r)
+		if errors.Is(err, io.EOF) {
+			return st, nil
+		}
+		if err != nil {
+			return st, err
+		}
+		st.bytes += n
+
+		switch dtm {
+		case LoginDTM:
+			login, n, err := LoginTyped.UnmarshalData(r)
+			if err != nil {
+				return st, err
+			}
+			st.received++
+			st.bytes += n
+			fmt.Printf("   login:  %q joined\n", login.User)
+
+		case ChatDTM:
+			chat, n, err := ChatTyped.UnmarshalData(r)
+			if err != nil {
+				return st, err
+			}
+			st.received++
+			st.bytes += n
+			fmt.Printf("   chat:   %s says %q at %s\n", chat.From, chat.Text,
+				chat.At.Format(time.RFC3339))
+
+		case UploadDTM:
+
+			n, err := UploadTyped.SkipData(r)
+			if err != nil {
+				return st, err
+			}
+			st.skipped++
+			st.bytes += n
+			fmt.Printf("   upload: skipped %d bytes\n", n)
+
+		default:
+
+			return st, fmt.Errorf("unknown message type: %w", binco.NewUnexpectedDTMError(dtm))
+		}
+	}
+}
+
+func sampleMessages() []typedMessage {
+	at := time.Date(2024, 5, 6, 7, 8, 9, 0, time.UTC)
+	return []typedMessage{
+		Login{User: "alice"},
+		Chat{From: "alice", Text: "hello everyone", At: at},
+		Upload{Name: "report.pdf", Data: []byte{1, 2, 3, 4}},
+		Chat{From: "bob", Text: "thanks!", At: at.Add(time.Minute)},
+	}
+}
+
+type unknownMessage struct{}
+
+func (unknownMessage) writeTo(w wirefmt.Writer) (n int, err error) {
+
+	if n, err = wtypeid.DTMSerializer.Marshal(binco.DTM(99), w); err != nil {
+		return
+	}
+	var n1 int
+	n1, err = w.Write([]byte{0xDE, 0xAD})
+	return n + n1, err
+}
+```
+
+Output:
+
+```text
+1. receiving a stream of typed messages
+   login:  "alice" joined
+   chat:   alice says "hello everyone" at 2024-05-06T07:08:09Z
+   upload: skipped 16 bytes
+   chat:   bob says "thanks!" at 2024-05-06T07:09:09Z
+   received 3 messages, skipped 1, consumed 75 bytes
+
+2. an unknown message type stops the reader
+   stopped with unknown message type: binco: unexpected DTM 99 (DTM 99)
+   0 messages were received before the unknown one
+```
+
+Three rules make a DTS robust:
+
+* Treat `io.EOF` **between** messages as a clean shutdown;
+  `io.ErrUnexpectedEOF` **inside** a message is a truncated wire.
 * Flush after each message if the peer should react to it immediately.
 * Never ignore an unknown DTM: its length is unknowable, so skipping it would
-  desynchronize the wire.
+  desynchronise the wire. Report `binco.NewUnexpectedDTMError(dtm)` and stop.
 
 **Length-prefixed frames.** When you need to buffer a message before decoding
 it (for example to hand it to another goroutine), prefix it with its size:
@@ -1384,186 +3041,514 @@ wirefmt.Encode(wvarnum.PositiveInt, conn, len(payload))
 conn.Write(payload)
 ```
 
-The receiver reads the size, allocates once, and calls `io.ReadFull`. This
-trades one extra length field for buffering freedom.
-
-A runnable DTS example lives in
-[`demos/typed/stream`](./demos/typed/stream).
+The receiver reads the size, allocates once, and calls `io.ReadFull`.
 
 ### 6.12 Validating untrusted input
 
-A length read from the network is an allocation request. Validating codecs check
-it **before** the allocation happens, which turns a hostile payload into an
-error instead of an out-of-memory kill.
+A length read from the network is an allocation request. Validators check it
+**before** the allocation happens, and they run on the reader: `Marshal` never
+validates, and `Skip` performs only structural checks, so it never calls a
+validator.
+
+The three programs below validate a string length, slice length and elements,
+and map length, keys and values.
+
+**`validation/string/main.go`**
 
 ```go
-var (
-	ErrTooLong  = errors.New("too long")
-	ErrTooMany  = errors.New("too many elements")
-	ErrBadKey   = errors.New("bad key")
+// Command string validates a string length while decoding, before the characters are read.
+package main
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/composite"
+	stropts "github.com/malivvan/binco/config/string"
 )
 
-boundedText := composite.NewStringSerializer(
-	stropts.WithLenValidator(binco.ValidatorFn[int](func(n int) error {
-		if n > 4096 {
-			return fmt.Errorf("%w: %d", ErrTooLong, n)
-		}
-		return nil
-	})),
-)
+const maxLen = 10
 
-boundedList := composite.NewSliceSerializer(varnum.Int,
-	slopts.WithLenValidator[int](binco.ValidatorFn[int](func(n int) error {
-		if n > 1000 {
-			return ErrTooMany
-		}
-		return nil
-	})),
-	slopts.WithElemValidator[int](binco.ValidatorFn[int](func(v int) error {
-		if v < 0 {
-			return errors.New("negative element")
-		}
-		return nil
-	})),
-)
+var ErrTooLong = errors.New("string too long")
 
-boundedMap := composite.NewMapSerializer(composite.String, composite.ByteSlice,
-	mapopts.WithLenValidator[string, []byte](binco.ValidatorFn[int](func(n int) error {
-		if n > 100 {
-			return ErrTooMany
+type lengthLimit struct{ max int }
+
+func (l lengthLimit) Validate(n int) error {
+	if n > l.max {
+		return fmt.Errorf("%w: %d > %d", ErrTooLong, n, l.max)
+	}
+	return nil
+}
+
+func main() {
+
+	serializer := composite.NewStringSerializer(stropts.WithLenValidator(lengthLimit{max: maxLen}))
+
+	for _, value := range []string{"hello", strings.Repeat("a", maxLen+1)} {
+		bs := binco.Encode(serializer, value)
+		got, _, err := serializer.Unmarshal(bs)
+		switch {
+		case err != nil:
+			fmt.Printf("%-14q → rejected: %v (errors.Is: %v)\n", value, err,
+				errors.Is(err, ErrTooLong))
+		default:
+			fmt.Printf("%-14q → accepted: %q\n", value, got)
+		}
+	}
+
+	big := strings.Repeat("a", maxLen+1)
+	got, _, err := composite.String.Unmarshal(binco.Encode(composite.String, big))
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("plain reader accepts %d characters\n", len(got))
+
+	fn := binco.ValidatorFn[int](func(n int) error {
+		if n%2 != 0 {
+			return errors.New("odd length")
 		}
 		return nil
-	})),
-	mapopts.WithKeyValidator[string, []byte](binco.ValidatorFn[string](func(k string) error {
-		if len(k) > 64 {
-			return ErrBadKey
-		}
-		return nil
-	})),
-	mapopts.WithValueValidator[string, []byte](binco.ValidatorFn[[]byte](func(v []byte) error {
-		if len(v) > 1<<20 {
-			return ErrTooLong
-		}
-		return nil
-	})),
-)
+	})
+	fmt.Printf("ValidatorFn(3) = %v\n", fn.Validate(3))
+}
 ```
 
-**Order of checks**: length, then keys, then values, each as soon as the item is
-decoded. So a bad length never leads to a large allocation, and a bad key stops
-the decode before its value is read.
+Output:
 
-**Validators are reader-side only.** `Marshal` never validates; producing valid
-data is the writer's job. A validating codec therefore costs nothing on the hot
-encode path.
+```text
+"hello"        → accepted: "hello"
+"aaaaaaaaaaa"  → rejected: string too long: 11 > 10 (errors.Is: true)
+plain reader accepts 11 characters
+ValidatorFn(3) = odd length
+```
+
+**`validation/slice/main.go`**
+
+```go
+// Command slice validates the length and the elements of a slice while decoding.
+package main
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/composite"
+	slopts "github.com/malivvan/binco/config/slice"
+)
+
+var (
+	ErrTooMany = errors.New("too many elements")
+
+	ErrEmptyElem = errors.New("empty element")
+)
+
+const maxElems = 2
+
+func main() {
+	lenVl := binco.ValidatorFn[int](func(length int) error {
+		if length > maxElems {
+			return fmt.Errorf("%w: %d > %d", ErrTooMany, length, maxElems)
+		}
+		return nil
+	})
+	elemVl := binco.ValidatorFn[string](func(elem string) error {
+		if elem == "" {
+			return ErrEmptyElem
+		}
+		return nil
+	})
+
+	serializer := composite.NewSliceSerializer(
+		composite.String,
+		slopts.WithLenValidator[string](lenVl),
+		slopts.WithElemValidator[string](elemVl),
+	)
+
+	values := [][]string{
+		{"hello", "world"},
+		{"hello", "world", "again"},
+		{"hello", ""},
+	}
+	for _, value := range values {
+		bs := binco.Encode(serializer, value)
+		got, _, err := serializer.Unmarshal(bs)
+		if err != nil {
+			fmt.Printf("%-28s → rejected: %v\n", render(value), err)
+			continue
+		}
+		fmt.Printf("%-28s → accepted: %s\n", render(value), render(got))
+	}
+
+	n, err := serializer.Skip(binco.Encode(serializer, values[1]))
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Skip: %d bytes, no validators called\n", n)
+}
+
+func render(values []string) string {
+	quoted := make([]string, len(values))
+	for i, v := range values {
+		quoted[i] = fmt.Sprintf("%q", v)
+	}
+	return "[" + strings.Join(quoted, ", ") + "]"
+}
+```
+
+Output:
+
+```text
+["hello", "world"]           → accepted: ["hello", "world"]
+["hello", "world", "again"]  → rejected: too many elements: 3 > 2
+["hello", ""]                → rejected: empty element
+Skip: 19 bytes, no validators called
+```
+
+**`validation/map/main.go`**
+
+```go
+// Command map validates the length, the keys and the values of a map while decoding.
+package main
+
+import (
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/composite"
+	mapopts "github.com/malivvan/binco/config/map"
+	"github.com/malivvan/binco/varnum"
+)
+
+var (
+	ErrTooMany = errors.New("too many entries")
+
+	ErrNegativeKey = errors.New("negative key")
+
+	ErrEmptyValue = errors.New("empty value")
+)
+
+const maxEntries = 1
+
+func main() {
+	lenVl := binco.ValidatorFn[int](func(length int) error {
+		if length > maxEntries {
+			return fmt.Errorf("%w: %d > %d", ErrTooMany, length, maxEntries)
+		}
+		return nil
+	})
+	keyVl := binco.ValidatorFn[int](func(key int) error {
+		if key < 0 {
+			return fmt.Errorf("%w: %d", ErrNegativeKey, key)
+		}
+		return nil
+	})
+	valueVl := binco.ValidatorFn[string](func(value string) error {
+		if value == "" {
+			return ErrEmptyValue
+		}
+		return nil
+	})
+
+	serializer := composite.NewMapSerializer(
+		varnum.Int,
+		composite.String,
+		mapopts.WithLenValidator[int, string](lenVl),
+		mapopts.WithKeyValidator[int, string](keyVl),
+		mapopts.WithValueValidator[int, string](valueVl),
+	)
+
+	values := []map[int]string{
+		{1: "one"},
+		{1: "one", 2: "two"},
+		{-1: "minus one"},
+		{1: ""},
+	}
+	for _, value := range values {
+		bs := binco.Encode(serializer, value)
+		got, _, err := serializer.Unmarshal(bs)
+		if err != nil {
+			fmt.Printf("%-22s → rejected: %v\n", render(value), err)
+			continue
+		}
+		fmt.Printf("%-22s → accepted: %s\n", render(value), render(got))
+	}
+}
+
+func render(m map[int]string) string {
+	keys := make([]int, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%d:%q", k, m[k]))
+	}
+	return "{" + strings.Join(parts, ", ") + "}"
+}
+```
+
+Output:
+
+```text
+{1:"one"}              → accepted: {1:"one"}
+{1:"one", 2:"two"}     → rejected: too many entries: 2 > 1
+{-1:"minus one"}       → rejected: negative key: -1
+{1:""}                 → rejected: empty value
+```
+
+**Order of checks.** Length, then keys, then values, each as soon as the item is
+decoded. A bad length never leads to a large allocation, and a bad key stops the
+decode before its value is read.
 
 **What validation cannot do.** It cannot bound the total size of nested
 containers (each level is checked independently) and it cannot reject a payload
-that is merely *semantically* wrong (an impossible date, an unknown enum). Add
-domain checks through `WithValidator`, or after decoding.
-
-**Skipping does not validate.** `Skip` performs structural checks (flags, varint
-widths, available bytes) but never calls validators, because it does not decode
-values. Do not use `Skip` as a trust boundary.
+that is merely semantically wrong (an impossible date, an unknown enum). Add
+domain checks after decoding for that.
 
 ### 6.13 Partial decoding and out-of-order reads
 
 Because `Skip` is exact and `Unmarshal` never reads past a value, you can index
-into a payload without decoding it.
+into a payload without decoding it. The program below encodes a record as `ID`,
+`Name`, `Score`, computes the offsets with `Skip`, and then reads the fields in
+reverse order.
 
-**Read one field only.** Given a record encoded as `ID`, `Name`, `Score`:
-
-```go
-idEnd, err := varnum.Int.Skip(bs)
-if err != nil {
-	return err
-}
-nameEnd, err := composite.String.Skip(bs[idEnd:])
-if err != nil {
-	return err
-}
-
-// Score is the last field: jump straight to it.
-score, _, err := scalar.Int32.Unmarshal(bs[idEnd+nameEnd:])
-```
-
-**Reverse order.** Decode the last field first, then the middle, then the first:
+**`out_of_order/main.go`**
 
 ```go
-score, _, err := scalar.Int32.Unmarshal(bs[idEnd+nameEnd:])
-name, _, err := composite.String.Unmarshal(bs[idEnd:])
-id, _, err := varnum.Int.Unmarshal(bs)
-```
+// Command out_of_order computes field offsets with Skip and then decodes the fields in reverse order.
+package main
 
-`demos/out_of_order` runs exactly this.
+import (
+	"fmt"
 
-**Unknown trailing fields.** A reader for an older schema stops after the fields
-it knows; the remainder is simply not read. This is how a forward-compatible
-reader tolerates extra data. When a protocol carries exactly one value per
-message, `binco.DecodeExact` is the strict form: it returns
-`binco.ErrTrailingBytes` if anything follows the value, instead of silently
-dropping it.
+	"github.com/malivvan/binco/composite"
+	"github.com/malivvan/binco/scalar"
+	"github.com/malivvan/binco/varnum"
+)
 
-**Forward compatibility for containers.** If a slice may grow new element
-shapes, keep the element schema fixed and add optional trailing fields inside
-each element; a reader that knows fewer fields can skip the rest of each
-element's bytes because the element boundary is known from its own length
-prefix.
+var (
+	idSerializer    = varnum.Int
+	nameSerializer  = composite.String
+	scoreSerializer = scalar.Int32
+)
 
-**Counting bytes.** `Unmarshal` returns `n`, the number of bytes it consumed.
-Summing `n` while decoding is how a reader verifies that a payload was fully
-understood:
+func main() {
+	const (
+		id    = 42
+		name  = "out of order"
+		score = int32(1234)
+	)
+	bs := encode(id, name, score)
+	fmt.Printf("payload: %v (%d bytes)\n\n", bs, len(bs))
 
-```go
-var consumed int
-for _, codec := range codecs {
-	n, err := codec.Skip(bs[consumed:])
+	idEnd, err := idSerializer.Skip(bs)
 	if err != nil {
-		return err
+		panic(err)
 	}
-	consumed += n
+	nameEnd, err := nameSerializer.Skip(bs[idEnd:])
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("offsets: ID ends at %d, Name ends at %d\n\n", idEnd, idEnd+nameEnd)
+
+	gotScore, _, err := scoreSerializer.Unmarshal(bs[idEnd+nameEnd:])
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("score: %d\n", gotScore)
+
+	gotName, _, err := nameSerializer.Unmarshal(bs[idEnd:])
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("name:  %q\n", gotName)
+
+	gotID, _, err := idSerializer.Unmarshal(bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("id:    %d\n", gotID)
+
+	if _, err = idSerializer.Skip(bs); err != nil {
+		panic(err)
+	}
+	if _, err = nameSerializer.Skip(bs[idEnd:]); err != nil {
+		panic(err)
+	}
+	onlyScore, _, err := scoreSerializer.Unmarshal(bs[idEnd+nameEnd:])
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("\nonly the score: %d\n", onlyScore)
+
+	if _, err = nameSerializer.Skip(bs[idEnd : idEnd+5]); err != nil {
+		fmt.Printf("truncated payload: %v\n", err)
+	}
 }
-if consumed != len(bs) {
-	return fmt.Errorf("trailing %d bytes", len(bs)-consumed)
+
+func encode(id int, name string, score int32) []byte {
+	bs := make([]byte, idSerializer.Size(id)+nameSerializer.Size(name)+scoreSerializer.Size(score))
+	n := idSerializer.Marshal(id, bs)
+	n += nameSerializer.Marshal(name, bs[n:])
+	scoreSerializer.Marshal(score, bs[n:])
+	return bs
 }
 ```
+
+Output:
+
+```text
+payload: [84 12 111 117 116 32 111 102 32 111 114 100 101 114 210 4 0 0] (18 bytes)
+
+offsets: ID ends at 1, Name ends at 14
+
+score: 1234
+name:  "out of order"
+id:    42
+
+only the score: 1234
+truncated payload: binco: truncated input
+```
+
+The same works with the streaming API, but only forwards: a stream cannot seek,
+so values are skipped to reach the next one. To read the fields of one streamed
+value in reverse order, buffer that value first and use the buffer API.
 
 ### 6.14 Zero-copy hot paths
 
 `zerocopy` decodes strings and byte slices without copying: the returned value
-points into the input buffer.
+**aliases the input buffer**. That is the fastest option and the easiest to get
+wrong. The program below shows the payload equivalence with `composite`, the
+aliasing pitfall (a reused buffer changes strings that were already decoded), the
+fixes, and the array codec.
+
+**`native/main.go`**
 
 ```go
-bs := binco.Encode(zerocopy.String, "hello")
-s, n, err := zerocopy.String.Unmarshal(bs) // s aliases bs, no allocation
+// Command native shows the zero-copy codecs: decoded strings and slices point into the input buffer, so they must be copied when they outlive it.
+package main
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/composite"
+	"github.com/malivvan/binco/scalar"
+	"github.com/malivvan/binco/zerocopy"
+)
+
+func main() {
+
+	value := "hello"
+	fmt.Printf("zerocopy.String: %v\n", binco.Encode(zerocopy.String, value))
+	fmt.Printf("composite.String:    %v\n\n", binco.Encode(composite.String, value))
+
+	messages := []string{"first", "second"}
+	buf := make([]byte, 64)
+
+	var (
+		aliased []string
+		copied  []string
+	)
+	for _, msg := range messages {
+
+		n := copy(buf, binco.Encode(zerocopy.String, msg))
+
+		str, _, err := zerocopy.String.Unmarshal(buf[:n])
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Printf("processing %q\n", str)
+
+		aliased = append(aliased, str)
+
+		copied = append(copied, strings.Clone(str))
+	}
+	fmt.Printf("\naliased strings after the loop: %q\n", aliased)
+	fmt.Printf("copied strings after the loop:  %q\n", copied)
+
+	payload := binco.Encode(zerocopy.ByteSlice, []byte{1, 2, 3})
+	data, _, err := zerocopy.ByteSlice.Unmarshal(payload)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("\ndecoded bytes: %v\n", data)
+	payload[1] = 9
+	fmt.Printf("after modifying the payload: %v (the decoded slice changed)\n", data)
+
+	safe, _, err := composite.ByteSlice.Unmarshal(payload)
+	if err != nil {
+		panic(err)
+	}
+	payload[1] = 7
+	fmt.Printf("composite.ByteSlice copied %v and is unaffected by the payload change to %v\n",
+		safe, payload)
+
+	parts := make([]string, 0, 4)
+	for _, v := range []uint64{0, 40, 1 << 40, ^uint64(0)} {
+		bs := binco.Encode(zerocopy.Uint64, v)
+		got, _, err := zerocopy.Uint64.Unmarshal(bs)
+		if err != nil {
+			panic(err)
+		}
+		parts = append(parts, fmt.Sprintf("%d (%d bytes)", got, len(bs)))
+	}
+	fmt.Printf("zerocopy.Uint64 round trips: %s\n", strings.Join(parts, ", "))
+
+	arr := [3]int32{7, 8, 9}
+	arrSerializer := zerocopy.NewArraySerializer[[3]int32, int32](scalar.Int32)
+	arrBS := binco.Encode(arrSerializer, arr)
+	gotArr, _, err := arrSerializer.Unmarshal(arrBS)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("native array: %v → %v (%d bytes)\n", arr, gotArr, len(arrBS))
+}
 ```
 
-This is the fastest option and the easiest to get wrong. Rules:
+Output:
+
+```text
+zerocopy.String: [5 104 101 108 108 111]
+composite.String:    [5 104 101 108 108 111]
+
+processing "first"
+processing "second"
+
+aliased strings after the loop: ["secon" "second"]
+copied strings after the loop:  ["first" "second"]
+
+decoded bytes: [1 2 3]
+after modifying the payload: [9 2 3] (the decoded slice changed)
+composite.ByteSlice copied [9 2 3] and is unaffected by the payload change to [3 7 2 3]
+zerocopy.Uint64 round trips: 0 (8 bytes), 40 (8 bytes), 1099511627776 (8 bytes), 18446744073709551615 (8 bytes)
+native array: [7 8 9] → [7 8 9] (13 bytes)
+```
+
+The rules:
 
 1. **The value lives only as long as the buffer.** If the buffer is reused, the
-   string changes under you:
-
-   ```go
-   var buf []byte
-   for _, msg := range messages {
-       buf = binco.Encode(zerocopy.String, msg)
-       s, _, _ := zerocopy.String.Unmarshal(buf)
-       _ = s // fine here: processed before the next iteration
-       keep = append(keep, s) // wrong: every kept string aliases the same buffer
-   }
-   ```
-
+   string changes under you.
 2. **Never write through the returned slice.** It is the payload.
-
 3. **Copy when it must outlive the buffer**: `strings.Clone(s)`,
-   `bytes.Clone(b)`, or use `composite.String`/`composite.ByteSlice`, which copy while
-   decoding.
+   `bytes.Clone(b)`, or use `composite.String`/`composite.ByteSlice`, which copy
+   while decoding.
 
-4. **Do not mix modes for one value by accident.** Importing `zerocopy` and `composite`
-   together is legitimate (bytes are identical), but be explicit about which
-   fields are views.
-
-`demos/native` demonstrates the pitfall and its fixes.
+Scalars are converted through `encoding/binary` with an explicit little-endian
+order, so the package is correct on any host byte order and at an unaligned
+offset. Only the array codec reinterprets memory, and it validates its type
+parameters at construction (`binco.ErrWrongArrayType`).
 
 ### 6.15 Custom codecs
 
@@ -1646,6 +3631,186 @@ func (c countingCodec[T]) Size(v T) int { return c.inner.Size(v) }
 func (c countingCodec[T]) Skip(bs []byte) (int, error) { return c.inner.Skip(bs) }
 ```
 
+#### Self-marshalling types
+
+A type can encode itself through `binco.Marshaller` (`MarshalBinco`,
+`SizeBinco`) or `binco.MarshallerTyped` (`MarshalTypedBinco`, `SizeTypedBinco`).
+`binco.Marshal` and `binco.MarshalTyped` then need no serializer argument.
+Decoding has no shorthand, because the payload does not carry its type: name the
+serializer, or read the DTM first and dispatch.
+
+The method names carry the package name so a type can also satisfy
+`encoding/json`, `encoding/binary` and friends without collisions. The complete
+program below defines one type that implements both interfaces and one that
+implements only `Marshaller`.
+
+**`marshal_func/foo.go`**
+
+```go
+// Foo marshals itself through binco.Marshaller and binco.MarshallerTyped.
+package main
+
+type Foo struct {
+	Num int
+}
+
+func (f Foo) MarshalBinco(bs []byte) (n int) {
+	return FooSerializer.Marshal(f, bs)
+}
+
+func (f Foo) SizeBinco() (size int) {
+	return FooSerializer.Size(f)
+}
+
+func (f Foo) MarshalTypedBinco(bs []byte) (n int) {
+	return FooTypedSerializer.Marshal(f, bs)
+}
+
+func (f Foo) SizeTypedBinco() (size int) {
+	return FooTypedSerializer.Size(f)
+}
+```
+
+**`marshal_func/bar.go`**
+
+```go
+package main
+
+type Bar struct {
+	Str string
+}
+
+func (b Bar) MarshalBinco(bs []byte) (n int) {
+	return BarSerializer.Marshal(b, bs)
+}
+
+func (b Bar) SizeBinco() (size int) {
+	return BarSerializer.Size(b)
+}
+```
+
+**`marshal_func/serializers.go`**
+
+```go
+package main
+
+import (
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/composite"
+	"github.com/malivvan/binco/typeid"
+	"github.com/malivvan/binco/varnum"
+)
+
+const FooDTM binco.DTM = 1
+
+var (
+	FooSerializer = fooSerializer{}
+	BarSerializer = barSerializer{}
+
+	FooTypedSerializer = typeid.NewSerializer[Foo](FooDTM, FooSerializer)
+)
+
+type fooSerializer struct{}
+
+func (fooSerializer) Marshal(v Foo, bs []byte) (n int) {
+	return varnum.Int.Marshal(v.Num, bs)
+}
+
+func (fooSerializer) Unmarshal(bs []byte) (v Foo, n int, err error) {
+	v.Num, n, err = varnum.Int.Unmarshal(bs)
+	return
+}
+
+func (fooSerializer) Size(v Foo) (size int) {
+	return varnum.Int.Size(v.Num)
+}
+
+func (fooSerializer) Skip(bs []byte) (n int, err error) {
+	return varnum.Int.Skip(bs)
+}
+
+type barSerializer struct{}
+
+func (barSerializer) Marshal(v Bar, bs []byte) (n int) {
+	return composite.String.Marshal(v.Str, bs)
+}
+
+func (barSerializer) Unmarshal(bs []byte) (v Bar, n int, err error) {
+	v.Str, n, err = composite.String.Unmarshal(bs)
+	return
+}
+
+func (barSerializer) Size(v Bar) (size int) {
+	return composite.String.Size(v.Str)
+}
+
+func (barSerializer) Skip(bs []byte) (n int, err error) {
+	return composite.String.Skip(bs)
+}
+```
+
+**`marshal_func/main.go`**
+
+```go
+// Command marshal_func compares the explicit Size/Marshal pair with the binco.Marshal and binco.MarshalTyped shorthands.
+package main
+
+import (
+	"fmt"
+
+	"github.com/malivvan/binco"
+)
+
+func main() {
+
+	foo := Foo{Num: 10}
+	bs := make([]byte, FooSerializer.Size(foo))
+	n := FooSerializer.Marshal(foo, bs)
+	fmt.Printf("explicit:      %v (wrote %d of %d bytes)\n", bs, n, len(bs))
+
+	fmt.Printf("binco.Marshal:  %v\n", binco.Marshal(foo))
+
+	bar := Bar{Str: "10"}
+	fmt.Println("Foo and Bar marshal through the same call:")
+	for _, m := range []binco.Marshaller{foo, bar} {
+		fmt.Printf("  %-10T → %v\n", m, binco.Marshal(m))
+	}
+
+	fmt.Printf("\nbinco.Marshal:      %v\n", binco.Marshal(foo))
+	fmt.Printf("binco.MarshalTyped: %v\n", binco.MarshalTyped(foo))
+
+	back, err := binco.Decode(FooSerializer, bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("\ndecoded Foo: %+v\n", back)
+
+	typedBS := binco.MarshalTyped(foo)
+	back, err = binco.Decode(FooTypedSerializer, typedBS)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("decoded Foo (typed, %d bytes): %+v\n", len(typedBS), back)
+}
+```
+
+Output:
+
+```text
+explicit:      [20] (wrote 1 of 1 bytes)
+binco.Marshal:  [20]
+Foo and Bar marshal through the same call:
+  main.Foo   → [20]
+  main.Bar   → [2 49 48]
+
+binco.Marshal:      [20]
+binco.MarshalTyped: [1 20]
+
+decoded Foo: {Num:10}
+decoded Foo (typed, 2 bytes): {Num:10}
+```
+
+
 ### 6.16 Composition recursion and generics
 
 Codecs are values, and Go lets you build them with functions. That covers most
@@ -1721,23 +3886,10 @@ func NewPairSerializer[A, B any](first binco.Serializer[A], second binco.Seriali
 ```
 
 **Adapters.** Converting a value before encoding is sometimes cleaner than
-writing a codec. For a defined type whose underlying type is `int`:
-
-```go
-type Int int
-
-type intCodec struct{}
-
-func (intCodec) Marshal(v Int, bs []byte) (n int) { return varnum.Int.Marshal(int(v), bs) }
-func (intCodec) Unmarshal(bs []byte) (v Int, n int, err error) {
-	i, n, err := varnum.Int.Unmarshal(bs)
-	return Int(i), n, err
-}
-func (intCodec) Size(v Int) (size int) { return varnum.Int.Size(int(v)) }
-func (intCodec) Skip(bs []byte) (n int, err error) { return varnum.Int.Skip(bs) }
-```
-
-The generator does exactly this for `AddDefinedType`.
+writing a codec: a defined type with an `int` underlying type is a two-line
+wrapper around `varnum.Int` (see [Custom codecs](#615-custom-codecs)), and the
+generator writes exactly that code for `AddDefinedType` (see
+[Generator methods](#73-generator-methods)).
 
 ### 6.17 Zero-allocation encoding
 
@@ -1965,36 +4117,41 @@ code contains no reflection.
 
 ### 7.1 Getting started
 
+The generator inspects types through `reflect` and writes the serializers you
+would write by hand, for the buffer API or (with `genopts.WithStream`) for the
+streaming API. The complete program below is a real generator setup: the types,
+the generator program, the `//go:generate` directive, the generated file and the
+code that uses it.
+
+The layout is:
+
 ```
 app/
- |--- go.mod
- |--- order.go
- |--- gen/
-      |--- main.go
+  go.mod
+  main.go              // uses the generated serializers; holds go:generate
+  pkg/types.go         // the types
+  pkg/binco.gen.go     // generated, committed
+  gen/main.go          // the generator program
 ```
 
-**order.go**
+**`pkg/types.go`**
 
 ```go
-//go:generate go run ./gen
-package app
+// Package pkg declares the types the generator produces serializers for.
+package pkg
 
-type Order struct {
-	ID    uint64
-	Items []Item
-	Note  string
-	Total int64
-}
+type Int int
 
-type Item struct {
-	SKU   string
-	Count int
+type Foo[T any] struct {
+	S string
+	T T
 }
 ```
 
-**gen/main.go**
+**`gen/main.go`**
 
 ```go
+// Command gen writes the serializers of the pkg package. Run it through go generate.
 package main
 
 import (
@@ -2002,48 +4159,182 @@ import (
 	"os"
 	"reflect"
 
-	"example.com/app"
+	"example.com/app/pkg"
 
 	"github.com/malivvan/binco/codegen"
 	genopts "github.com/malivvan/binco/codegen/config/gen"
 )
 
 func main() {
+
 	g, err := codegen.NewGenerator(
-		genopts.WithPath("example.com/app"), // required
+		genopts.WithPath("example.com/app/pkg"),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	for _, add := range []error{
-		g.AddStruct(reflect.TypeFor[app.Item]()),
-		g.AddStruct(reflect.TypeFor[app.Order]()),
-	} {
-		if add != nil {
-			log.Fatal(add)
-		}
+
+	if err = g.AddDefinedType(reflect.TypeFor[pkg.Int]()); err != nil {
+		log.Fatal(err)
 	}
+
+	if err = g.AddStruct(reflect.TypeFor[pkg.Foo[pkg.Int]]()); err != nil {
+		log.Fatal(err)
+	}
+
 	bs, err := g.Generate()
 	if err != nil {
-		// The source is returned even on failure, so it can be inspected.
+
 		if writeErr := os.WriteFile("failed.gen.go", bs, 0o644); writeErr != nil {
 			log.Fatal(writeErr)
 		}
 		log.Fatal(err)
 	}
-	if err = os.WriteFile("order_binco.gen.go", bs, 0o644); err != nil {
+	if err = os.WriteFile("./pkg/binco.gen.go", bs, 0o644); err != nil {
 		log.Fatal(err)
 	}
 }
 ```
 
-```bash
-go generate        # writes order_binco.gen.go
-go build
+**`pkg/binco.gen.go (generated)`**
+
+```go
+// Code generated by binco/codegen. DO NOT EDIT.
+
+package pkg
+
+import (
+	"github.com/malivvan/binco/composite"
+	"github.com/malivvan/binco/varnum"
+)
+
+var IntBinco = intBinco{}
+
+type intBinco struct{}
+
+func (s intBinco) Marshal(v Int, bs []byte) (n int) {
+	return varnum.Int.Marshal(int(v), bs)
+}
+
+func (s intBinco) Unmarshal(bs []byte) (v Int, n int, err error) {
+	tmp, n, err := varnum.Int.Unmarshal(bs)
+	if err != nil {
+		return
+	}
+	v = Int(tmp)
+	return
+}
+
+func (s intBinco) Size(v Int) (size int) {
+	return varnum.Int.Size(int(v))
+}
+
+func (s intBinco) Skip(bs []byte) (n int, err error) {
+	return varnum.Int.Skip(bs)
+}
+
+// FooSchemaFingerprint identifies the wire layout of Foo[Int]: a hash
+// of its field names and types in declaration order. The format is positional,
+// so reordering fields silently changes what a stored payload means; compare
+// this constant with the value the writer used to detect that.
+const FooSchemaFingerprint = "d36b2f28fcf4f7a73be3a18964b84d190205fe57d41e1203788fc330875a874c"
+
+var FooBinco = fooBinco{}
+
+type fooBinco struct{}
+
+func (s fooBinco) Marshal(v Foo[Int], bs []byte) (n int) {
+	n = composite.String.Marshal(v.S, bs)
+	return n + IntBinco.Marshal(v.T, bs[n:])
+}
+
+func (s fooBinco) Unmarshal(bs []byte) (v Foo[Int], n int, err error) {
+	v.S, n, err = composite.String.Unmarshal(bs)
+	if err != nil {
+		return
+	}
+	var n1 int
+	v.T, n1, err = IntBinco.Unmarshal(bs[n:])
+	n += n1
+	return
+}
+
+func (s fooBinco) Size(v Foo[Int]) (size int) {
+	size = composite.String.Size(v.S)
+	return size + IntBinco.Size(v.T)
+}
+
+func (s fooBinco) Skip(bs []byte) (n int, err error) {
+	n, err = composite.String.Skip(bs)
+	if err != nil {
+		return
+	}
+	var n1 int
+	n1, err = IntBinco.Skip(bs[n:])
+	n += n1
+	return
+}
 ```
 
-The generated code contains `ItemBinco` and `OrderBinco`, both implementing
-`binco.Serializer[Item]` and `binco.Serializer[Order]`.
+**`main.go`**
+
+```go
+//go:generate go run ./gen
+
+// Command gen uses the serializers generated into pkg.
+package main
+
+import (
+	"fmt"
+
+	"github.com/malivvan/binco"
+	"example.com/app/pkg"
+)
+
+func main() {
+
+	num := pkg.Int(300)
+	fmt.Printf("Int:     %v (varint)\n", binco.Encode(pkg.IntBinco, num))
+
+	foo := pkg.Foo[pkg.Int]{S: "hello world", T: 5}
+	bs := make([]byte, pkg.FooBinco.Size(foo))
+	n := pkg.FooBinco.Marshal(foo, bs)
+	fmt.Printf("Foo:     %v (%d bytes)\n", bs, n)
+
+	back, n, err := pkg.FooBinco.Unmarshal(bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("decoded: %+v (read %d bytes)\n", back, n)
+
+	n, err = pkg.FooBinco.Skip(bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("skipped: %d bytes\n", n)
+
+	var serializer binco.Serializer[pkg.Int] = pkg.IntBinco
+	fmt.Printf("through binco.Serializer[int]: size=%d\n", serializer.Size(num))
+}
+```
+
+Output:
+
+```text
+Int:     [216 4] (varint)
+Foo:     [11 104 101 108 108 111 32 119 111 114 108 100 10] (13 bytes)
+decoded: {S:hello world T:5} (read 13 bytes)
+skipped: 13 bytes
+through binco.Serializer[int]: size=2
+```
+
+`go generate` runs the directive at the top of `main.go`
+(`//go:generate go run ./gen`). `genopts.WithPath` is the only required option:
+it is the import path of the package the generated file belongs to.
+
+Naming: the serializer variable is `<Type>Binco`, a DTM constant is `<Type>DTM`,
+and a typed serializer is `<Type>TypedBinco`. Use `genopts.WithSerializer` to
+change it (see [Serialization options](#75-serialization-options)).
 
 ### 7.2 Generator configuration
 
@@ -2268,6 +4559,217 @@ func ValidateNoteLength(n int) error {
 }
 ```
 
+#### Complete example
+
+The program below applies three options to one struct: a custom serializer name,
+raw fixed-width encoding for a number, and a length validator for a string. The
+generated file shows the effect directly.
+
+**`pkg/types.go`**
+
+```go
+// Package pkg declares the type generated with a custom serializer name and per-field options.
+package pkg
+
+import (
+	"errors"
+	"fmt"
+)
+
+const MaxStrLen = 100
+
+var ErrTooLong = errors.New("string too long")
+
+type Foo struct {
+	Num int
+	Str string
+}
+
+func ValidateLength(length int) error {
+	if length > MaxStrLen {
+		return fmt.Errorf("%w: %d > %d", ErrTooLong, length, MaxStrLen)
+	}
+	return nil
+}
+```
+
+**`gen/main.go`**
+
+```go
+// Command gen writes a serializer with per-field options. Run it through go generate.
+package main
+
+import (
+	"log"
+	"os"
+	"reflect"
+
+	"example.com/app/pkg"
+
+	"github.com/malivvan/binco/codegen"
+	fldopts "github.com/malivvan/binco/codegen/config/field"
+	genopts "github.com/malivvan/binco/codegen/config/gen"
+	stopts "github.com/malivvan/binco/codegen/config/struct"
+	tpopts "github.com/malivvan/binco/codegen/config/type"
+)
+
+func main() {
+	g, err := codegen.NewGenerator(
+		genopts.WithPath("example.com/app/pkg"),
+
+		genopts.WithSerializer(reflect.TypeFor[pkg.Foo](), "CustomFoo"),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err = g.AddStruct(reflect.TypeFor[pkg.Foo](),
+
+		stopts.WithField(
+			fldopts.WithType(tpopts.WithNumEncoding(tpopts.NumEncodingRaw)),
+		),
+
+		stopts.WithField(
+			fldopts.WithType(tpopts.WithLenValidator("ValidateLength")),
+		),
+	); err != nil {
+		log.Fatal(err)
+	}
+
+	bs, err := g.Generate()
+	if err != nil {
+		if writeErr := os.WriteFile("failed.gen.go", bs, 0o644); writeErr != nil {
+			log.Fatal(writeErr)
+		}
+		log.Fatal(err)
+	}
+	if err = os.WriteFile("./pkg/binco.gen.go", bs, 0o644); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+**`pkg/binco.gen.go (generated)`**
+
+```go
+// Code generated by binco/codegen. DO NOT EDIT.
+
+package pkg
+
+import (
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/composite"
+	stropts "github.com/malivvan/binco/config/string"
+	"github.com/malivvan/binco/scalar"
+)
+
+var (
+	stringOpNvQW5om8MLxbCPLTsHBgΞΞ = composite.NewStringSerializer(stropts.WithLenValidator(binco.ValidatorFn[int](ValidateLength)))
+)
+
+// CustomFooSchemaFingerprint identifies the wire layout of Foo: a hash
+// of its field names and types in declaration order. The format is positional,
+// so reordering fields silently changes what a stored payload means; compare
+// this constant with the value the writer used to detect that.
+const CustomFooSchemaFingerprint = "03437121bdc167620d9f71555cda4157489041a513ae756be640d3851eaa580d"
+
+var CustomFooBinco = customFooBinco{}
+
+type customFooBinco struct{}
+
+func (s customFooBinco) Marshal(v Foo, bs []byte) (n int) {
+	n = scalar.Int.Marshal(v.Num, bs)
+	return n + stringOpNvQW5om8MLxbCPLTsHBgΞΞ.Marshal(v.Str, bs[n:])
+}
+
+func (s customFooBinco) Unmarshal(bs []byte) (v Foo, n int, err error) {
+	v.Num, n, err = scalar.Int.Unmarshal(bs)
+	if err != nil {
+		return
+	}
+	var n1 int
+	v.Str, n1, err = stringOpNvQW5om8MLxbCPLTsHBgΞΞ.Unmarshal(bs[n:])
+	n += n1
+	return
+}
+
+func (s customFooBinco) Size(v Foo) (size int) {
+	size = scalar.Int.Size(v.Num)
+	return size + stringOpNvQW5om8MLxbCPLTsHBgΞΞ.Size(v.Str)
+}
+
+func (s customFooBinco) Skip(bs []byte) (n int, err error) {
+	n, err = scalar.Int.Skip(bs)
+	if err != nil {
+		return
+	}
+	var n1 int
+	n1, err = stringOpNvQW5om8MLxbCPLTsHBgΞΞ.Skip(bs[n:])
+	n += n1
+	return
+}
+```
+
+**`main.go`**
+
+```go
+//go:generate go run ./gen
+
+// Command gen_options uses a serializer generated with a custom name, a fixed-width number codec and a length validator.
+package main
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/malivvan/binco"
+	"example.com/app/pkg"
+)
+
+func main() {
+
+	foo := pkg.Foo{Num: 1, Str: "hello"}
+	bs := binco.Encode(pkg.CustomFooBinco, foo)
+	fmt.Printf("value:   %+v\n", foo)
+	fmt.Printf("size:    %d bytes (Num alone takes 8: raw, not varint)\n", len(bs))
+	fmt.Printf("encoded: %v\n", bs)
+
+	back, err := binco.Decode(pkg.CustomFooBinco, bs)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("decoded: %+v\n\n", back)
+
+	long := pkg.Foo{Num: 1, Str: strings.Repeat("a", pkg.MaxStrLen+1)}
+	longBS := binco.Encode(pkg.CustomFooBinco, long)
+	_, err = binco.Decode(pkg.CustomFooBinco, longBS)
+	fmt.Printf("string of %d characters: %v\n", len(long.Str), err)
+	fmt.Printf("errors.Is(err, pkg.ErrTooLong): %v\n", errors.Is(err, pkg.ErrTooLong))
+
+	ok := pkg.Foo{Num: 2, Str: strings.Repeat("a", pkg.MaxStrLen)}
+	back, err = binco.Decode(pkg.CustomFooBinco, binco.Encode(pkg.CustomFooBinco, ok))
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("string of %d characters: accepted, %q…\n", len(back.Str), back.Str[:8])
+}
+```
+
+Output:
+
+```text
+value:   {Num:1 Str:hello}
+size:    14 bytes (Num alone takes 8: raw, not varint)
+encoded: [1 0 0 0 0 0 0 0 5 104 101 108 108 111]
+decoded: {Num:1 Str:hello}
+
+string of 101 characters: string too long: 101 > 100
+errors.Is(err, pkg.ErrTooLong): true
+string of 100 characters: accepted, "aaaaaaaa"…
+```
+
+
 ### 7.6 Interfaces
 
 The generated interface codec writes a DTM and dispatches on it:
@@ -2386,18 +4888,9 @@ package.
 
 ### 8.1 binco
 
-The root package holds everything the packages share.
-
-**The codec contract**
-
-```go
-type Serializer[T any] interface {
-	Marshal(t T, bs []byte) (n int)
-	Unmarshal(bs []byte) (t T, n int, err error)
-	Size(t T) (size int)
-	Skip(bs []byte) (n int, err error)
-}
-```
+The root package holds everything the packages share: the codec contract
+(defined in full in [Codecs](#41-codecs)), the error values, the safety helpers
+and the marshalling shorthand below.
 
 **Self-marshalling types**
 
@@ -3260,8 +5753,8 @@ review diffs, exactly like any other generated code.
 The architecture, repository layout, commands, testing strategy, conventions
 and the full list of runnable examples live in [`AGENTS.md`](./AGENTS.md),
 which is the entry point for contributors and coding agents. The everyday
-commands are `go test ./...`, `make cover-check`, `make doc-check`,
-`make portable` and `go generate ./...`; AGENTS.md explains each one. The user-facing documentation
+commands are `go test ./...`, `make cover-check`, `make doc-check` and
+`make portable`; AGENTS.md explains each one. The user-facing documentation
 is this file; the wire format in
 [The wire format](#13-the-wire-format) is the shared reference.
 

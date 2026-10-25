@@ -112,6 +112,9 @@ are frozen for the v1 series.
 - The streaming tree shares its little-endian, fixed-width-read and bulk-copy
   helpers (`internal/le`, `internal/lew`, `internal/fixedwidth`,
   `internal/wireio`) instead of duplicating them per package.
+- Every example is a complete, copyable program in the README task guides; the
+  separate `demos/` directory was removed, so there is no example code to keep
+  in sync and coverage measures every package in the module.
 
 ### Migration notes from the pre-release API
 
