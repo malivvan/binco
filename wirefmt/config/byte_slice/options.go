@@ -1,0 +1,36 @@
+// Package bslopts provides options for the streaming byte slice serializer.
+package bslopts
+
+import (
+	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/wirefmt"
+)
+
+// Options for the byte slice serializer.
+// Options collects the codecs and validators a serializer accepts.
+type Options struct {
+	LenSer wirefmt.Serializer[int]
+	LenVl  binco.Validator[int]
+}
+
+// SetOption changes one field of Options.
+type SetOption func(o *Options)
+
+// WithLenSer replaces the codec used for the length.
+func WithLenSer(lenSer wirefmt.Serializer[int]) SetOption {
+	return func(o *Options) { o.LenSer = lenSer }
+}
+
+// WithLenValidator sets the validator called with the decoded length.
+func WithLenValidator(lenVl binco.Validator[int]) SetOption {
+	return func(o *Options) { o.LenVl = lenVl }
+}
+
+// Apply runs opts in order, skipping nil entries.
+func Apply(opts []SetOption, o *Options) {
+	for i := range opts {
+		if opts[i] != nil {
+			opts[i](o)
+		}
+	}
+}

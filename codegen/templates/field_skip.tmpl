@@ -1,0 +1,21 @@
+{{- /* {Val string, FieldsCount int, Field data.FieldData, Index int, Gops genops.Options} */}}
+{{- $ulp := Tmpl.UnmarshalLastParam (eq .Index 0) .Gops }}
+
+{{- $vf := print .Val "." .Field.FieldName }}
+{{- $fieldSer := Ser.Of .Field.FullName .Tops .Gops }}
+{{- if eq .Index 1 }}
+	var n1 int
+{{- end }}
+{{- $nVar := "n" }}
+{{- if gt .Index 0 }}
+	{{- $nVar = "n1" }}
+{{- end }}
+{{ $nVar }}, err = {{ $fieldSer }}.Skip({{ $ulp }})
+{{- if ge .Index 1 }}
+	n += n1
+{{- end }}		
+{{- if and (ne .FieldsCount 1) (ne .Index (Tmpl.Minus .FieldsCount 1))}}
+	if err != nil {
+		return
+	}
+{{- end }}

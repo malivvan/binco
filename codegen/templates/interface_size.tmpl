@@ -1,0 +1,17 @@
+{{/* spec.InterfaceType */}}
+{{- $v := Ser.Val . }}
+{{- if .Iops.Marshaller }}
+	if m, ok := {{ $v }}.({{ Tmpl.ModImportName .Gops }}.MarshallerTyped); ok {
+		return m.SizeTypedBinco()
+	}
+	panic(fmt.Sprintf("%v doesn't implement the {{ Tmpl.ModImportName .Gops }}.MarshallerTyped interface", reflect.TypeOf({{ $v }})))
+{{- else }}
+	switch t := {{ $v }}.(type) {
+	{{- range $e := .Impls }}
+		case {{ Ser.RelName $e }}:
+			return {{ Ser.TypedVar $e }}.Size(t)
+	{{- end }}
+		default:
+			panic(fmt.Sprintf(binco.ErrorPrefix+"unexpected %v type", t))
+	}
+{{- end }}

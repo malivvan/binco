@@ -1,0 +1,34 @@
+{{/* genops.Options */}}
+import (
+	{{- if .Stream }}
+		"github.com/malivvan/binco"
+		"github.com/malivvan/binco/wirefmt"
+		"github.com/malivvan/binco/wirefmt/composite"
+		"github.com/malivvan/binco/wirefmt/scalar"
+		"github.com/malivvan/binco/wirefmt/zerocpy"
+		"github.com/malivvan/binco/wirefmt/varnum"
+		"github.com/malivvan/binco/wirefmt/typeid"
+		arropts "github.com/malivvan/binco/wirefmt/config/array"
+		bslopts "github.com/malivvan/binco/wirefmt/config/byte_slice"
+		mapopts "github.com/malivvan/binco/wirefmt/config/map"
+		slopts "github.com/malivvan/binco/wirefmt/config/slice"
+		stropts "github.com/malivvan/binco/wirefmt/config/string"
+	{{- else }}
+		"github.com/malivvan/binco"
+		"github.com/malivvan/binco/composite"
+		"github.com/malivvan/binco/scalar"
+		"github.com/malivvan/binco/zerocpy"
+		"github.com/malivvan/binco/varnum"
+		"github.com/malivvan/binco/typeid"
+		arropts "github.com/malivvan/binco/config/array"
+		bslopts "github.com/malivvan/binco/config/byte_slice"
+		mapopts "github.com/malivvan/binco/config/map"
+		slopts "github.com/malivvan/binco/config/slice"
+		stropts "github.com/malivvan/binco/config/string"
+	{{- end }}
+	{{- if .Imports }}
+		{{- range $i, $imp := .Imports }}
+			{{ $imp }}
+		{{- end }}
+	{{- end }}
+)

@@ -1,0 +1,16 @@
+{{- /* {Val string, FieldsCount int, Field data.FieldData, Index int, Gops genopts.Options} */}}
+{{- $vf := print .Val "." .Field.FieldName }}
+{{- $ser := Ser.Of .Field.FullName .Tops .Gops }}
+
+{{- $call := print $ser ".Size(" $vf ")" }}
+{{- if eq .FieldsCount 1 }}
+	return {{ $call }}
+{{- else }}
+	{{- if eq .Index 0 }}
+		size = {{ $call }}
+	{{- else if eq .Index (Tmpl.Minus .FieldsCount 1) }}
+		return size + {{ $call }}
+	{{- else }}
+		size += {{ $call }}
+	{{- end }}
+{{- end }}
