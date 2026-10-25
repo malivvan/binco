@@ -1,6 +1,9 @@
 {{/* spec.InterfaceType */}}
 {{- $v := Serializer.Val . }}
 {{- $mlp := Tmpl.MarshalLastParam true .Gops }}
+if {{ $v }} == nil {
+	{{ Tmpl.NilInterfaceMarshal .Gops }}
+}
 {{- if .Iops.Marshaller }}
 	if m, ok := {{ $v }}.({{ Tmpl.ModImportName .Gops }}.MarshallerTyped); ok {
 		return m.MarshalTypedBinco({{ $mlp }})

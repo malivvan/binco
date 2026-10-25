@@ -10,8 +10,14 @@ import (
 )
 
 var (
-	stringc7JSCL5ZQZZj4eve6AIhkAΞΞ = composite.NewValidStringSerializer(stropts.WithLenValidator(binco.ValidatorFn[int](ValidateLength)))
+	stringOpNvQW5om8MLxbCPLTsHBgΞΞ = composite.NewValidStringSerializer(stropts.WithLenValidator(binco.ValidatorFn[int](ValidateLength)))
 )
+
+// CustomFooSchemaFingerprint identifies the wire layout of Foo: a hash
+// of its field names and types in declaration order. The format is positional,
+// so reordering fields silently changes what a stored payload means; compare
+// this constant with the value the writer used to detect that.
+const CustomFooSchemaFingerprint = "03437121bdc167620d9f71555cda4157489041a513ae756be640d3851eaa580d"
 
 var CustomFooBinco = customFooBinco{}
 
@@ -19,7 +25,7 @@ type customFooBinco struct{}
 
 func (s customFooBinco) Marshal(v Foo, bs []byte) (n int) {
 	n = scalar.Int.Marshal(v.Num, bs)
-	return n + stringc7JSCL5ZQZZj4eve6AIhkAΞΞ.Marshal(v.Str, bs[n:])
+	return n + stringOpNvQW5om8MLxbCPLTsHBgΞΞ.Marshal(v.Str, bs[n:])
 }
 
 func (s customFooBinco) Unmarshal(bs []byte) (v Foo, n int, err error) {
@@ -28,14 +34,14 @@ func (s customFooBinco) Unmarshal(bs []byte) (v Foo, n int, err error) {
 		return
 	}
 	var n1 int
-	v.Str, n1, err = stringc7JSCL5ZQZZj4eve6AIhkAΞΞ.Unmarshal(bs[n:])
+	v.Str, n1, err = stringOpNvQW5om8MLxbCPLTsHBgΞΞ.Unmarshal(bs[n:])
 	n += n1
 	return
 }
 
 func (s customFooBinco) Size(v Foo) (size int) {
 	size = scalar.Int.Size(v.Num)
-	return size + stringc7JSCL5ZQZZj4eve6AIhkAΞΞ.Size(v.Str)
+	return size + stringOpNvQW5om8MLxbCPLTsHBgΞΞ.Size(v.Str)
 }
 
 func (s customFooBinco) Skip(bs []byte) (n int, err error) {
@@ -44,7 +50,7 @@ func (s customFooBinco) Skip(bs []byte) (n int, err error) {
 		return
 	}
 	var n1 int
-	n1, err = stringc7JSCL5ZQZZj4eve6AIhkAΞΞ.Skip(bs[n:])
+	n1, err = stringOpNvQW5om8MLxbCPLTsHBgΞΞ.Skip(bs[n:])
 	n += n1
 	return
 }

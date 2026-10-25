@@ -171,7 +171,7 @@ func TestPtrErrors(t *testing.T) {
 		}
 	}
 
-	if _, _, err := serializer.Unmarshal(reader(byte(binco.PtrMapping), 0x80)); !errors.Is(err, io.EOF) {
+	if _, _, err := serializer.Unmarshal(reader(byte(binco.PtrMapping), 0x80)); !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("Unmarshal of a truncated id returned %v", err)
 	}
 }

@@ -10,6 +10,10 @@ var Byte = byteCodec{}
 
 type byteCodec struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s byteCodec) FixedWidth() int { return binco.Num8RawSize }
+
 func (s byteCodec) Marshal(v byte, w wirefmt.Writer) (n int, err error) {
 	return writeLE8(v, w)
 }
@@ -30,6 +34,10 @@ func (s byteCodec) Skip(r wirefmt.Reader) (n int, err error) {
 var Uint8 = u8Codec{}
 
 type u8Codec struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s u8Codec) FixedWidth() int { return binco.Num8RawSize }
 
 func (s u8Codec) Marshal(v uint8, w wirefmt.Writer) (n int, err error) {
 	return writeLE8(v, w)
@@ -52,6 +60,10 @@ var Uint16 = u16Codec{}
 
 type u16Codec struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s u16Codec) FixedWidth() int { return binco.Num16RawSize }
+
 func (s u16Codec) Marshal(v uint16, w wirefmt.Writer) (n int, err error) {
 	return writeLE16(v, w)
 }
@@ -72,6 +84,10 @@ func (s u16Codec) Skip(r wirefmt.Reader) (n int, err error) {
 var Uint32 = u32Codec{}
 
 type u32Codec struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s u32Codec) FixedWidth() int { return binco.Num32RawSize }
 
 func (s u32Codec) Marshal(v uint32, w wirefmt.Writer) (n int, err error) {
 	return writeLE32(v, w)
@@ -94,6 +110,10 @@ var Uint64 = u64Codec{}
 
 type u64Codec struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s u64Codec) FixedWidth() int { return binco.Num64RawSize }
+
 func (s u64Codec) Marshal(v uint64, w wirefmt.Writer) (n int, err error) {
 	return writeLE64(v, w)
 }
@@ -114,6 +134,10 @@ func (s u64Codec) Skip(r wirefmt.Reader) (n int, err error) {
 var Uint = wordUnsignedCodec{}
 
 type wordUnsignedCodec struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s wordUnsignedCodec) FixedWidth() int { return binco.Num64RawSize }
 
 func (s wordUnsignedCodec) Marshal(v uint, w wirefmt.Writer) (n int, err error) {
 	return writeWordUnsigned(v, w)
@@ -136,6 +160,10 @@ var Int8 = i8Codec{}
 
 type i8Codec struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s i8Codec) FixedWidth() int { return binco.Num8RawSize }
+
 func (s i8Codec) Marshal(v int8, w wirefmt.Writer) (n int, err error) {
 	return writeLE8(v, w)
 }
@@ -156,6 +184,10 @@ func (s i8Codec) Skip(r wirefmt.Reader) (n int, err error) {
 var Int16 = i16Codec{}
 
 type i16Codec struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s i16Codec) FixedWidth() int { return binco.Num16RawSize }
 
 func (s i16Codec) Marshal(v int16, w wirefmt.Writer) (n int, err error) {
 	return writeLE16(v, w)
@@ -178,6 +210,10 @@ var Int32 = i32Codec{}
 
 type i32Codec struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s i32Codec) FixedWidth() int { return binco.Num32RawSize }
+
 func (s i32Codec) Marshal(v int32, w wirefmt.Writer) (n int, err error) {
 	return writeLE32(v, w)
 }
@@ -199,6 +235,10 @@ var Int64 = i64Codec{}
 
 type i64Codec struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s i64Codec) FixedWidth() int { return binco.Num64RawSize }
+
 func (s i64Codec) Marshal(v int64, w wirefmt.Writer) (n int, err error) {
 	return writeLE64(v, w)
 }
@@ -219,6 +259,10 @@ func (s i64Codec) Skip(r wirefmt.Reader) (n int, err error) {
 var Int = wordIntCodec{}
 
 type wordIntCodec struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s wordIntCodec) FixedWidth() int { return binco.Num64RawSize }
 
 func (s wordIntCodec) Marshal(v int, w wirefmt.Writer) (n int, err error) {
 	return writeWord(v, w)

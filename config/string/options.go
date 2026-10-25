@@ -11,6 +11,9 @@ type Options struct {
 	LenVl         binco.Validator[int]
 }
 
+// The serializer constructors honour every validator set here, including the
+// plain New* ones; use WithLenValidator to reject
+// implausible input while decoding.
 // SetOption changes one field of Options.
 type SetOption func(o *Options)
 

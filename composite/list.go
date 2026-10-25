@@ -1,19 +1,27 @@
 package composite
 
 import (
+	"math"
+	"unsafe"
+
 	"github.com/malivvan/binco"
 	slopts "github.com/malivvan/binco/config/slice"
 	"github.com/malivvan/binco/varnum"
 )
 
 // NewSliceSerializer returns a slice serializer that encodes elements with elemSerializer.
-func NewSliceSerializer[T any](elemSerializer binco.Serializer[T], opts ...slopts.SetOption[T]) (
-	s listCodec[T],
-) {
+//
+// Length and element validators passed through opts are honoured; there is no
+// separate constructor to remember.
+func NewSliceSerializer[T any](elemSerializer binco.Serializer[T], opts ...slopts.SetOption[T]) binco.Serializer[[]T] {
 	o := slopts.Options[T]{}
 	slopts.Apply(opts, &o)
 
-	return newListCodec(elemSerializer, o)
+	s := newListCodec(elemSerializer, o)
+	if o.LenVl != nil || o.ElemVl != nil {
+		return checkedList[T]{listCodec: s, lenVl: o.LenVl, elemVl: o.ElemVl}
+	}
+	return s
 }
 
 // NewValidSliceSerializer returns a slice serializer that runs its length and element validators while decoding.
@@ -84,18 +92,54 @@ func (s checkedList[T]) Unmarshal(bs []byte) (v []T, n int, err error) {
 	return UnmarshalValidSlice(bs, s.ElemSerializer, s.LenSerializer, s.lenVl, s.elemVl)
 }
 
+// fixedWidth reports the width of the encoded element when the element
+// serializer writes raw little-endian values of exactly the size of T.
+//
+// It is what enables the bulk path below: one copy instead of one interface call
+// per element. A codec that does anything else with the value does not implement
+// binco.FixedWidth, and a host that is not little-endian falls back to the loop.
+func fixedWidth[T any](elemSerializer binco.Serializer[T]) (width int, ok bool) {
+	fixed, isFixed := elemSerializer.(binco.FixedWidth)
+	if !isFixed || !binco.HostLittleEndian {
+		return 0, false
+	}
+	width = fixed.FixedWidth()
+	if width <= 0 || int(unsafe.Sizeof(*new(T))) != width {
+		return 0, false
+	}
+	return width, true
+}
+
 // MarshalSlice writes v, prefixed by its length, into bs.
 func MarshalSlice[T any](v []T, elemSerializer binco.Serializer[T],
 	lenSerializer binco.Serializer[int], bs []byte,
 ) (n int) {
 	n = lenSerializer.Marshal(len(v), bs)
+	if width, ok := fixedWidth(elemSerializer); ok {
+		if len(v) == 0 {
+			return n
+		}
+		if len(v) <= math.MaxInt/width {
+			total := len(v) * width
+			binco.CheckWrite(bs, n, total)
+			src := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), total)
+			copy(bs[n:], src)
+			return n + total
+		}
+	}
 	for _, e := range v {
+		binco.CheckWrite(bs, n, 0)
 		n += elemSerializer.Marshal(e, bs[n:])
 	}
 	return
 }
 
 // UnmarshalSlice decodes a slice from bs.
+//
+// The backing array is grown with the elements as they are decoded rather than
+// allocated from the decoded length, so a five-byte input cannot ask for a
+// multi-gigabyte allocation. A length whose elements consume no bytes at all is
+// capped by binco.MaxZeroSizeElements.
 func UnmarshalSlice[T any](bs []byte, elemSerializer binco.Serializer[T],
 	lenSerializer binco.Serializer[int],
 ) (v []T, n int, err error) {
@@ -107,20 +151,51 @@ func UnmarshalSlice[T any](bs []byte, elemSerializer binco.Serializer[T],
 		err = binco.ErrNegativeLength
 		return
 	}
-	var n1 int
-
+	if width, ok := fixedWidth(elemSerializer); ok {
+		return unmarshalFixedSlice[T](bs, n, length, width)
+	}
+	// Elements take at least one byte each; allocating more than the input can
+	// hold would be an amplification attack.
+	v = make([]T, 0, binco.AllocHint(length, binco.Remaining(bs, n)))
 	var e T
 
-	v = make([]T, length)
-	for i := range length {
+	var n1 int
+
+	for range length {
 		e, n1, err = elemSerializer.Unmarshal(bs[n:])
 		n += n1
 		if err != nil {
 			return
 		}
-		v[i] = e
+		v = append(v, e)
+		if n1 == 0 {
+			// The element consumed nothing: every remaining element would
+			// decode from the same input and return the same value, so fill the
+			// rest without looping once per element.
+			if length > binco.MaxZeroSizeElements {
+				return nil, n, binco.ErrTooLargeLength
+			}
+			for len(v) < length {
+				v = append(v, e)
+			}
+			return
+		}
 	}
 	return
+}
+
+// unmarshalFixedSlice decodes length elements of a fixed width in one copy.
+func unmarshalFixedSlice[T any](bs []byte, n, length, width int) (v []T, end int, err error) {
+	if err = binco.CheckLengthElem(bs, n, length, width); err != nil {
+		return nil, n, err
+	}
+	v = make([]T, length)
+	if length == 0 {
+		return v, n, nil
+	}
+	dst := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), length*width)
+	copy(dst, bs[n:n+length*width])
+	return v, n + length*width, nil
 }
 
 // SizeSlice reports the encoded size of v.
@@ -129,6 +204,9 @@ func SizeSlice[T any](v []T, elemSerializer binco.Serializer[T],
 ) (size int) {
 	length := len(v)
 	size = lenSerializer.Size(length)
+	if width, ok := fixedWidth(elemSerializer); ok && length <= math.MaxInt/width {
+		return size + length*width
+	}
 	for i := range length {
 		size += elemSerializer.Size(v[i])
 	}
@@ -147,11 +225,25 @@ func SkipSlice[T any](bs []byte, elemSerializer binco.Serializer[T],
 		err = binco.ErrNegativeLength
 		return
 	}
+	if width, ok := fixedWidth(elemSerializer); ok {
+		if err = binco.CheckLengthElem(bs, n, length, width); err != nil {
+			return n, err
+		}
+		return n + length*width, nil
+	}
 	var n1 int
 	for range length {
 		n1, err = elemSerializer.Skip(bs[n:])
 		n += n1
 		if err != nil {
+			return
+		}
+		if n1 == 0 {
+			if length > binco.MaxZeroSizeElements {
+				return n, binco.ErrTooLargeLength
+			}
+			// Nothing more can be consumed, so the remaining elements are
+			// immediately skipped.
 			return
 		}
 	}
@@ -176,12 +268,12 @@ func UnmarshalValidSlice[T any](bs []byte, elemSerializer binco.Serializer[T],
 			return
 		}
 	}
-	var n1 int
-
+	v = make([]T, 0, binco.AllocHint(length, binco.Remaining(bs, n)))
 	var e T
 
-	v = make([]T, length)
-	for i := range length {
+	var n1 int
+
+	for range length {
 		e, n1, err = elemSerializer.Unmarshal(bs[n:])
 		n += n1
 		if err != nil {
@@ -192,7 +284,16 @@ func UnmarshalValidSlice[T any](bs []byte, elemSerializer binco.Serializer[T],
 				return
 			}
 		}
-		v[i] = e
+		v = append(v, e)
+		if n1 == 0 {
+			if length > binco.MaxZeroSizeElements {
+				return nil, n, binco.ErrTooLargeLength
+			}
+			for len(v) < length {
+				v = append(v, e)
+			}
+			return
+		}
 	}
 	return
 }

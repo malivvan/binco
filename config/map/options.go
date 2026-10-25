@@ -13,6 +13,9 @@ type Options[T, V any] struct {
 	ValueVl       binco.Validator[V]
 }
 
+// The serializer constructors honour every validator set here, including the
+// plain New* ones; use WithLenValidator, WithKeyValidator and WithValueValidator to reject
+// implausible input while decoding.
 // SetOption changes one field of Options.
 type SetOption[T, V any] func(o *Options[T, V])
 

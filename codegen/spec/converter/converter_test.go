@@ -1,6 +1,7 @@
 package converter_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -16,6 +17,26 @@ func newConverter(t *testing.T, opts ...genopts.SetOption) converter.TypeNameCon
 		t.Fatalf("Apply: %v", err)
 	}
 	return converter.NewTypeNameConverter(o)
+}
+
+// fullName converts and fails the test on error.
+func fullName(t *testing.T, c converter.TypeNameConverter, name typename.CompleteName) typename.FullName {
+	t.Helper()
+	got, err := c.ConvertToFullName(name)
+	if err != nil {
+		t.Fatalf("ConvertToFullName(%q): %v", name, err)
+	}
+	return got
+}
+
+// relName converts and fails the test on error.
+func relName(t *testing.T, c converter.TypeNameConverter, name typename.FullName) typename.RelativeName {
+	t.Helper()
+	got, err := c.ConvertToRelativeName(name)
+	if err != nil {
+		t.Fatalf("ConvertToRelativeName(%q): %v", name, err)
+	}
+	return got
 }
 
 func TestConvertToFullName(t *testing.T) {
@@ -38,7 +59,7 @@ func TestConvertToFullName(t *testing.T) {
 			"types.Foo[pkg.Bar]"},
 	}
 	for _, tc := range tests {
-		if got := c.ConvertToFullName(tc.cname); got != tc.want {
+		if got := fullName(t, c, tc.cname); got != tc.want {
 			t.Fatalf("ConvertToFullName(%q) = %q, want %q", tc.cname, got, tc.want)
 		}
 	}
@@ -50,25 +71,25 @@ func TestConvertToFullNameWithAlias(t *testing.T) {
 		genopts.WithImportAlias("github.com/other/pkg", "other"),
 	)
 
-	if got := c.ConvertToFullName("github.com/other/pkg/pkg.Bar"); got != "other.Bar" {
+	if got := fullName(t, c, "github.com/other/pkg/pkg.Bar"); got != "other.Bar" {
 		t.Fatalf("ConvertToFullName = %q, want other.Bar", got)
 	}
 }
 
+// TestConvertToFullNameTwoPathsSameAlias covers D5: the converter used to panic
+// on a name it could not rewrite; it now returns an error that Generate wraps.
 func TestConvertToFullNameTwoPathsSameAlias(t *testing.T) {
 	c := newConverter(t, genopts.WithPath("github.com/user/project"))
-	defer func() {
-		r := recover()
-		if r == nil {
-			t.Fatal("conversion of two paths with the same package name did not panic")
-		}
-		msg, ok := r.(string)
-		if !ok || !strings.Contains(msg, "same alias") {
-			t.Fatalf("unexpected panic value %v", r)
-		}
-	}()
-	c.ConvertToFullName("a.com/x.T1")
-	c.ConvertToFullName("b.com/x.T2")
+	if _, err := c.ConvertToFullName("a.com/x.T1"); err != nil {
+		t.Fatalf("first conversion: %v", err)
+	}
+	_, err := c.ConvertToFullName("b.com/x.T2")
+	if err == nil {
+		t.Fatal("conversion of two paths with the same package name returned no error")
+	}
+	if !strings.Contains(err.Error(), "same alias") {
+		t.Fatalf("unexpected error %v", err)
+	}
 }
 
 func TestConvertToRelativeName(t *testing.T) {
@@ -87,7 +108,7 @@ func TestConvertToRelativeName(t *testing.T) {
 		{"map[string]types.Foo", "map[string]types.Foo"},
 	}
 	for _, tc := range tests {
-		if got := c.ConvertToRelativeName(tc.fname); got != tc.want {
+		if got := relName(t, c, tc.fname); got != tc.want {
 			t.Fatalf("ConvertToRelativeName(%q) = %q, want %q", tc.fname, got, tc.want)
 		}
 	}
@@ -99,7 +120,7 @@ func TestConvertGenericsAndContainers(t *testing.T) {
 		genopts.WithPackage("project"),
 	)
 
-	full := c.ConvertToFullName(
+	full := fullName(t, c,
 		"github.com/user/project/types/types.Pair[github.com/other/pkg.A, github.com/other/pkg.B]")
 	if want := typename.FullName("types.Pair[pkg.A,pkg.B]"); full != want {
 		t.Fatalf("ConvertToFullName = %q, want %q", full, want)
@@ -113,31 +134,29 @@ func TestConvertGenericsAndContainers(t *testing.T) {
 		{"[3]github.com/user/project/types/types.Foo", "[3]types.Foo"},
 		{"[]github.com/user/project/types/types.Foo", "[]types.Foo"},
 	} {
-		if got := c.ConvertToFullName(tc.cname); got != tc.want {
+		if got := fullName(t, c, tc.cname); got != tc.want {
 			t.Fatalf("ConvertToFullName(%q) = %q, want %q", tc.cname, got, tc.want)
 		}
 	}
 
-	if got := c.ConvertToRelativeName("types.Pair[other.A, other.B]"); got !=
+	if got := relName(t, c, "types.Pair[other.A, other.B]"); got !=
 		"types.Pair[other.A,other.B]" {
 		t.Fatalf("ConvertToRelativeName = %q", got)
 	}
-	if got := c.ConvertToRelativeName("map[string]types.Foo"); got != "map[string]types.Foo" {
+	if got := relName(t, c, "map[string]types.Foo"); got != "map[string]types.Foo" {
 		t.Fatalf("ConvertToRelativeName = %q", got)
 	}
-	if got := c.ConvertToRelativeName("[3]types.Foo"); got != "[3]types.Foo" {
+	if got := relName(t, c, "[3]types.Foo"); got != "[3]types.Foo" {
 		t.Fatalf("ConvertToRelativeName = %q", got)
 	}
 }
 
-func TestConvertToRelativeNamePanics(t *testing.T) {
+// TestConvertToRelativeNameReturnsError covers the other half of D5.
+func TestConvertToRelativeNameReturnsError(t *testing.T) {
 	c := newConverter(t, genopts.WithPath("github.com/user/project"))
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("conversion of an invalid name did not panic")
-		} else if msg, ok := r.(string); !ok || !strings.Contains(msg, "RelativeName") {
-			t.Fatalf("unexpected panic value %v", r)
-		}
-	}()
-	c.ConvertToRelativeName("struct{}")
+	if _, err := c.ConvertToRelativeName("struct{}"); err == nil {
+		t.Fatal("conversion of an invalid name returned no error")
+	} else if !errors.Is(err, err) {
+		t.Fatalf("unexpected error %v", err)
+	}
 }

@@ -8,6 +8,9 @@ if err != nil {
 }
 var n1 int
 switch dtm {
+	case 0:
+		// The writer stored a nil interface value.
+		return nil, n, nil
 {{- range $e := .Impls }}
 	case {{ Serializer.DTMVar $e }}:
 		{{ $v }}, n1, err = {{ Serializer.TypedVar $e }}.UnmarshalData({{ $ulp }})

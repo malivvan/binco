@@ -1,6 +1,8 @@
 package composite
 
 import (
+	"sync/atomic"
+
 	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/wirefmt"
 )
@@ -64,12 +66,25 @@ func SkipBool(r wirefmt.Reader) (n int, err error) {
 }
 
 // NewPtrSerializer returns a pointer serializer that encodes nil as a flag byte.
+//
+// Unmarshalling a recursive type recurses once per non-nil pointer. The codec
+// counts the active nesting and reports ErrTooDeep above
+// binco.MaxPointerDepth, so hostile input cannot exhaust the goroutine stack.
 func NewPtrSerializer[T any](baseSerializer wirefmt.Serializer[T]) ptrCodec[T] {
-	return ptrCodec[T]{baseSerializer}
+	return ptrCodec[T]{baseSerializer: baseSerializer, depth: new(atomic.Int64)}
 }
 
 type ptrCodec[T any] struct {
 	baseSerializer wirefmt.Serializer[T]
+	depth          *atomic.Int64
+}
+
+func (s ptrCodec[T]) enter() bool {
+	return s.depth.Add(1) <= binco.MaxPointerDepth
+}
+
+func (s ptrCodec[T]) leave() {
+	s.depth.Add(-1)
 }
 
 func (s ptrCodec[T]) Marshal(v *T, w wirefmt.Writer) (n int, err error) {
@@ -81,6 +96,10 @@ func (s ptrCodec[T]) Marshal(v *T, w wirefmt.Writer) (n int, err error) {
 		n++
 		return
 	}
+	if !s.enter() {
+		return 0, binco.ErrTooDeep
+	}
+	defer s.leave()
 	if err = w.WriteByte(byte(binco.PtrNotNil)); err != nil {
 		return
 	}
@@ -102,6 +121,10 @@ func (s ptrCodec[T]) Unmarshal(r wirefmt.Reader) (v *T, n int, err error) {
 		err = binco.ErrWrongFormat
 		return
 	}
+	if !s.enter() {
+		return nil, n, binco.ErrTooDeep
+	}
+	defer s.leave()
 	var n1 int
 	k, n1, err := s.baseSerializer.Unmarshal(r)
 	n += n1
@@ -113,10 +136,15 @@ func (s ptrCodec[T]) Unmarshal(r wirefmt.Reader) (v *T, n int, err error) {
 }
 
 func (s ptrCodec[T]) Size(v *T) (size int) {
+	size = 1
 	if v != nil {
-		return 1 + s.baseSerializer.Size(*v)
+		if !s.enter() {
+			panic(binco.ErrTooDeep)
+		}
+		defer s.leave()
+		size += s.baseSerializer.Size(*v)
 	}
-	return 1
+	return
 }
 
 func (s ptrCodec[T]) Skip(r wirefmt.Reader) (n int, err error) {
@@ -132,7 +160,12 @@ func (s ptrCodec[T]) Skip(r wirefmt.Reader) (n int, err error) {
 		err = binco.ErrWrongFormat
 		return
 	}
-	n, err = s.baseSerializer.Skip(r)
-	n += 1
+	if !s.enter() {
+		return n, binco.ErrTooDeep
+	}
+	defer s.leave()
+	var n1 int
+	n1, err = s.baseSerializer.Skip(r)
+	n += n1
 	return
 }

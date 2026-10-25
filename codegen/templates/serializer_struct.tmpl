@@ -7,6 +7,12 @@
 {{- $uslp := Tmpl.UnmarshalSignatureLastParam .Gops }}
 {{- $td := . }}
 
+// {{ Serializer.SchemaVar .FullName }} identifies the wire layout of {{ $Type }}: a hash
+// of its field names and types in declaration order. The format is positional,
+// so reordering fields silently changes what a stored payload means; compare
+// this constant with the value the writer used to detect that.
+const {{ Serializer.SchemaVar .FullName }} = "{{ .Fingerprint }}"
+
 var {{ $serializerVar }} = {{ $serializerType }}{}
 
 type {{ $serializerType }} struct{}

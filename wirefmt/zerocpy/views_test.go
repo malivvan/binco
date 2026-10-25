@@ -111,8 +111,8 @@ func TestArray(t *testing.T) {
 		t.Fatalf("Unmarshal of a shorter array returned %v, want ErrWrongLength", err)
 	}
 	long := encodeStream(t, sliceSerializer, []int{1, 2, 3, 4})
-	if _, _, err = serializer.Unmarshal(wirefmt.NewReader(bytes.NewReader(long))); err != binco.ErrTooLargeLength {
-		t.Fatalf("Unmarshal of a longer array returned %v, want ErrTooLargeLength", err)
+	if _, _, err = serializer.Unmarshal(wirefmt.NewReader(bytes.NewReader(long))); err != binco.ErrWrongLength {
+		t.Fatalf("Unmarshal of a longer array returned %v, want ErrWrongLength", err)
 	}
 }
 
@@ -212,7 +212,7 @@ func TestStringSerializers(t *testing.T) {
 		t.Fatalf("Unmarshal of a truncated string returned %v", err)
 	}
 	if _, err := snative.String.Skip(wirefmt.NewReader(
-		bytes.NewReader([]byte{5, 'a'}))); !errors.Is(err, io.EOF) {
+		bytes.NewReader([]byte{5, 'a'}))); !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("Skip of a truncated string returned %v", err)
 	}
 }
@@ -372,7 +372,7 @@ func TestScalarErrors(t *testing.T) {
 			_, err := snative.Uint64.Skip(empty())
 			return err
 		}},
-		{"skip int32", io.EOF, func() error {
+		{"skip int32", io.ErrUnexpectedEOF, func() error {
 			_, err := snative.Int32.Skip(bytesReader(1))
 			return err
 		}},

@@ -1,6 +1,7 @@
 package ptrmap
 
 import (
+	"reflect"
 	"unsafe"
 
 	"github.com/malivvan/binco"
@@ -8,26 +9,33 @@ import (
 )
 
 // NewPtrSerializer returns a pointer serializer that writes the pointed-to data once and refers to it by identifier afterwards.
+//
+// Every identifier remembers the type it was decoded as, and a reference is
+// only resolved when that type matches the field that reads it. A payload can
+// therefore not make a *string out of an *int: the mismatch is reported as
+// binco.ErrWrongType instead of being cast with unsafe.Pointer.
 func NewPtrSerializer[T any](ptrMap *binco.PtrMap, revPtrMap *binco.ReversePtrMap,
 	baseSerializer binco.Serializer[T],
 ) ptrCodec[T] {
-	return ptrCodec[T]{ptrMap, revPtrMap, baseSerializer}
+	return ptrCodec[T]{ptrMap, revPtrMap, baseSerializer, reflect.TypeFor[T]()}
 }
 
 type ptrCodec[T any] struct {
 	ptrMap         *binco.PtrMap
 	revPtrMap      *binco.ReversePtrMap
 	baseSerializer binco.Serializer[T]
+	typ            reflect.Type
 }
 
 func (s ptrCodec[T]) Marshal(v *T, bs []byte) (n int) {
+	binco.CheckWrite(bs, 0, 1)
 	if v == nil {
 		bs[0] = byte(binco.PtrNil)
 		return 1
 	}
 	bs[0] = byte(binco.PtrMapping)
 	n = 1
-	id, newOne := idFor(unsafe.Pointer(v), s.ptrMap)
+	id, newOne := idFor(unsafe.Pointer(v), s.typ, s.ptrMap)
 	n += varnum.PositiveInt.Marshal(id, bs[n:])
 	if newOne {
 		n += s.baseSerializer.Marshal(*v, bs[n:])
@@ -40,6 +48,10 @@ func (s ptrCodec[T]) Unmarshal(bs []byte) (v *T, n int, err error) {
 		err = binco.ErrTooSmallByteSlice
 		return
 	}
+	if err = s.revPtrMap.Enter(); err != nil {
+		return nil, 0, err
+	}
+	defer s.revPtrMap.Leave()
 	switch bs[0] {
 	case byte(binco.PtrNil):
 		n = 1
@@ -55,13 +67,18 @@ func (s ptrCodec[T]) Unmarshal(bs []byte) (v *T, n int, err error) {
 		if err != nil {
 			return
 		}
-		ptr, _ := s.revPtrMap.Get(id)
-		if ptr == nil {
-			v, n1, err = resolveData(id, s.baseSerializer, s.revPtrMap, bs[n:])
+		ptr, typ, pst := s.revPtrMap.Get(id)
+		if !pst || ptr == nil {
+			var n1 int
+			v, n1, err = resolveData(id, s.typ, s.baseSerializer, s.revPtrMap, bs[n:])
 			n += n1
-		} else {
-			v = (*T)(ptr)
+			return
 		}
+		if typ != s.typ {
+			return nil, n, binco.ErrWrongType
+		}
+		v = (*T)(ptr)
+		return
 	default:
 		err = binco.ErrWrongFormat
 	}
@@ -71,7 +88,7 @@ func (s ptrCodec[T]) Unmarshal(bs []byte) (v *T, n int, err error) {
 func (s ptrCodec[T]) Size(v *T) (size int) {
 	size = 1
 	if v != nil {
-		id, newOne := idFor(unsafe.Pointer(v), s.ptrMap)
+		id, newOne := idFor(unsafe.Pointer(v), s.typ, s.ptrMap)
 		size += varnum.PositiveInt.Size(id)
 		if newOne {
 			return size + s.baseSerializer.Size(*v)
@@ -85,6 +102,10 @@ func (s ptrCodec[T]) Skip(bs []byte) (n int, err error) {
 		err = binco.ErrTooSmallByteSlice
 		return
 	}
+	if err = s.revPtrMap.Enter(); err != nil {
+		return 0, err
+	}
+	defer s.revPtrMap.Leave()
 	switch bs[0] {
 	case byte(binco.PtrNil):
 		n = 1
@@ -100,9 +121,9 @@ func (s ptrCodec[T]) Skip(bs []byte) (n int, err error) {
 		if err != nil {
 			return
 		}
-		_, pst := s.revPtrMap.Get(id)
+		_, _, pst := s.revPtrMap.Get(id)
 		if !pst {
-			s.revPtrMap.Put(id, nil)
+			s.revPtrMap.Put(id, nil, s.typ)
 			n1, err = s.baseSerializer.Skip(bs[n:])
 			n += n1
 			if err != nil {
@@ -115,7 +136,7 @@ func (s ptrCodec[T]) Skip(bs []byte) (n int, err error) {
 	return
 }
 
-func resolveData[T any](id int, serializer binco.Serializer[T],
+func resolveData[T any](id int, typ reflect.Type, serializer binco.Serializer[T],
 	revPtrMap *binco.ReversePtrMap,
 	bs []byte,
 ) (v *T, n int, err error) {
@@ -123,20 +144,23 @@ func resolveData[T any](id int, serializer binco.Serializer[T],
 
 	var n1 int
 
-	revPtrMap.Put(id, unsafe.Pointer(&k))
+	// The identifier is registered before the value is decoded so that a
+	// reference inside the value resolves to the value being built. That is what
+	// restores cycles; the depth counter bounds the recursion.
+	revPtrMap.Put(id, unsafe.Pointer(&k), typ)
 	k, n1, err = serializer.Unmarshal(bs)
 	n += n1
 	if err != nil {
-		return
+		return nil, n, err
 	}
 	v = &k
 	return
 }
 
-func idFor(ptr unsafe.Pointer, ptrMap *binco.PtrMap) (id int, newOne bool) {
-	id, pst := ptrMap.Get(ptr)
+func idFor(ptr unsafe.Pointer, typ reflect.Type, ptrMap *binco.PtrMap) (id int, newOne bool) {
+	id, pst := ptrMap.Get(ptr, typ)
 	if !pst {
-		id = ptrMap.Put(ptr)
+		id = ptrMap.Put(ptr, typ)
 		newOne = true
 	}
 	return

@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  # Scheduled runs fuzz for longer than a push does; see the fuzz job.
+  schedule:
+    - cron: "0 3 * * *"
 
 permissions:
   contents: read
@@ -42,6 +45,17 @@ jobs:
       - name: Test
         run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
 
+      # The demos contain generated files. Regenerating them here keeps the
+      # generator and its output in sync: a template change that was not
+      # followed by `go generate ./...` fails this step.
+      - name: Check generated code is up to date
+        run: |
+          go generate ./...
+          git diff --exit-code
+
+      - name: Build every package
+        run: go build ./...
+
       # Coverage is generated on every run and only sent on a push: a pull
       # request from a fork has no access to the Coveralls secret.
       - name: Upload coverage to Coveralls
@@ -54,6 +68,27 @@ jobs:
           # repository token from COVERALLS_TOKEN. The secret follows Coveralls'
           # own naming convention (COVERALLS_REPO_TOKEN), so map it across.
           COVERALLS_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+
+  # int and uint use the same 64-bit wire width on every architecture; this job
+  # covers the 32-bit build where the range checks live (D6/S6), without the race
+  # detector, which 386 does not support.
+  test-386:
+    name: Test (GOARCH=386)
+    runs-on: ubuntu-latest
+    env:
+      GOARCH: "386"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
 
   lint:
     name: Lint
@@ -88,6 +123,38 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - package: ./composite
+            target: FuzzString
+          - package: ./composite
+            target: FuzzByteSlice
+          - package: ./composite
+            target: FuzzSlice
+          - package: ./composite
+            target: FuzzMap
+          - package: ./composite
+            target: FuzzPtr
+          - package: ./zerocpy
+            target: FuzzString
+          - package: ./zerocpy
+            target: FuzzByteSlice
+          - package: ./zerocpy
+            target: FuzzArray
+          - package: ./zerocpy
+            target: FuzzScalars
+          - package: ./scalar
+            target: FuzzFixedWidth
+          - package: ./scalar
+            target: FuzzTime
+          - package: ./ptrmap
+            target: FuzzPointer
+          - package: ./ptrmap
+            target: FuzzPointerSlice
+          - package: ./typeid
+            target: FuzzDTM
+          - package: ./typeid
+            target: FuzzTyped
+          - package: ./varnum
+            target: FuzzUnmarshal
           - package: ./wirefmt/varnum
             target: FuzzUnmarshal
           - package: ./wirefmt/varnum
@@ -118,8 +185,13 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # A push gets a quick smoke run; the nightly schedule runs long enough to
+      # explore new inputs.
       - name: Fuzz ${{ matrix.target }}
-        run: go test -tags=fuzz -run='^$' -fuzz='^${{ matrix.target }}$' -fuzztime=15s -timeout=2m ${{ matrix.package }}
+        run: |
+          fuzztime=15s
+          if [ "${{ github.event_name }}" = "schedule" ]; then fuzztime=5m; fi
+          go test -tags=fuzz -run='^$' -fuzz='^${{ matrix.target }}$' -fuzztime="${fuzztime}" -timeout=10m ${{ matrix.package }}
 
       - name: Upload failing corpus
         if: failure()
@@ -132,7 +204,7 @@ jobs:
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [test, lint]
+    needs: [test, test-386, lint]
     runs-on: ubuntu-latest
     permissions:
       contents: write

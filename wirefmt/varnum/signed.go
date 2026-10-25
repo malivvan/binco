@@ -123,27 +123,34 @@ func (i64Codec) Skip(r wirefmt.Reader) (n int, err error) {
 	return Uint64.Skip(r)
 }
 
-// Int serializes an int, following the word size of the host.
+// Int serializes an int. The wire width is always 64 bits, whatever the host
+// word size is.
 var Int = wordIntCodec{}
 
 type wordIntCodec struct{}
 
 func (wordIntCodec) Marshal(v int, w wirefmt.Writer) (n int, err error) {
-	return putUnsigned(uint(EncodeZigZag(v)), w)
+	return putUnsigned(uint64(EncodeZigZag(int64(v))), w)
 }
 
 func (wordIntCodec) Unmarshal(r wirefmt.Reader) (v int, n int, err error) {
-	uv, n, err := Uint.Unmarshal(r)
+	uv, n, err := Uint64.Unmarshal(r)
 	if err != nil {
 		return
 	}
-	return int(DecodeZigZag(uv)), n, nil
+	iv := int64(DecodeZigZag(uv))
+	v = int(iv)
+	if int64(v) != iv {
+		return 0, n, binco.ErrOverflow
+	}
+	return v, n, nil
 }
 
 func (wordIntCodec) Size(v int) (size int) {
-	return Uint.Size(uint(EncodeZigZag(v)))
+	return Uint64.Size(uint64(EncodeZigZag(int64(v))))
 }
 
 func (wordIntCodec) Skip(r wirefmt.Reader) (n int, err error) {
-	return Uint.Skip(r)
+	_, n, err = wordIntCodec{}.Unmarshal(r)
+	return
 }

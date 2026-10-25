@@ -14,46 +14,85 @@ import (
 )
 
 // SerializerFns answers the naming questions the templates ask: how a serializer, a typed serializer or a type identifier is named, and which codec a Go type maps to.
+//
+// Every method that can fail returns an error instead of panicking. The
+// templates propagate it and Generate wraps it, so a bad name is reported with
+// the type that caused it.
 type SerializerFns struct {
 	converter       cnvtr.TypeNameConverter
 	builder         TypeBuilder
 	foreignTypes    map[typename.FullName]struct{}
 	serializerNames map[typename.FullName]string
+	names           map[string]typename.FullName
 	utilFns         TmplFns
 	gopts           genopts.Options
 }
 
 func (f SerializerFns) lowerFirst(str string) string {
+	if str == "" {
+		return str
+	}
 	r := []rune(str)
 	r[0] = unicode.ToLower(r[0])
 	return string(r)
 }
 
 func (f SerializerFns) upperFirst(str string) string {
+	if str == "" {
+		return str
+	}
 	r := []rune(str)
 	r[0] = unicode.ToUpper(r[0])
 	return string(r)
 }
 
-func (f SerializerFns) codecName(name typename.FullName) string {
+// codecName returns the base name the generated code uses for a type, and
+// records it so that two types that would produce the same name are rejected.
+//
+// Two types with the same name in different packages used to collapse into one
+// serializer. The name is now checked: a collision names both types and asks for
+// an explicit name through genopts.WithSerializer.
+func (f SerializerFns) codecName(name typename.FullName) (string, error) {
 	if serializerName, pst := f.serializerNames[name]; pst {
-		return serializerName
+		return serializerName, nil
 	}
-	var rname typename.RelativeName
+	var (
+		rname string
+		err   error
+	)
 	if _, pst := f.foreignTypes[name]; pst {
-		rname = typename.RelativeName(name.TypeName())
+		rname = string(typename.RelativeName(name.TypeName()).WithoutSquares())
 	} else {
-		rname = f.converter.ConvertToRelativeName(name)
+		var rel typename.RelativeName
+		rel, err = f.converter.ConvertToRelativeName(name)
+		if err != nil {
+			return "", err
+		}
+		rname = rel.WithoutSquares()
 	}
-	return rname.WithoutSquares()
+	if f.names != nil {
+		if other, dup := f.names[rname]; dup && other != name {
+			return "", fmt.Errorf("%w: %s and %s would both be generated as %q; give one of them a name with genopts.WithSerializer",
+				ErrNameCollision, other, name, rname)
+		}
+		f.names[rname] = name
+	}
+	return rname, nil
 }
 
-func (f SerializerFns) MapOpts(anonType spec.AnonType) string {
+func (f SerializerFns) MapOpts(anonType spec.AnonType) (string, error) {
 	var (
 		b        = strings.Builder{}
-		keyType  = f.converter.ConvertToRelativeName(anonType.KeyType)
-		elemType = f.converter.ConvertToRelativeName(anonType.ElemType)
+		keyType  typename.RelativeName
+		elemType typename.RelativeName
+		err      error
 	)
+	if keyType, err = f.converter.ConvertToRelativeName(anonType.KeyType); err != nil {
+		return "", err
+	}
+	if elemType, err = f.converter.ConvertToRelativeName(anonType.ElemType); err != nil {
+		return "", err
+	}
 	if anonType.LenSerializer != "" && anonType.LenSerializer != "nil" {
 		fmt.Fprintf(&b, "mapopts.WithLenSerializer[%v, %v](%v)", keyType, elemType,
 			anonType.LenSerializer)
@@ -78,14 +117,18 @@ func (f SerializerFns) MapOpts(anonType spec.AnonType) string {
 		}
 		fmt.Fprintf(&b, "mapopts.WithValueValidator[%v, %v](%v)", keyType, elemType, anonType.ElemVl)
 	}
-	return b.String()
+	return b.String(), nil
 }
 
-func (f SerializerFns) SliceOpts(anonType spec.AnonType) string {
+func (f SerializerFns) SliceOpts(anonType spec.AnonType) (string, error) {
 	var (
 		b        = strings.Builder{}
-		elemType = f.converter.ConvertToRelativeName(anonType.ElemType)
+		elemType typename.RelativeName
+		err      error
 	)
+	if elemType, err = f.converter.ConvertToRelativeName(anonType.ElemType); err != nil {
+		return "", err
+	}
 	if anonType.LenSerializer != "" && anonType.LenSerializer != "nil" {
 		fmt.Fprintf(&b, "slopts.WithLenSerializer[%v](%v)", elemType, anonType.LenSerializer)
 	}
@@ -101,10 +144,10 @@ func (f SerializerFns) SliceOpts(anonType spec.AnonType) string {
 		}
 		fmt.Fprintf(&b, "slopts.WithElemValidator[%v](%v)", elemType, anonType.ElemVl)
 	}
-	return b.String()
+	return b.String(), nil
 }
 
-func (f SerializerFns) ByteSliceOpts(anonType spec.AnonType) string {
+func (f SerializerFns) ByteSliceOpts(anonType spec.AnonType) (string, error) {
 	b := strings.Builder{}
 	if anonType.LenSerializer != "" && anonType.LenSerializer != "nil" {
 		fmt.Fprintf(&b, "bslopts.WithLenSerializer(%v)", anonType.LenSerializer)
@@ -115,14 +158,18 @@ func (f SerializerFns) ByteSliceOpts(anonType spec.AnonType) string {
 		}
 		fmt.Fprintf(&b, "bslopts.WithLenValidator(%v)", anonType.LenVl)
 	}
-	return b.String()
+	return b.String(), nil
 }
 
-func (f SerializerFns) ArrayOpts(anonType spec.AnonType) string {
+func (f SerializerFns) ArrayOpts(anonType spec.AnonType) (string, error) {
 	var (
 		b        = strings.Builder{}
-		elemType = f.converter.ConvertToRelativeName(anonType.ElemType)
+		elemType typename.RelativeName
+		err      error
 	)
+	if elemType, err = f.converter.ConvertToRelativeName(anonType.ElemType); err != nil {
+		return "", err
+	}
 	if anonType.LenSerializer != "" && anonType.LenSerializer != "nil" {
 		fmt.Fprintf(&b, "arropts.WithLenSerializer[%v](%v)", elemType, anonType.LenSerializer)
 	}
@@ -132,10 +179,10 @@ func (f SerializerFns) ArrayOpts(anonType spec.AnonType) string {
 		}
 		fmt.Fprintf(&b, "arropts.WithElemValidator[%v](%v)", elemType, anonType.ElemVl)
 	}
-	return b.String()
+	return b.String(), nil
 }
 
-func (f SerializerFns) StringOpts(anonData spec.AnonType) string {
+func (f SerializerFns) StringOpts(anonData spec.AnonType) (string, error) {
 	b := strings.Builder{}
 	if anonData.LenSerializer != "" && anonData.LenSerializer != "nil" {
 		fmt.Fprintf(&b, "stropts.WithLenSerializer(%v)", anonData.LenSerializer)
@@ -146,7 +193,7 @@ func (f SerializerFns) StringOpts(anonData spec.AnonType) string {
 		}
 		fmt.Fprintf(&b, "stropts.WithLenValidator(%v)", anonData.LenVl)
 	}
-	return b.String()
+	return b.String(), nil
 }
 
 func (f SerializerFns) FieldTmplPipe(structType spec.StructType,
@@ -158,33 +205,41 @@ func (f SerializerFns) FieldTmplPipe(structType spec.StructType,
 		Index:       index,
 		Gops:        opts,
 	}
-	if len(structType.Sops.Fields) > 0 {
-		pipe.Tops = structType.Sops.Fields[index].Type
+	// index is the position among serialized fields; the options are indexed by
+	// the position in the struct, which fieldType.Index carries.
+	if len(structType.Sops.Fields) > 0 && fieldType.Index < len(structType.Sops.Fields) {
+		pipe.Tops = structType.Sops.Fields[fieldType.Index].Type
 	}
 	return pipe
 }
 
-func (f SerializerFns) RelName(name typename.FullName) string {
-	return string(f.converter.ConvertToRelativeName(name))
+// RelName returns the name the generated file uses for a type.
+func (f SerializerFns) RelName(name typename.FullName) (string, error) {
+	rname, err := f.converter.ConvertToRelativeName(name)
+	if err != nil {
+		return "", err
+	}
+	return string(rname), nil
 }
 
-func (f SerializerFns) Elem(anonType spec.AnonType, opts genopts.Options) string {
+func (f SerializerFns) Elem(anonType spec.AnonType, opts genopts.Options) (string, error) {
 	return f.Of(anonType.ElemType, tpopts.Options{}, opts)
 }
 
-func (f SerializerFns) Key(anonType spec.AnonType, opts genopts.Options) string {
+func (f SerializerFns) Key(anonType spec.AnonType, opts genopts.Options) (string, error) {
 	return f.Of(anonType.KeyType, tpopts.Options{}, opts)
 }
 
+// Of returns the expression that names the serializer of a type.
 func (f SerializerFns) Of(fullName typename.FullName, tops tpopts.Options,
 	opts genopts.Options,
-) string {
+) (string, error) {
 	anonType, ok, err := f.builder.BuildAnonType(fullName, tops)
 	if err != nil {
-		panic(fmt.Sprintf("can't get serializer for the %v, cause %v", fullName, err))
+		return "", fmt.Errorf("cannot get a serializer for %v: %w", fullName, err)
 	}
 	if ok {
-		return string(anonType.SerializerName)
+		return string(anonType.SerializerName), nil
 	}
 	var (
 		pkg            string
@@ -220,29 +275,59 @@ func (f SerializerFns) Of(fullName typename.FullName, tops tpopts.Options,
 	case "time.Time":
 		serializerName = rules["time_serializer"]
 	default:
-		panic(fmt.Sprintf("internal bug: unpredicted case %v", fullName))
+		return "", fmt.Errorf("internal bug: unpredicted case %v", fullName)
 	}
-	return pkg + "." + serializerName
+	return pkg + "." + serializerName, nil
 }
 
 func (f SerializerFns) Val(tp any) string {
 	return "v"
 }
 
-func (f SerializerFns) Type(fullName typename.FullName) string {
-	return f.lowerFirst(f.Var(fullName))
+// Type returns the name of the generated serializer type.
+func (f SerializerFns) Type(fullName typename.FullName) (string, error) {
+	v, err := f.Var(fullName)
+	if err != nil {
+		return "", err
+	}
+	return f.lowerFirst(v), nil
 }
 
-func (f SerializerFns) DTMVar(fullName typename.FullName) string {
-	return string(f.codecName(fullName)) + SuffixDTM
+// SchemaVar is the name of the generated constant that identifies the wire
+// layout of a struct. It is built from the codec name rather than from the
+// relative type name, because a relative name of a foreign type contains a
+// package qualifier ("pkg.Foo") and is not a valid identifier.
+func (f SerializerFns) SchemaVar(fullName typename.FullName) (string, error) {
+	name, err := f.codecName(fullName)
+	if err != nil {
+		return "", err
+	}
+	return name + "SchemaFingerprint", nil
 }
 
-func (f SerializerFns) TypedVar(fullName typename.FullName) string {
-	return string(f.codecName(fullName)) + SuffixTypedBinco
+func (f SerializerFns) DTMVar(fullName typename.FullName) (string, error) {
+	name, err := f.codecName(fullName)
+	if err != nil {
+		return "", err
+	}
+	return name + SuffixDTM, nil
 }
 
-func (f SerializerFns) Var(name typename.FullName) string {
-	return string(f.codecName(name)) + SuffixBinco
+func (f SerializerFns) TypedVar(fullName typename.FullName) (string, error) {
+	name, err := f.codecName(fullName)
+	if err != nil {
+		return "", err
+	}
+	return name + SuffixTypedBinco, nil
+}
+
+// Var returns the name of the generated serializer variable.
+func (f SerializerFns) Var(name typename.FullName) (string, error) {
+	codec, err := f.codecName(name)
+	if err != nil {
+		return "", err
+	}
+	return codec + SuffixBinco, nil
 }
 
 // NewSerializerFns prepares the naming helpers for one generator run.
@@ -251,15 +336,17 @@ func NewSerializerFns(converter cnvtr.TypeNameConverter,
 	foreignTypes map[typename.FullName]struct{},
 	utilFns TmplFns,
 	gopts genopts.Options,
-) SerializerFns {
-
+) (SerializerFns, error) {
 	serializerNames := map[typename.FullName]string{}
 	for t, serializerName := range gopts.SerializerNames {
 		cname, err := typename.TypeCompleteName(t)
 		if err != nil {
-			panic(err)
+			return SerializerFns{}, err
 		}
-		fullName := converter.ConvertToFullName(cname)
+		fullName, err := converter.ConvertToFullName(cname)
+		if err != nil {
+			return SerializerFns{}, err
+		}
 		serializerNames[fullName] = serializerName
 	}
 
@@ -268,9 +355,10 @@ func NewSerializerFns(converter cnvtr.TypeNameConverter,
 		builder:         builder,
 		foreignTypes:    foreignTypes,
 		serializerNames: serializerNames,
+		names:           map[string]typename.FullName{},
 		utilFns:         utilFns,
 		gopts:           gopts,
-	}
+	}, nil
 }
 
 // TypeBuilder turns reflect types into the specifications the templates consume.

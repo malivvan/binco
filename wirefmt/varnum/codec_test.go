@@ -179,7 +179,7 @@ func TestUnmarshalErrors(t *testing.T) {
 			_, _, err := varnum.Uint64.Unmarshal(reader())
 			return err
 		}},
-		{"truncated", io.EOF, func() error {
+		{"truncated", io.ErrUnexpectedEOF, func() error {
 			_, _, err := varnum.Uint64.Unmarshal(reader(0x80))
 			return err
 		}},
@@ -191,7 +191,7 @@ func TestUnmarshalErrors(t *testing.T) {
 			_, err := varnum.Uint64.Skip(reader())
 			return err
 		}},
-		{"skip truncated", io.EOF, func() error {
+		{"skip truncated", io.ErrUnexpectedEOF, func() error {
 			_, err := varnum.Uint64.Skip(reader(0x80))
 			return err
 		}},
@@ -230,8 +230,13 @@ func (w *flakyWriter) Write(p []byte) (int, error) {
 	if w.remaining <= 0 {
 		return 0, w.err
 	}
-	w.remaining--
-	return len(p), nil
+	if len(p) <= w.remaining {
+		w.remaining -= len(p)
+		return len(p), nil
+	}
+	n := w.remaining
+	w.remaining = 0
+	return n, w.err
 }
 
 func (w *flakyWriter) WriteString(s string) (int, error) {

@@ -32,6 +32,12 @@ func (s intBinco) Skip(bs []byte) (n int, err error) {
 	return varnum.Int.Skip(bs)
 }
 
+// FooSchemaFingerprint identifies the wire layout of Foo[Int]: a hash
+// of its field names and types in declaration order. The format is positional,
+// so reordering fields silently changes what a stored payload means; compare
+// this constant with the value the writer used to detect that.
+const FooSchemaFingerprint = "d36b2f28fcf4f7a73be3a18964b84d190205fe57d41e1203788fc330875a874c"
+
 var FooBinco = fooBinco{}
 
 type fooBinco struct{}

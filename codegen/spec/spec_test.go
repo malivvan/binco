@@ -67,10 +67,9 @@ func TestAnonKindString(t *testing.T) {
 		}
 	}
 
-	defer func() {
-		if recover() == nil {
-			t.Fatal("AnonKindUndefined.String() did not panic")
-		}
-	}()
-	_ = spec.AnonKindUndefined.String()
+	// An unknown kind used to panic inside a template execution, where the panic
+	// surfaced as an opaque failure; it now renders a name that says so.
+	if got, want := spec.AnonKindUndefined.String(), "unknown(0)"; got != want {
+		t.Fatalf("AnonKindUndefined.String() = %q, want %q", got, want)
+	}
 }

@@ -135,8 +135,8 @@ func TestArray(t *testing.T) {
 	}
 
 	long := binco.Encode(sliceSerializer, []int{1, 2, 3, 4})
-	if _, _, err = serializer.Unmarshal(long); err != binco.ErrTooLargeLength {
-		t.Fatalf("Unmarshal of a longer array returned %v, want ErrTooLargeLength", err)
+	if _, _, err = serializer.Unmarshal(long); err != binco.ErrWrongLength {
+		t.Fatalf("Unmarshal of a longer array returned %v, want ErrWrongLength", err)
 	}
 
 	zero := zerocpy.NewArraySerializer[[0]int, int](varnum.Int)

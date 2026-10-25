@@ -86,7 +86,7 @@ func TestWrongDTM(t *testing.T) {
 	if _, _, err = serializer.Unmarshal(reader()); !errors.Is(err, io.EOF) {
 		t.Fatalf("Unmarshal of an empty stream returned %v", err)
 	}
-	if _, _, err = serializer.Unmarshal(reader(0x80)); !errors.Is(err, io.EOF) {
+	if _, _, err = serializer.Unmarshal(reader(0x80)); !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("Unmarshal of a truncated DTM returned %v", err)
 	}
 }

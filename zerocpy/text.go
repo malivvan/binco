@@ -14,11 +14,19 @@ import (
 var String = NewStringSerializer()
 
 // NewStringSerializer returns a string serializer whose length codec can be replaced through opts.
-func NewStringSerializer(opts ...stropts.SetOption) textView {
+//
+// A WithLenValidator option is honoured. The decoded string aliases the input
+// buffer: it is only valid while that buffer is, and the buffer must not be
+// reused or modified. Use composite.String when the value outlives the buffer.
+func NewStringSerializer(opts ...stropts.SetOption) binco.Serializer[string] {
 	o := stropts.Options{}
 	stropts.Apply(opts, &o)
 
-	return newTextView(o)
+	s := newTextView(o)
+	if o.LenVl != nil {
+		return checkedText{s, o.LenVl}
+	}
+	return s
 }
 
 // NewValidStringSerializer returns a string serializer that runs its length validator while decoding.
@@ -49,19 +57,14 @@ func (s textView) Unmarshal(bs []byte) (v string, n int, err error) {
 	if err != nil {
 		return
 	}
-	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
+	body, end, err := fixedBody(bs, n, length)
+	if err != nil {
+		return "", n, err
 	}
-	l := n + length
-	if len(bs) < l {
-		err = binco.ErrTooSmallByteSlice
-		return
+	if len(body) == 0 {
+		return "", end, nil
 	}
-	if length == 0 {
-		return
-	}
-	return unsafe_mod.String(&bs[n], length), l, nil
+	return unsafe_mod.String(&body[0], len(body)), end, nil
 }
 
 func (s textView) Size(v string) (size int) {
@@ -82,35 +85,48 @@ func (s checkedText) Unmarshal(bs []byte) (v string, n int, err error) {
 	if err != nil {
 		return
 	}
-	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
-	}
-	l := n + length
-	if len(bs) < l {
-		err = binco.ErrTooSmallByteSlice
-		return
+	body, end, err := fixedBody(bs, n, length)
+	if err != nil {
+		return "", n, err
 	}
 	if s.lenVl != nil {
-		if err = s.lenVl.Validate(length); err != nil {
-			return
+		if err := s.lenVl.Validate(length); err != nil {
+			return "", n, err
 		}
 	}
-	if length == 0 {
-		return
+	if len(body) == 0 {
+		return "", end, nil
 	}
-	return unsafe_mod.String(&bs[n], length), l, nil
+	return unsafe_mod.String(&body[0], len(body)), end, nil
+}
+
+// fixedBody returns the length bytes that follow the decoded length and the
+// offset of the first byte after them. binco.CheckLength keeps the arithmetic
+// overflow-safe, so a hostile length cannot wrap into a slice panic.
+func fixedBody(bs []byte, n, length int) (body []byte, end int, err error) {
+	if err = binco.CheckLength(bs, n, length); err != nil {
+		return nil, n, err
+	}
+	return bs[n : n+length], n + length, nil
 }
 
 // ByteSlice serializes a byte slice. Decoding returns a slice that shares memory with the input buffer.
 var ByteSlice = NewByteSliceSerializer()
 
-// NewByteSliceSerializer returns a byte slice serializer whose length codec can be replaced.
-func NewByteSliceSerializer(opts ...bslopts.SetOption) blobView {
+// NewByteSliceSerializer returns a byte slice serializer whose length codec can
+// be replaced. A WithLenValidator option is honoured.
+//
+// The decoded slice aliases the input buffer; do not modify it and do not reuse
+// the buffer while the slice is alive.
+func NewByteSliceSerializer(opts ...bslopts.SetOption) binco.Serializer[[]byte] {
 	o := bslopts.Options{}
 	bslopts.Apply(opts, &o)
 
-	return newBlobView(o)
+	s := newBlobView(o)
+	if o.LenVl != nil {
+		return checkedBlob{s, o.LenVl}
+	}
+	return s
 }
 
 // NewValidByteSliceSerializer returns a byte slice serializer that runs its length validator while decoding.
@@ -146,19 +162,14 @@ func (s blobView) Unmarshal(bs []byte) (v []byte, n int, err error) {
 	if err != nil {
 		return
 	}
-	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
+	body, end, err := fixedBody(bs, n, length)
+	if err != nil {
+		return nil, n, err
 	}
-	l := n + length
-	if len(bs) < l {
-		err = binco.ErrTooSmallByteSlice
-		return
+	if len(body) == 0 {
+		return []byte{}, end, nil
 	}
-	if length == 0 {
-		return []byte{}, l, nil
-	}
-	return unsafe_mod.Slice(&bs[n], length), l, nil
+	return body, end, nil
 }
 
 func (s blobView) Size(v []byte) (size int) {
@@ -179,22 +190,17 @@ func (s checkedBlob) Unmarshal(bs []byte) (v []byte, n int, err error) {
 	if err != nil {
 		return
 	}
-	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
-	}
-	l := n + length
-	if len(bs) < l {
-		err = binco.ErrTooSmallByteSlice
-		return
+	body, end, err := fixedBody(bs, n, length)
+	if err != nil {
+		return nil, n, err
 	}
 	if s.lenVl != nil {
-		if err = s.lenVl.Validate(length); err != nil {
-			return
+		if err := s.lenVl.Validate(length); err != nil {
+			return nil, n, err
 		}
 	}
-	if length == 0 {
-		return []byte{}, l, nil
+	if len(body) == 0 {
+		return []byte{}, end, nil
 	}
-	return unsafe_mod.Slice(&bs[n], length), l, nil
+	return body, end, nil
 }

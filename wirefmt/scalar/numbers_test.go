@@ -186,7 +186,7 @@ func TestErrors(t *testing.T) {
 			return err
 		}},
 
-		{"uint16 truncated", io.EOF, func() error {
+		{"uint16 truncated", io.ErrUnexpectedEOF, func() error {
 			_, _, err := scalar.Uint16.Unmarshal(reader(1))
 			return err
 		}},
@@ -194,7 +194,7 @@ func TestErrors(t *testing.T) {
 			_, _, err := scalar.Int8.Unmarshal(reader())
 			return err
 		}},
-		{"float64 truncated", io.EOF, func() error {
+		{"float64 truncated", io.ErrUnexpectedEOF, func() error {
 			_, _, err := scalar.Float64.Unmarshal(reader(1, 2, 3))
 			return err
 		}},
@@ -206,7 +206,7 @@ func TestErrors(t *testing.T) {
 			_, err := scalar.Uint64.Skip(reader())
 			return err
 		}},
-		{"skip truncated", io.EOF, func() error {
+		{"skip truncated", io.ErrUnexpectedEOF, func() error {
 			_, err := scalar.Int32.Skip(reader(1, 2))
 			return err
 		}},
@@ -237,8 +237,13 @@ func (w *flakyWriter) Write(p []byte) (int, error) {
 	if w.remaining <= 0 {
 		return 0, w.err
 	}
-	w.remaining--
-	return len(p), nil
+	if len(p) <= w.remaining {
+		w.remaining -= len(p)
+		return len(p), nil
+	}
+	n := w.remaining
+	w.remaining = 0
+	return n, w.err
 }
 
 func (w *flakyWriter) WriteString(s string) (int, error) {
@@ -282,8 +287,12 @@ func TestPartialReads(t *testing.T) {
 	for _, tc := range tests {
 		for length := 0; length < len(tc.bytes); length++ {
 			n, err := tc.fn(wirefmt.NewReader(bytes.NewReader(tc.bytes[:length])))
-			if !errors.Is(err, io.EOF) {
-				t.Fatalf("%v truncated to %d bytes: got (%d, %v), want io.EOF", tc.name, length, n, err)
+			want := io.ErrUnexpectedEOF
+			if length == 0 {
+				want = io.EOF
+			}
+			if !errors.Is(err, want) {
+				t.Fatalf("%v truncated to %d bytes: got (%d, %v), want %v", tc.name, length, n, err, want)
 			}
 			if n != length {
 				t.Fatalf("%v truncated to %d bytes: read %d bytes", tc.name, length, n)

@@ -8,4 +8,14 @@
 //
 // Add types with AddDefinedType, AddStruct, AddInterface, AddVersioned and their
 // companions, then call Generate and write the returned bytes to a file.
+//
+// The generator reports problems instead of panicking: a malformed validator or
+// migration expression, an unexported field of a foreign struct, two types that
+// would receive the same name and two types that would receive the same wire
+// identifier all fail the Add* call or Generate with an error that wraps
+// ErrCodeGenFailed or ErrNameCollision. Every generated struct also carries a
+// SchemaFingerprint constant, a hash of its field names and types that makes a
+// positional schema change visible.
+//
+// A Generator is not safe for concurrent use.
 package codegen

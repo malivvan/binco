@@ -1,6 +1,7 @@
 package composite
 
 import (
+	"bytes"
 	"io"
 
 	"github.com/malivvan/binco"
@@ -14,11 +15,18 @@ import (
 var String = NewStringSerializer()
 
 // NewStringSerializer returns a string serializer whose length codec can be replaced through opts.
-func NewStringSerializer(opts ...stropts.SetOption) textCodec {
+//
+// A WithLenValidator option is honoured here as well as in
+// NewValidStringSerializer.
+func NewStringSerializer(opts ...stropts.SetOption) wirefmt.Serializer[string] {
 	o := stropts.Options{}
 	stropts.Apply(opts, &o)
 
-	return newTextCodec(o)
+	s := newTextCodec(o)
+	if o.LenVl != nil {
+		return checkedText{s, o.LenVl}
+	}
+	return s
 }
 
 // NewValidStringSerializer returns a string serializer that runs its length validator while decoding.
@@ -50,24 +58,16 @@ func (s textCodec) Unmarshal(r wirefmt.Reader) (v string, n int, err error) {
 		return
 	}
 	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
+		return "", n, binco.ErrNegativeLength
 	}
-	var c []byte
-
 	var n1 int
-
-	if length == 0 {
-		return
-	}
-	c = make([]byte, length)
-	n1, err = io.ReadFull(r, c)
+	var body []byte
+	body, n1, err = readFixed(r, length)
 	n += n1
 	if err != nil {
 		return
 	}
-	v = string(c)
-	return
+	return string(body), n, nil
 }
 
 func (s textCodec) Size(v string) (n int) {
@@ -89,29 +89,58 @@ func (s checkedText) Unmarshal(r wirefmt.Reader) (v string, n int, err error) {
 		return
 	}
 	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
+		return "", n, binco.ErrNegativeLength
 	}
-	var c []byte
-
-	var n1 int
-
 	if s.lenVl != nil {
-		if err = s.lenVl.Validate(length); err != nil {
-			return
+		if err := s.lenVl.Validate(length); err != nil {
+			return "", n, err
 		}
 	}
-	if length == 0 {
-		return
-	}
-	c = make([]byte, length)
-	n1, err = io.ReadFull(r, c)
+	var n1 int
+	var body []byte
+	body, n1, err = readFixed(r, length)
 	n += n1
 	if err != nil {
 		return
 	}
-	v = string(c)
-	return
+	return string(body), n, nil
+}
+
+// readFixed reads exactly length bytes from r.
+//
+// The result grows as the bytes arrive instead of being allocated from the
+// declared length, so a stream that announces one gigabyte and then ends after
+// five bytes costs five bytes and not one gigabyte. A truncation is reported as
+// io.ErrUnexpectedEOF: the value has already started, so the stream did not end
+// cleanly between two values.
+func readFixed(r wirefmt.Reader, length int) (body []byte, n int, err error) {
+	if length == 0 {
+		return []byte{}, 0, nil
+	}
+	var buf bytes.Buffer
+	var n1 int64
+	n1, err = io.CopyN(&buf, r, int64(length))
+	if err != nil {
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
+		return nil, int(n1), err
+	}
+	return buf.Bytes(), int(n1), nil
+}
+
+// discardFixed skips exactly length bytes, reporting a truncation as
+// io.ErrUnexpectedEOF.
+func discardFixed(r wirefmt.Reader, length int) (n int, err error) {
+	if length == 0 {
+		return 0, nil
+	}
+	var n1 int64
+	n1, err = io.CopyN(io.Discard, r, int64(length))
+	if err != nil && err == io.EOF {
+		err = io.ErrUnexpectedEOF
+	}
+	return int(n1), err
 }
 
 // MarshalString writes v, prefixed by its length, to w.
@@ -139,12 +168,11 @@ func SkipString(r wirefmt.Reader, lenSerializer wirefmt.Serializer[int]) (n int,
 		return
 	}
 	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
+		return n, binco.ErrNegativeLength
 	}
-	var n1 int64
-	n1, err = io.CopyN(io.Discard, r, int64(length))
-	n += int(n1)
+	var n1 int
+	n1, err = discardFixed(r, length)
+	n += n1
 	return
 }
 
@@ -152,11 +180,15 @@ func SkipString(r wirefmt.Reader, lenSerializer wirefmt.Serializer[int]) (n int,
 var ByteSlice = NewByteSliceSerializer()
 
 // NewByteSliceSerializer returns a byte slice serializer whose length codec can be replaced.
-func NewByteSliceSerializer(opts ...bslopts.SetOption) blobCodec {
+func NewByteSliceSerializer(opts ...bslopts.SetOption) wirefmt.Serializer[[]byte] {
 	o := bslopts.Options{}
 	bslopts.Apply(opts, &o)
 
-	return newBlobCodec(o)
+	s := newBlobCodec(o)
+	if o.LenVl != nil {
+		return checkedBlob{s, o.LenVl}
+	}
+	return s
 }
 
 // NewValidByteSliceSerializer returns a byte slice serializer that runs its length validator while decoding.
@@ -183,9 +215,7 @@ type blobCodec struct {
 	lenSerializer wirefmt.Serializer[int]
 }
 
-func (s blobCodec) Marshal(v []byte, w wirefmt.Writer) (
-	n int, err error,
-) {
+func (s blobCodec) Marshal(v []byte, w wirefmt.Writer) (n int, err error) {
 	n, err = s.lenSerializer.Marshal(len(v), w)
 	if err != nil {
 		return
@@ -201,12 +231,10 @@ func (s blobCodec) Unmarshal(r wirefmt.Reader) (v []byte, n int, err error) {
 		return
 	}
 	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
+		return nil, n, binco.ErrNegativeLength
 	}
 	var n1 int
-	v = make([]byte, length)
-	n1, err = io.ReadFull(r, v)
+	v, n1, err = readFixed(r, length)
 	n += n1
 	return
 }
@@ -222,12 +250,11 @@ func (s blobCodec) Skip(r wirefmt.Reader) (n int, err error) {
 		return
 	}
 	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
+		return n, binco.ErrNegativeLength
 	}
-	var n1 int64
-	n1, err = io.CopyN(io.Discard, r, int64(length))
-	n += int(n1)
+	var n1 int
+	n1, err = discardFixed(r, length)
+	n += n1
 	return
 }
 
@@ -242,17 +269,15 @@ func (s checkedBlob) Unmarshal(r wirefmt.Reader) (v []byte, n int, err error) {
 		return
 	}
 	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
+		return nil, n, binco.ErrNegativeLength
 	}
 	if s.lenVl != nil {
-		if err = s.lenVl.Validate(length); err != nil {
-			return
+		if err := s.lenVl.Validate(length); err != nil {
+			return nil, n, err
 		}
 	}
 	var n1 int
-	v = make([]byte, length)
-	n1, err = io.ReadFull(r, v)
+	v, n1, err = readFixed(r, length)
 	n += n1
 	return
 }

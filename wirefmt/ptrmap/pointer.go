@@ -1,6 +1,7 @@
 package ptrmap
 
 import (
+	"reflect"
 	"unsafe"
 
 	"github.com/malivvan/binco"
@@ -9,16 +10,21 @@ import (
 )
 
 // NewPtrSerializer returns a pointer serializer that writes the pointed-to data once and refers to it by identifier afterwards.
+//
+// Every identifier remembers the type it was decoded as, and a reference is
+// only resolved when that type matches the field that reads it, so a payload
+// cannot turn an *int into a *string.
 func NewPtrSerializer[T any](ptrMap *binco.PtrMap, revPtrMap *binco.ReversePtrMap,
 	baseSerializer wirefmt.Serializer[T],
 ) ptrCodec[T] {
-	return ptrCodec[T]{ptrMap, revPtrMap, baseSerializer}
+	return ptrCodec[T]{ptrMap, revPtrMap, baseSerializer, reflect.TypeFor[T]()}
 }
 
 type ptrCodec[T any] struct {
 	ptrMap         *binco.PtrMap
 	revPtrMap      *binco.ReversePtrMap
 	baseSerializer wirefmt.Serializer[T]
+	typ            reflect.Type
 }
 
 func (s ptrCodec[T]) Marshal(v *T, w wirefmt.Writer) (n int, err error) {
@@ -35,7 +41,7 @@ func (s ptrCodec[T]) Marshal(v *T, w wirefmt.Writer) (n int, err error) {
 		return
 	}
 	n++
-	id, newOne := idFor(unsafe.Pointer(v), s.ptrMap)
+	id, newOne := idFor(unsafe.Pointer(v), s.typ, s.ptrMap)
 	var n1 int
 	n1, err = varnum.PositiveInt.Marshal(id, w)
 	n += n1
@@ -54,6 +60,10 @@ func (s ptrCodec[T]) Unmarshal(r wirefmt.Reader) (v *T, n int, err error) {
 	if err != nil {
 		return
 	}
+	if err = s.revPtrMap.Enter(); err != nil {
+		return nil, 0, err
+	}
+	defer s.revPtrMap.Leave()
 	switch b {
 	case byte(binco.PtrNil):
 		n = 1
@@ -69,13 +79,18 @@ func (s ptrCodec[T]) Unmarshal(r wirefmt.Reader) (v *T, n int, err error) {
 		if err != nil {
 			return
 		}
-		ptr, _ := s.revPtrMap.Get(id)
-		if ptr == nil {
+		ptr, typ, pst := s.revPtrMap.Get(id)
+		if !pst || ptr == nil {
+			var n1 int
 			v, n1, err = s.unmarshalData(id, r)
 			n += n1
-		} else {
-			v = (*T)(ptr)
+			return
 		}
+		if typ != s.typ {
+			return nil, n, binco.ErrWrongType
+		}
+		v = (*T)(ptr)
+		return
 	default:
 		err = binco.ErrWrongFormat
 	}
@@ -85,24 +100,24 @@ func (s ptrCodec[T]) Unmarshal(r wirefmt.Reader) (v *T, n int, err error) {
 func (s ptrCodec[T]) Size(v *T) (size int) {
 	size = 1
 	if v != nil {
-		id, newOne := idFor(unsafe.Pointer(v), s.ptrMap)
+		id, newOne := idFor(unsafe.Pointer(v), s.typ, s.ptrMap)
 		size += varnum.PositiveInt.Size(id)
 		if newOne {
 			return size + s.baseSerializer.Size(*v)
-		} else {
-			return
 		}
 	}
 	return
 }
 
-func (s ptrCodec[T]) Skip(r wirefmt.Reader) (n int,
-	err error,
-) {
+func (s ptrCodec[T]) Skip(r wirefmt.Reader) (n int, err error) {
 	b, err := r.ReadByte()
 	if err != nil {
 		return
 	}
+	if err = s.revPtrMap.Enter(); err != nil {
+		return 0, err
+	}
+	defer s.revPtrMap.Leave()
 	switch b {
 	case byte(binco.PtrNil):
 		n = 1
@@ -118,9 +133,9 @@ func (s ptrCodec[T]) Skip(r wirefmt.Reader) (n int,
 		if err != nil {
 			return
 		}
-		_, pst := s.revPtrMap.Get(id)
+		_, _, pst := s.revPtrMap.Get(id)
 		if !pst {
-			s.revPtrMap.Put(id, nil)
+			s.revPtrMap.Put(id, nil, s.typ)
 			n1, err = s.baseSerializer.Skip(r)
 			n += n1
 			if err != nil {
@@ -138,20 +153,20 @@ func (s ptrCodec[T]) unmarshalData(id int, r wirefmt.Reader) (v *T, n int, err e
 
 	var n1 int
 
-	s.revPtrMap.Put(id, unsafe.Pointer(&k))
+	s.revPtrMap.Put(id, unsafe.Pointer(&k), s.typ)
 	k, n1, err = s.baseSerializer.Unmarshal(r)
 	n += n1
 	if err != nil {
-		return
+		return nil, n, err
 	}
 	v = &k
 	return
 }
 
-func idFor(ptr unsafe.Pointer, mp *binco.PtrMap) (id int, newOne bool) {
-	id, pst := mp.Get(ptr)
+func idFor(ptr unsafe.Pointer, typ reflect.Type, mp *binco.PtrMap) (id int, newOne bool) {
+	id, pst := mp.Get(ptr, typ)
 	if !pst {
-		id = mp.Put(ptr)
+		id = mp.Put(ptr, typ)
 		newOne = true
 	}
 	return

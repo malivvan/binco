@@ -13,6 +13,7 @@ switch dtm {
 	case {{ Serializer.DTMVar $e }}:
 		var tmp {{ Serializer.RelName $e }}
 		tmp, n1, err = {{ Serializer.TypedVar $e }}.UnmarshalData({{ $ulp }})
+		n += n1
 		if err != nil {
 			return
 		}
@@ -26,5 +27,4 @@ switch dtm {
 		err = binco.NewUnexpectedDTMError(dtm)
 		return
 }
-n += n1
 return

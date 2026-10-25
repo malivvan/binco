@@ -8,6 +8,14 @@ import (
 
 // putUnsigned stores t in LEB128 form and returns the number of bytes written.
 func putUnsigned[T binco.Unsigned](t T, bs []byte) (n int) {
+	if t < 0x80 {
+		if len(bs) < 1 {
+			panic(binco.ErrTooSmallByteSlice)
+		}
+		bs[0] = byte(t)
+		return 1
+	}
+	binco.CheckWrite(bs, 0, unsignedLen(t))
 	for t >= 0x80 {
 		bs[n] = byte(t) | 0x80
 		t >>= 7
@@ -18,6 +26,11 @@ func putUnsigned[T binco.Unsigned](t T, bs []byte) (n int) {
 }
 
 // getUnsigned reads an unsigned varint of at most maxLen bytes.
+//
+// The encoding must be canonical: a multi-byte value whose final byte is zero
+// is rejected with ErrNonCanonical, so every value has exactly one byte
+// representation. Without that rule "80 80 80 00" and "00" would both decode
+// to zero, which breaks hashing, signing and de-duplication by bytes.
 func getUnsigned[T binco.Unsigned](maxVarintLen int, maxLastByte byte,
 	bs []byte,
 ) (t T, n int, err error) {
@@ -38,6 +51,9 @@ func getUnsigned[T binco.Unsigned](maxVarintLen int, maxLastByte byte,
 			return 0, n, binco.ErrOverflow
 		}
 		if b < 0x80 {
+			if b == 0 {
+				return 0, n, binco.ErrNonCanonical
+			}
 			t = t | T(b)<<shift
 			return
 		}
@@ -52,7 +68,8 @@ func unsignedLen[T binco.Unsigned](t T) (size int) {
 	return (bits.Len64(uint64(t)|1) + 6) / 7
 }
 
-// skipUnsigned advances over one encoded unsigned varnum.
+// skipUnsigned advances over one encoded unsigned varnum, applying the same
+// canonical and overflow rules as getUnsigned.
 func skipUnsigned(maxVarintLen int, maxLastByte byte, bs []byte) (n int,
 	err error,
 ) {
@@ -65,6 +82,9 @@ func skipUnsigned(maxVarintLen int, maxLastByte byte, bs []byte) (n int,
 			return i + 1, binco.ErrOverflow
 		}
 		if bs[i] < 0x80 {
+			if bs[i] == 0 && i > 0 {
+				return i + 1, binco.ErrNonCanonical
+			}
 			return i + 1, nil
 		}
 	}
@@ -180,23 +200,36 @@ func (s u64Codec) Skip(bs []byte) (n int, err error) {
 	return skipUnsigned(binco.Uint64MaxVarintLen, binco.Uint64MaxLastByte, bs)
 }
 
-// Uint serializes a uint, following the word size of the host.
+// Uint serializes a uint. The wire width is always 64 bits, whatever the host
+// word size is, so a payload written on amd64 reads back on a 32-bit build.
+// Values that do not fit the host uint are reported as ErrOverflow.
 var Uint = wordCodec{}
 
 type wordCodec struct{}
 
 func (s wordCodec) Marshal(v uint, bs []byte) (n int) {
-	return putUnsigned(v, bs)
+	return Uint64.Marshal(uint64(v), bs)
 }
 
 func (s wordCodec) Unmarshal(bs []byte) (v uint, n int, err error) {
-	return getUnsigned[uint](binco.UintMaxVarintLen(), binco.UintMaxLastByte(), bs)
+	uv, n, err := Uint64.Unmarshal(bs)
+	if err != nil {
+		return
+	}
+	v = uint(uv)
+	if uint64(v) != uv {
+		return 0, n, binco.ErrOverflow
+	}
+	return
 }
 
 func (s wordCodec) Size(v uint) (size int) {
-	return unsignedLen(v)
+	return Uint64.Size(uint64(v))
 }
 
 func (s wordCodec) Skip(bs []byte) (n int, err error) {
-	return skipUnsigned(binco.UintMaxVarintLen(), binco.UintMaxLastByte(), bs)
+	// Decode so that a value the host uint cannot hold is an error here just as
+	// it is in Unmarshal.
+	_, n, err = s.Unmarshal(bs)
+	return
 }

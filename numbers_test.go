@@ -5,41 +5,20 @@ import (
 	"testing"
 )
 
+// TestWordLimits pins the wire width of int and uint: it is 64 bits on every
+// host, so a payload written on amd64 reads back on a 32-bit build.
 func TestWordLimits(t *testing.T) {
-	tests := []struct {
-		name     string
-		intSize  int
-		wantLen  int
-		wantLast byte
-		wantOK   bool
-	}{
-		{"64-bit", 64, Uint64MaxVarintLen, Uint64MaxLastByte, true},
-		{"32-bit", 32, Uint32MaxVarintLen, Uint32MaxLastByte, true},
-		{"16-bit", 16, Uint16MaxVarintLen, Uint16MaxLastByte, true},
-		{"8-bit", 8, Uint8MaxVarintLen, Uint8MaxLastByte, true},
-		{"zero", 0, 0, 0, false},
-		{"unsupported", 128, 0, 0, false},
+	if UintMaxVarintLen() != Uint64MaxVarintLen {
+		t.Fatalf("UintMaxVarintLen() = %d, want %d (the width must not follow the host, which has %d-bit int)",
+			UintMaxVarintLen(), Uint64MaxVarintLen, strconv.IntSize)
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			maxLen, maxLast, ok := wordLimits(tc.intSize)
-			if maxLen != tc.wantLen || maxLast != tc.wantLast || ok != tc.wantOK {
-				t.Fatalf("wordLimits(%d) = (%d, %d, %v), want (%d, %d, %v)",
-					tc.intSize, maxLen, maxLast, ok, tc.wantLen, tc.wantLast, tc.wantOK)
-			}
-		})
+	if UintMaxLastByte() != Uint64MaxLastByte {
+		t.Fatalf("UintMaxLastByte() = %d, want %d", UintMaxLastByte(), Uint64MaxLastByte)
 	}
-}
-
-func TestHostWordLimits(t *testing.T) {
-	maxLen, maxLast, ok := wordLimits(strconv.IntSize)
-	if !ok {
-		t.Fatalf("wordLimits(%d) is not supported", strconv.IntSize)
+	if IntWordBits != 64 {
+		t.Fatalf("IntWordBits = %d, want 64", IntWordBits)
 	}
-	if UintMaxVarintLen() != maxLen {
-		t.Fatalf("UintMaxVarintLen() = %d, want %d", UintMaxVarintLen(), maxLen)
-	}
-	if UintMaxLastByte() != maxLast {
-		t.Fatalf("UintMaxLastByte() = %d, want %d", UintMaxLastByte(), maxLast)
+	if IntWordBytes != 8 {
+		t.Fatalf("IntWordBytes = %d, want 8", IntWordBytes)
 	}
 }

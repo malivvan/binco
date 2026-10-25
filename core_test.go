@@ -2,6 +2,7 @@ package binco_test
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 	"unsafe"
 
@@ -74,28 +75,42 @@ func TestPtrMaps(t *testing.T) {
 	m := binco.NewPtrMap()
 	rev := binco.NewReversePtrMap()
 
-	if _, ok := m.Get(unsafe.Pointer(a)); ok {
+	intType := reflect.TypeFor[int]()
+	if _, ok := m.Get(unsafe.Pointer(a), intType); ok {
 		t.Fatal("Get of an unknown pointer returned ok")
 	}
-	if id := m.Put(unsafe.Pointer(a)); id != 0 {
+	if id := m.Put(unsafe.Pointer(a), intType); id != 0 {
 		t.Fatalf("first Put returned %d, want 0", id)
 	}
-	if id := m.Put(unsafe.Pointer(b)); id != 1 {
+	if id := m.Put(unsafe.Pointer(b), intType); id != 1 {
 		t.Fatalf("second Put returned %d, want 1", id)
 	}
-	if id, ok := m.Get(unsafe.Pointer(a)); !ok || id != 0 {
+	if id, ok := m.Get(unsafe.Pointer(a), intType); !ok || id != 0 {
 		t.Fatalf("Get returned (%d, %v), want (0, true)", id, ok)
+	}
+	// The type is part of the key: the same address with another type is a
+	// different pointer, which is what stops type confusion in ptrmap.
+	if _, ok := m.Get(unsafe.Pointer(a), reflect.TypeFor[string]()); ok {
+		t.Fatal("Get of the same address with another type returned ok")
 	}
 	if m.Len() != 2 {
 		t.Fatalf("Len returned %d, want 2", m.Len())
 	}
+	m.Clear()
+	if m.Len() != 0 || m.Next() != 0 {
+		t.Fatalf("Clear left %d entries and next id %d", m.Len(), m.Next())
+	}
 
-	rev.Put(1, unsafe.Pointer(b))
-	if p, ok := rev.Get(1); !ok || p != unsafe.Pointer(b) {
-		t.Fatalf("reverse Get returned (%v, %v)", p, ok)
+	rev.Put(1, unsafe.Pointer(b), intType)
+	if p, typ, ok := rev.Get(1); !ok || p != unsafe.Pointer(b) || typ != intType {
+		t.Fatalf("reverse Get returned (%v, %v, %v)", p, typ, ok)
 	}
 	if rev.Len() != 1 {
 		t.Fatalf("reverse Len returned %d, want 1", rev.Len())
+	}
+	rev.Clear()
+	if rev.Len() != 0 {
+		t.Fatalf("reverse Clear left %d entries", rev.Len())
 	}
 }
 

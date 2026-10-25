@@ -2,7 +2,6 @@ package zerocpy
 
 import (
 	"math"
-	unsafe_mod "unsafe"
 
 	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/composite"
@@ -15,7 +14,12 @@ var Bool = boolView{}
 type boolView struct{}
 
 func (s boolView) Marshal(v bool, bs []byte) (n int) {
-	*(*bool)(unsafe_mod.Pointer(&bs[0])) = v
+	binco.CheckWrite(bs, 0, 1)
+	if v {
+		bs[0] = 1
+	} else {
+		bs[0] = 0
+	}
 	return 1
 }
 
@@ -27,7 +31,7 @@ func (s boolView) Unmarshal(bs []byte) (v bool, n int, err error) {
 		err = binco.ErrWrongFormat
 		return
 	}
-	return *(*bool)(unsafe_mod.Pointer(&bs[0])), 1, nil
+	return bs[0] == 1, 1, nil
 }
 
 func (s boolView) Size(_ bool) (size int) {
@@ -42,6 +46,10 @@ func (s boolView) Skip(bs []byte) (n int, err error) {
 var Byte = byteView{}
 
 type byteView struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s byteView) FixedWidth() int { return binco.Num8RawSize }
 
 func (s byteView) Marshal(v byte, bs []byte) (n int) {
 	return writeLE8(v, bs)
@@ -64,6 +72,10 @@ var Uint8 = u8View{}
 
 type u8View struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s u8View) FixedWidth() int { return binco.Num8RawSize }
+
 func (s u8View) Marshal(v uint8, bs []byte) (n int) {
 	return writeLE8(v, bs)
 }
@@ -84,6 +96,10 @@ func (s u8View) Skip(bs []byte) (n int, err error) {
 var Uint16 = u16View{}
 
 type u16View struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s u16View) FixedWidth() int { return binco.Num16RawSize }
 
 func (s u16View) Marshal(v uint16, bs []byte) (n int) {
 	return writeLE16(v, bs)
@@ -106,6 +122,10 @@ var Uint32 = u32View{}
 
 type u32View struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s u32View) FixedWidth() int { return binco.Num32RawSize }
+
 func (s u32View) Marshal(v uint32, bs []byte) (n int) {
 	return writeLE32(v, bs)
 }
@@ -126,6 +146,10 @@ func (s u32View) Skip(bs []byte) (n int, err error) {
 var Uint64 = u64View{}
 
 type u64View struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s u64View) FixedWidth() int { return binco.Num64RawSize }
 
 func (s u64View) Marshal(v uint64, bs []byte) (n int) {
 	return writeLE64(v, bs)
@@ -148,6 +172,10 @@ var Uint = wordView{}
 
 type wordView struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s wordView) FixedWidth() int { return binco.Num64RawSize }
+
 func (s wordView) Marshal(v uint, bs []byte) (n int) {
 	return writeWordUnsigned(v, bs)
 }
@@ -157,7 +185,7 @@ func (s wordView) Unmarshal(bs []byte) (v uint, n int, err error) {
 }
 
 func (s wordView) Size(v uint) (size int) {
-	return wordUnsignedSize
+	return wordSize
 }
 
 func (s wordView) Skip(bs []byte) (n int, err error) {
@@ -168,6 +196,10 @@ func (s wordView) Skip(bs []byte) (n int, err error) {
 var Int8 = i8View{}
 
 type i8View struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s i8View) FixedWidth() int { return binco.Num8RawSize }
 
 func (s i8View) Marshal(v int8, bs []byte) (n int) {
 	return writeLE8(v, bs)
@@ -190,6 +222,10 @@ var Int16 = i16View{}
 
 type i16View struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s i16View) FixedWidth() int { return binco.Num16RawSize }
+
 func (s i16View) Marshal(v int16, bs []byte) (n int) {
 	return writeLE16(v, bs)
 }
@@ -210,6 +246,10 @@ func (s i16View) Skip(bs []byte) (n int, err error) {
 var Int32 = i32View{}
 
 type i32View struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s i32View) FixedWidth() int { return binco.Num32RawSize }
 
 func (s i32View) Marshal(v int32, bs []byte) (n int) {
 	return writeLE32(v, bs)
@@ -232,6 +272,10 @@ var Int64 = i64View{}
 
 type i64View struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s i64View) FixedWidth() int { return binco.Num64RawSize }
+
 func (s i64View) Marshal(v int64, bs []byte) (n int) {
 	return writeLE64(v, bs)
 }
@@ -252,6 +296,10 @@ func (s i64View) Skip(bs []byte) (n int, err error) {
 var Int = wordIntView{}
 
 type wordIntView struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s wordIntView) FixedWidth() int { return binco.Num64RawSize }
 
 func (s wordIntView) Marshal(v int, bs []byte) (n int) {
 	return writeWord(v, bs)

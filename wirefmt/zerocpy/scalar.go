@@ -51,6 +51,10 @@ var Byte = byteView{}
 
 type byteView struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s byteView) FixedWidth() int { return binco.Num8RawSize }
+
 func (s byteView) Marshal(v byte, w wirefmt.Writer) (n int, err error) {
 	return writeLE8(v, w)
 }
@@ -71,6 +75,10 @@ func (s byteView) Skip(r wirefmt.Reader) (n int, err error) {
 var Uint8 = u8View{}
 
 type u8View struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s u8View) FixedWidth() int { return binco.Num8RawSize }
 
 func (s u8View) Marshal(v uint8, w wirefmt.Writer) (n int, err error) {
 	return writeLE8(v, w)
@@ -93,6 +101,10 @@ var Uint16 = u16View{}
 
 type u16View struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s u16View) FixedWidth() int { return binco.Num16RawSize }
+
 func (s u16View) Marshal(v uint16, w wirefmt.Writer) (n int, err error) {
 	return writeLE16(v, w)
 }
@@ -113,6 +125,10 @@ func (s u16View) Skip(r wirefmt.Reader) (n int, err error) {
 var Uint32 = u32View{}
 
 type u32View struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s u32View) FixedWidth() int { return binco.Num32RawSize }
 
 func (s u32View) Marshal(v uint32, w wirefmt.Writer) (n int, err error) {
 	return writeLE32(v, w)
@@ -135,6 +151,10 @@ var Uint64 = u64View{}
 
 type u64View struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s u64View) FixedWidth() int { return binco.Num64RawSize }
+
 func (s u64View) Marshal(v uint64, w wirefmt.Writer) (n int, err error) {
 	return writeLE64(v, w)
 }
@@ -155,6 +175,10 @@ func (s u64View) Skip(r wirefmt.Reader) (n int, err error) {
 var Uint = wordView{}
 
 type wordView struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s wordView) FixedWidth() int { return binco.Num64RawSize }
 
 func (s wordView) Marshal(v uint, w wirefmt.Writer) (n int, err error) {
 	return writeWordUnsigned(v, w)
@@ -177,6 +201,10 @@ var Int8 = i8View{}
 
 type i8View struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s i8View) FixedWidth() int { return binco.Num8RawSize }
+
 func (s i8View) Marshal(v int8, w wirefmt.Writer) (n int, err error) {
 	return writeLE8(v, w)
 }
@@ -197,6 +225,10 @@ func (s i8View) Skip(r wirefmt.Reader) (n int, err error) {
 var Int16 = i16View{}
 
 type i16View struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s i16View) FixedWidth() int { return binco.Num16RawSize }
 
 func (s i16View) Marshal(v int16, w wirefmt.Writer) (n int, err error) {
 	return writeLE16(v, w)
@@ -219,6 +251,10 @@ var Int32 = i32View{}
 
 type i32View struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s i32View) FixedWidth() int { return binco.Num32RawSize }
+
 func (s i32View) Marshal(v int32, w wirefmt.Writer) (n int, err error) {
 	return writeLE32(v, w)
 }
@@ -240,6 +276,10 @@ var Int64 = i64View{}
 
 type i64View struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s i64View) FixedWidth() int { return binco.Num64RawSize }
+
 func (s i64View) Marshal(v int64, w wirefmt.Writer) (n int, err error) {
 	return writeLE64(v, w)
 }
@@ -260,6 +300,10 @@ func (s i64View) Skip(r wirefmt.Reader) (n int, err error) {
 var Int = wordIntView{}
 
 type wordIntView struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s wordIntView) FixedWidth() int { return binco.Num64RawSize }
 
 func (s wordIntView) Marshal(v int, w wirefmt.Writer) (n int, err error) {
 	return writeWord(v, w)

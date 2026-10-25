@@ -108,6 +108,20 @@ func (f TmplFns) PtrType(name typename.FullName) (ok bool) {
 	return ptrRe.MatchString(string(name))
 }
 
+// NilInterfaceMarshal is the statement that writes the reserved zero type
+// identifier, which stands for a nil interface value.
+func (f TmplFns) NilInterfaceMarshal(opts genopts.Options) string {
+	if opts.Stream {
+		return "err = w.WriteByte(0)\n\t\tif err != nil {\n\t\t\treturn\n\t\t}\n\t\tn = 1\n\t\treturn"
+	}
+	return "bs[0] = 0\n\t\treturn 1"
+}
+
+// NilInterfaceSize is the encoded size of a nil interface value.
+func (f TmplFns) NilInterfaceSize() string {
+	return "1"
+}
+
 // FieldTmplPipe is the data passed to the field templates.
 type FieldTmplPipe struct {
 	Val         string
@@ -120,8 +134,12 @@ type FieldTmplPipe struct {
 
 // The patterns used to recognize pointer and array type names inside the templates.
 const (
-	PtrPattern   = `(^\*)(.+$)`
-	ArrayPattern = `[\d+](.+$)`
+	PtrPattern = `(^\*)(.+$)`
+	// ArrayPattern is anchored on purpose. The previous pattern, `[\d+](.+$)`,
+	// was a character class: it matched "int32" and "Foo1Bar" as if they were
+	// arrays, which would have misclassified field types as soon as a template
+	// started using it.
+	ArrayPattern = `^\*?\[\d+\]`
 )
 
 // ptrRe matches a pointer type name.

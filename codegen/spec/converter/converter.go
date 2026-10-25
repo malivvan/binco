@@ -8,8 +8,8 @@ package converter
 
 import (
 	"fmt"
-	"log"
 	"strings"
+	"sync"
 
 	genopts "github.com/malivvan/binco/codegen/config/gen"
 	tpopts "github.com/malivvan/binco/codegen/config/type"
@@ -18,33 +18,41 @@ import (
 )
 
 // TypeNameConverter converts complete type names to full names, and full names to the names used in generated code.
+//
+// The converter records the package aliases it has seen, so it is stateful and
+// serialises that state with a mutex. It returns errors instead of panicking: a
+// name that cannot be parsed is a caller mistake that Generate can report.
 type TypeNameConverter struct {
 	knownPkgs map[typename.Package]typename.PkgPath
+	mu        *sync.Mutex
 	gopts     genopts.Options
 }
 
+// ConvertToRelativeName returns the name the generated file uses for fname.
 func (c TypeNameConverter) ConvertToRelativeName(fname typename.FullName) (
-	rname typename.RelativeName) {
+	rname typename.RelativeName, err error) {
 	op := newRelativeNameOp(c.gopts)
-	if err := scanner.Scan(scanner.Config{}, fname, op, tpopts.Options{}); err != nil {
-		panic(fmt.Sprintf("can't convert %v to RelativeName, cause: %v", fname, err))
+	if err = scanner.Scan(scanner.Config{}, fname, op, tpopts.Options{}); err != nil {
+		return "", fmt.Errorf("cannot convert %v to a relative name: %w", fname, err)
 	}
-	return op.RelativeName()
+	return op.RelativeName(), nil
 }
 
+// ConvertToFullName returns the full name the templates parse for cname.
 func (c TypeNameConverter) ConvertToFullName(cname typename.CompleteName) (
-	fname typename.FullName) {
-	op := newFullNameOp(c.knownPkgs, c.gopts)
-	if err := scanner.Scan(scanner.Config{}, cname, op, tpopts.Options{}); err != nil {
-		panic(fmt.Sprintf("can't convert %v to FullName, cause: %v", cname, err))
+	fname typename.FullName, err error) {
+	op := newFullNameOp(c.knownPkgs, c.mu, c.gopts)
+	if err = scanner.Scan(scanner.Config{}, cname, op, tpopts.Options{}); err != nil {
+		return "", fmt.Errorf("cannot convert %v to a full name: %w", cname, err)
 	}
-	return op.FullName()
+	return op.FullName(), nil
 }
 
 // NewTypeNameConverter returns a converter that knows the package of the generated file.
 func NewTypeNameConverter(gops genopts.Options) TypeNameConverter {
 	return TypeNameConverter{
 		knownPkgs: map[typename.Package]typename.PkgPath{gops.Package: gops.PkgPath},
+		mu:        new(sync.Mutex),
 		gopts:     gops,
 	}
 }
@@ -53,11 +61,14 @@ func NewTypeNameConverter(gops genopts.Options) TypeNameConverter {
 type fullNameOp struct {
 	b         *strings.Builder
 	knownPkgs map[typename.Package]typename.PkgPath
+	mu        *sync.Mutex
 	gopts     genopts.Options
 }
 
 func (o *fullNameOp) checkPkg(pkg typename.Package,
 	t scanner.TypeInfo[typename.CompleteName]) (err error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 	if pkgPath, pst := o.knownPkgs[pkg]; pst && pkgPath != t.PkgPath {
 		err = NewTwoPathsSameAliasError(pkgPath, t.PkgPath, pkg)
 	}
@@ -75,14 +86,18 @@ func (o *fullNameOp) choosePkg(t scanner.TypeInfo[typename.CompleteName]) (
 		pkg = t.Package
 		if t.Position == scanner.PositionParam {
 
-			log.Printf("WARNING: no alias for '%v' in the generator options\n",
-				t.PkgPath)
+			if o.gopts.Logger != nil {
+				o.gopts.Logger.Printf("WARNING: no alias for '%v' in the generator options\n",
+					t.PkgPath)
+			}
 		}
 	}
 	if err = o.checkPkg(pkg, t); err != nil {
 		return
 	}
+	o.mu.Lock()
 	o.knownPkgs[pkg] = t.PkgPath
+	o.mu.Unlock()
 	return
 }
 
@@ -133,8 +148,8 @@ func (o *fullNameOp) ProcessType(t scanner.TypeInfo[typename.CompleteName],
 
 // newFullNameOp returns a full-name rewriter.
 func newFullNameOp(knownPkgs map[typename.Package]typename.PkgPath,
-	gops genopts.Options) *fullNameOp {
-	return &fullNameOp{&strings.Builder{}, knownPkgs, gops}
+	mu *sync.Mutex, gops genopts.Options) *fullNameOp {
+	return &fullNameOp{&strings.Builder{}, knownPkgs, mu, gops}
 }
 
 // relativeNameOp drops the package of the generated file from a full name.

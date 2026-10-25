@@ -1,5 +1,8 @@
 {{/* spec.InterfaceType */}}
 {{- $v := Serializer.Val . }}
+if {{ $v }} == nil {
+	return 1
+}
 {{- if .Iops.Marshaller }}
 	if m, ok := {{ $v }}.({{ Tmpl.ModImportName .Gops }}.MarshallerTyped); ok {
 		return m.SizeTypedBinco()

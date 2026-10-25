@@ -10,12 +10,21 @@ import (
 // String serializes a string as a length-prefixed byte sequence.
 var String = NewStringSerializer()
 
-// NewStringSerializer returns a string serializer whose length codec can be replaced through opts.
-func NewStringSerializer(opts ...stropts.SetOption) textCodec {
+// NewStringSerializer returns a string serializer whose length codec can be
+// replaced through opts.
+//
+// A WithLenValidator option is honoured here as well as in
+// NewValidStringSerializer: there is no constructor that silently ignores a
+// validator.
+func NewStringSerializer(opts ...stropts.SetOption) binco.Serializer[string] {
 	o := stropts.Options{}
 	stropts.Apply(opts, &o)
 
-	return newTextCodec(o)
+	s := newTextCodec(o)
+	if o.LenVl != nil {
+		return checkedText{s, o.LenVl}
+	}
+	return s
 }
 
 // NewValidStringSerializer returns a string serializer that runs its length validator while decoding.
@@ -46,19 +55,11 @@ func (s textCodec) Unmarshal(bs []byte) (v string, n int, err error) {
 	if err != nil {
 		return
 	}
-	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
+	body, end, err := fixedBody(bs, n, length)
+	if err != nil {
+		return "", n, err
 	}
-	l := n + length
-	if len(bs) < l {
-		err = binco.ErrTooSmallByteSlice
-		return
-	}
-	if length == 0 {
-		return
-	}
-	return string(bs[n:l]), l, nil
+	return string(body), end, nil
 }
 
 func (s textCodec) Size(v string) (size int) {
@@ -79,31 +80,36 @@ func (s checkedText) Unmarshal(bs []byte) (v string, n int, err error) {
 	if err != nil {
 		return
 	}
-	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
-	}
-	l := n + length
-	if len(bs) < l {
-		err = binco.ErrTooSmallByteSlice
-		return
+	body, end, err := fixedBody(bs, n, length)
+	if err != nil {
+		return "", n, err
 	}
 	if s.lenVl != nil {
-		if err = s.lenVl.Validate(length); err != nil {
-			return
+		if err := s.lenVl.Validate(length); err != nil {
+			return "", n, err
 		}
 	}
-	if length == 0 {
-		return
+	return string(body), end, nil
+}
+
+// fixedBody returns the length bytes that follow the decoded length and the
+// offset of the first byte after them.
+//
+// The bounds check is centralised in binco.CheckLength, which never adds n and
+// length before comparing, so a length of MaxInt64 is rejected instead of
+// wrapping into a slice panic.
+func fixedBody(bs []byte, n, length int) (body []byte, end int, err error) {
+	if err = binco.CheckLength(bs, n, length); err != nil {
+		return nil, n, err
 	}
-	return string(bs[n:l]), l, nil
+	return bs[n : n+length], n + length, nil
 }
 
 // MarshalString writes v, prefixed by its length, into bs.
 func MarshalString(v string, lenSerializer binco.Serializer[int], bs []byte) (n int) {
 	length := len(v)
 	n = lenSerializer.Marshal(length, bs)
-	if len(bs) < n+length {
+	if len(bs)-n < length {
 		panic(binco.ErrTooSmallByteSlice)
 	}
 	return n + copy(bs[n:], v)
@@ -121,13 +127,8 @@ func SkipString(lenSerializer binco.Serializer[int], bs []byte) (n int, err erro
 	if err != nil {
 		return
 	}
-	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
-	}
-	if len(bs[n:]) < length {
-		err = binco.ErrTooSmallByteSlice
-		return
+	if err = binco.CheckLength(bs, n, length); err != nil {
+		return n, err
 	}
 	return n + length, nil
 }
@@ -135,12 +136,17 @@ func SkipString(lenSerializer binco.Serializer[int], bs []byte) (n int, err erro
 // ByteSlice serializes a byte slice as a length-prefixed byte sequence.
 var ByteSlice = NewByteSliceSerializer()
 
-// NewByteSliceSerializer returns a byte slice serializer whose length codec can be replaced.
-func NewByteSliceSerializer(opts ...bslopts.SetOption) blobCodec {
+// NewByteSliceSerializer returns a byte slice serializer whose length codec can
+// be replaced. A WithLenValidator option is honoured.
+func NewByteSliceSerializer(opts ...bslopts.SetOption) binco.Serializer[[]byte] {
 	o := bslopts.Options{}
 	bslopts.Apply(opts, &o)
 
-	return newBlobCodec(o)
+	s := newBlobCodec(o)
+	if o.LenVl != nil {
+		return checkedBlob{s, o.LenVl}
+	}
+	return s
 }
 
 // NewValidByteSliceSerializer returns a byte slice serializer that runs its length validator while decoding.
@@ -176,17 +182,18 @@ func (s blobCodec) Unmarshal(bs []byte) (v []byte, n int, err error) {
 	if err != nil {
 		return
 	}
-	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
+	// CheckLength also caps what make below may allocate: a hostile length can
+	// never exceed the bytes that were actually supplied.
+	body, end, err := fixedBody(bs, n, length)
+	if err != nil {
+		return nil, n, err
 	}
-	if len(bs) < n+length {
-		err = binco.ErrTooSmallByteSlice
-		return
+	if length == 0 {
+		return []byte{}, end, nil
 	}
 	v = make([]byte, length)
-	n += copy(v, bs[n:])
-	return
+	copy(v, body)
+	return v, end, nil
 }
 
 func (s blobCodec) Size(v []byte) (size int) {
@@ -207,32 +214,28 @@ func (s checkedBlob) Unmarshal(bs []byte) (v []byte, n int, err error) {
 	if err != nil {
 		return
 	}
-	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
-	}
-	if len(bs) < n+length {
-		err = binco.ErrTooSmallByteSlice
-		return
+	body, end, err := fixedBody(bs, n, length)
+	if err != nil {
+		return nil, n, err
 	}
 	if s.lenVl != nil {
-		if err = s.lenVl.Validate(length); err != nil {
-			return
+		if err := s.lenVl.Validate(length); err != nil {
+			return nil, n, err
 		}
 	}
-	v = make([]byte, length)
 	if length == 0 {
-		return
+		return []byte{}, end, nil
 	}
-	n += copy(v, bs[n:])
-	return
+	v = make([]byte, length)
+	copy(v, body)
+	return v, end, nil
 }
 
 // MarshalByteSlice writes v, prefixed by its length, into bs.
 func MarshalByteSlice(v []byte, lenSerializer binco.Serializer[int], bs []byte) (n int) {
 	length := len(v)
 	n = lenSerializer.Marshal(length, bs)
-	if len(bs) < n+length {
+	if len(bs)-n < length {
 		panic(binco.ErrTooSmallByteSlice)
 	}
 	return n + copy(bs[n:], v)
@@ -250,15 +253,8 @@ func SkipByteSlice(lenSerializer binco.Serializer[int], bs []byte) (n int, err e
 	if err != nil {
 		return
 	}
-	if length < 0 {
-		err = binco.ErrNegativeLength
-		return
+	if err = binco.CheckLength(bs, n, length); err != nil {
+		return n, err
 	}
-	l := n + length
-	if len(bs) < l {
-		err = binco.ErrTooSmallByteSlice
-		return
-	}
-	n = l
-	return
+	return n + length, nil
 }

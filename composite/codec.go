@@ -1,6 +1,10 @@
 package composite
 
-import "github.com/malivvan/binco"
+import (
+	"sync/atomic"
+
+	"github.com/malivvan/binco"
+)
 
 // Bool serializes a bool as a single byte.
 var Bool = boolCodec{}
@@ -8,6 +12,7 @@ var Bool = boolCodec{}
 type boolCodec struct{}
 
 func (s boolCodec) Marshal(v bool, bs []byte) (n int) {
+	binco.CheckWrite(bs, 0, 1)
 	if v {
 		bs[0] = 1
 	} else {
@@ -46,20 +51,39 @@ func SkipBool(bs []byte) (n int, err error) {
 }
 
 // NewPtrSerializer returns a pointer serializer that encodes nil as a flag byte.
+//
+// Unmarshalling a recursive type recurses once per non-nil pointer. The codec
+// counts the active nesting and reports ErrTooDeep above
+// binco.MaxPointerDepth, so hostile input cannot exhaust the goroutine stack.
+// The counter is atomic, so the serializer stays safe for concurrent use.
 func NewPtrSerializer[T any](baseSerializer binco.Serializer[T]) ptrCodec[T] {
-	return ptrCodec[T]{baseSerializer}
+	return ptrCodec[T]{baseSerializer: baseSerializer, depth: new(atomic.Int64)}
 }
 
 type ptrCodec[T any] struct {
 	baseSerializer binco.Serializer[T]
+	depth          *atomic.Int64
+}
+
+func (s ptrCodec[T]) enter() bool {
+	return s.depth.Add(1) <= binco.MaxPointerDepth
+}
+
+func (s ptrCodec[T]) leave() {
+	s.depth.Add(-1)
 }
 
 func (s ptrCodec[T]) Marshal(v *T, bs []byte) (n int) {
+	binco.CheckWrite(bs, 0, 1)
 	if v == nil {
 		bs[0] = byte(binco.PtrNil)
 		n = 1
 		return
 	}
+	if !s.enter() {
+		panic(binco.ErrTooDeep)
+	}
+	defer s.leave()
 	bs[0] = byte(binco.PtrNotNil)
 	return 1 + s.baseSerializer.Marshal(*v, bs[1:])
 }
@@ -77,6 +101,11 @@ func (s ptrCodec[T]) Unmarshal(bs []byte) (v *T, n int, err error) {
 		err = binco.ErrWrongFormat
 		return
 	}
+	if !s.enter() {
+		err = binco.ErrTooDeep
+		return
+	}
+	defer s.leave()
 	k, n, err := s.baseSerializer.Unmarshal(bs[1:])
 	if err != nil {
 		n = 1 + n
@@ -87,6 +116,10 @@ func (s ptrCodec[T]) Unmarshal(bs []byte) (v *T, n int, err error) {
 
 func (s ptrCodec[T]) Size(v *T) (size int) {
 	if v != nil {
+		if !s.enter() {
+			panic(binco.ErrTooDeep)
+		}
+		defer s.leave()
 		return 1 + s.baseSerializer.Size(*v)
 	}
 	return 1
@@ -105,6 +138,10 @@ func (s ptrCodec[T]) Skip(bs []byte) (n int, err error) {
 		err = binco.ErrWrongFormat
 		return
 	}
+	if !s.enter() {
+		return 0, binco.ErrTooDeep
+	}
+	defer s.leave()
 	n, err = s.baseSerializer.Skip(bs[1:])
 	return 1 + n, err
 }

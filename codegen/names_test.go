@@ -26,25 +26,46 @@ func newTestSerializerFns(t *testing.T, opts ...genopts.SetOption) SerializerFns
 		t.Fatalf("Apply: %v", err)
 	}
 	conv := cnvtr.NewTypeNameConverter(gops)
-	return NewSerializerFns(conv, bldr.NewTypeBuilder(conv, gops),
+	fns, err := NewSerializerFns(conv, bldr.NewTypeBuilder(conv, gops),
 		map[typename.FullName]struct{}{}, TmplFns{}, gops)
+	if err != nil {
+		t.Fatalf("NewSerializerFns: %v", err)
+	}
+	return fns
+}
+
+// mustName returns a helper that fails the test when a naming helper returned
+// an error. It takes the (value, error) pair as its only argument, which is the
+// one place Go allows a multi-value call to be expanded.
+func mustName(t *testing.T) func(string, error) string {
+	return func(value string, err error) string {
+		t.Helper()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		return value
+	}
 }
 
 func TestSerializerFnsNames(t *testing.T) {
+	must := mustName(t)
 	f := newTestSerializerFns(t)
 	name := typename.FullName("target.Foo")
 
-	if got := f.Var(name); got != "FooBinco" {
+	if got := must(f.Var(name)); got != "FooBinco" {
 		t.Fatalf("Var = %q", got)
 	}
-	if got := f.TypedVar(name); got != "FooTypedBinco" {
+	if got := must(f.TypedVar(name)); got != "FooTypedBinco" {
 		t.Fatalf("TypedVar = %q", got)
 	}
-	if got := f.DTMVar(name); got != "FooDTM" {
+	if got := must(f.DTMVar(name)); got != "FooDTM" {
 		t.Fatalf("DTMVar = %q", got)
 	}
-	if got := f.Type(name); got != "fooBinco" {
+	if got := must(f.Type(name)); got != "fooBinco" {
 		t.Fatalf("Type = %q", got)
+	}
+	if got := must(f.SchemaVar(name)); got != "FooSchemaFingerprint" {
+		t.Fatalf("SchemaVar = %q", got)
 	}
 	if got := f.Val(struct{}{}); got != "v" {
 		t.Fatalf("Val = %q", got)
@@ -80,8 +101,12 @@ func TestSerializerFnsOf(t *testing.T) {
 		{"target.Foo", tpopts.Options{}, "FooBinco"},
 	}
 	for _, tc := range tests {
-		if got := safe.Of(typename.FullName(tc.name), tc.tops, safe.gopts); got != tc.want {
-			t.Fatalf("Of(%q, %+v) = %q, want %q", tc.name, tc.tops, got, tc.want)
+		value, err := safe.Of(typename.FullName(tc.name), tc.tops, safe.gopts)
+		if err != nil {
+			t.Fatalf("Of(%q, %+v): %v", tc.name, tc.tops, err)
+		}
+		if value != tc.want {
+			t.Fatalf("Of(%q, %+v) = %q, want %q", tc.name, tc.tops, value, tc.want)
 		}
 	}
 
@@ -95,78 +120,80 @@ func TestSerializerFnsOf(t *testing.T) {
 		{"string", "zerocpy.String"},
 		{"[]byte", "zerocpy.ByteSlice"},
 		{"time.Time", "zerocpy.TimeUnixUTC"},
-		{"time.Time", "zerocpy.TimeUnixUTC"},
 	} {
-		if got := unsafeFns.Of(typename.FullName(tc.name), tpopts.Options{},
-			unsafeFns.gopts); got != tc.want {
-			t.Fatalf("unsafe Of(%q) = %q, want %q", tc.name, got, tc.want)
+		value, err := unsafeFns.Of(typename.FullName(tc.name), tpopts.Options{}, unsafeFns.gopts)
+		if err != nil {
+			t.Fatalf("unsafe Of(%q): %v", tc.name, err)
+		}
+		if value != tc.want {
+			t.Fatalf("unsafe Of(%q) = %q, want %q", tc.name, value, tc.want)
 		}
 	}
 
 	notUnsafe := newTestSerializerFns(t, genopts.WithNotUnsafe())
-	if got := notUnsafe.Of("int", tpopts.Options{}, notUnsafe.gopts); got != "zerocpy.Int" {
-		t.Fatalf("not-unsafe Of(int) = %q", got)
+	if value, err := notUnsafe.Of("int", tpopts.Options{}, notUnsafe.gopts); err != nil || value != "zerocpy.Int" {
+		t.Fatalf("not-unsafe Of(int) = (%q, %v)", value, err)
 	}
-	if got := notUnsafe.Of("string", tpopts.Options{}, notUnsafe.gopts); got != "composite.String" {
-		t.Fatalf("not-unsafe Of(string) = %q", got)
+	if value, err := notUnsafe.Of("string", tpopts.Options{}, notUnsafe.gopts); err != nil || value != "composite.String" {
+		t.Fatalf("not-unsafe Of(string) = (%q, %v)", value, err)
 	}
 }
 
-func TestSerializerFnsOfPanics(t *testing.T) {
+func TestSerializerFnsOfReturnsError(t *testing.T) {
 	f := newTestSerializerFns(t)
-	defer func() {
-		if recover() == nil {
-			t.Fatal("Of did not panic for an unsupported type")
-		}
-	}()
-	f.Of("struct{}", tpopts.Options{}, f.gopts)
+	if _, err := f.Of("struct{}", tpopts.Options{}, f.gopts); err == nil {
+		t.Fatal("Of of an unsupported type returned no error")
+	}
 }
 
 func TestSerializerFnsKeyElem(t *testing.T) {
+	must := mustName(t)
 	f := newTestSerializerFns(t)
 	anon := spec.AnonType{KeyType: "string", ElemType: "int"}
-	if got := f.Key(anon, f.gopts); got != "composite.String" {
+	if got := must(f.Key(anon, f.gopts)); got != "composite.String" {
 		t.Fatalf("Key = %q", got)
 	}
-	if got := f.Elem(anon, f.gopts); got != "varnum.Int" {
+	if got := must(f.Elem(anon, f.gopts)); got != "varnum.Int" {
 		t.Fatalf("Elem = %q", got)
 	}
 }
 
 func TestSerializerFnsRelName(t *testing.T) {
+	must := mustName(t)
 	f := newTestSerializerFns(t)
-	if got := f.RelName("target.Foo"); got != "Foo" {
+	if got := must(f.RelName("target.Foo")); got != "Foo" {
 		t.Fatalf("RelName = %q", got)
 	}
-	if got := f.RelName("other.Foo"); got != "other.Foo" {
+	if got := must(f.RelName("other.Foo")); got != "other.Foo" {
 		t.Fatalf("RelName = %q", got)
 	}
 }
 
 func TestSerializerFnsOpts(t *testing.T) {
+	must := mustName(t)
 	f := newTestSerializerFns(t)
 	tests := []struct {
 		name string
 		got  string
 		want string
 	}{
-		{"string empty", f.StringOpts(spec.AnonType{}), ""},
-		{"string len serializer", f.StringOpts(spec.AnonType{LenSerializer: "scalar.Int"}),
+		{"string empty", must(f.StringOpts(spec.AnonType{})), ""},
+		{"string len serializer", must(f.StringOpts(spec.AnonType{LenSerializer: "scalar.Int"})),
 			"stropts.WithLenSerializer(scalar.Int)"},
-		{"string all", f.StringOpts(spec.AnonType{LenSerializer: "scalar.Int", LenVl: "vl"}),
+		{"string all", must(f.StringOpts(spec.AnonType{LenSerializer: "scalar.Int", LenVl: "vl"})),
 			"stropts.WithLenSerializer(scalar.Int), stropts.WithLenValidator(vl)"},
-		{"string nil", f.StringOpts(spec.AnonType{LenSerializer: "nil", LenVl: "nil"}), ""},
-		{"byte slice all", f.ByteSliceOpts(spec.AnonType{LenSerializer: "scalar.Int", LenVl: "vl"}),
+		{"string nil", must(f.StringOpts(spec.AnonType{LenSerializer: "nil", LenVl: "nil"})), ""},
+		{"byte slice all", must(f.ByteSliceOpts(spec.AnonType{LenSerializer: "scalar.Int", LenVl: "vl"})),
 			"bslopts.WithLenSerializer(scalar.Int), bslopts.WithLenValidator(vl)"},
 		{"array all",
-			f.ArrayOpts(spec.AnonType{ElemType: "int", LenSerializer: "scalar.Int", ElemVl: "ev"}),
+			must(f.ArrayOpts(spec.AnonType{ElemType: "int", LenSerializer: "scalar.Int", ElemVl: "ev"})),
 			"arropts.WithLenSerializer[int](scalar.Int), arropts.WithElemValidator[int](ev)"},
-		{"slice all", f.SliceOpts(spec.AnonType{ElemType: "int", LenSerializer: "scalar.Int",
-			LenVl: "lv", ElemVl: "ev"}),
+		{"slice all", must(f.SliceOpts(spec.AnonType{ElemType: "int", LenSerializer: "scalar.Int",
+			LenVl: "lv", ElemVl: "ev"})),
 			"slopts.WithLenSerializer[int](scalar.Int), slopts.WithLenValidator[int](lv), " +
 				"slopts.WithElemValidator[int](ev)"},
-		{"map all", f.MapOpts(spec.AnonType{KeyType: "int", ElemType: "string",
-			LenSerializer: "scalar.Int", LenVl: "lv", KeyVl: "kv", ElemVl: "ev"}),
+		{"map all", must(f.MapOpts(spec.AnonType{KeyType: "int", ElemType: "string",
+			LenSerializer: "scalar.Int", LenVl: "lv", KeyVl: "kv", ElemVl: "ev"})),
 			"mapopts.WithLenSerializer[int, string](scalar.Int), " +
 				"mapopts.WithLenValidator[int, string](lv), " +
 				"mapopts.WithKeyValidator[int, string](kv), " +
@@ -184,8 +211,8 @@ func TestSerializerFnsFieldTmplPipe(t *testing.T) {
 	structType := spec.StructType{
 		FullName: "target.Foo",
 		Fields: []spec.FieldType{
-			{FullName: "int", FieldName: "A", Gops: f.gopts},
-			{FullName: "string", FieldName: "B", Gops: f.gopts},
+			{FullName: "int", FieldName: "A", Index: 0, Gops: f.gopts},
+			{FullName: "string", FieldName: "B", Index: 1, Gops: f.gopts},
 		},
 		Sops: stopts.Options{Fields: []fldopts.Options{
 			{},
@@ -213,19 +240,20 @@ func TestSerializerFnsFieldTmplPipe(t *testing.T) {
 }
 
 func TestSerializerFnsTypeName(t *testing.T) {
+	must := mustName(t)
 	f := newTestSerializerFns(t)
-	if got := f.codecName("target.Foo"); got != "Foo" {
+	if got := must(f.codecName("target.Foo")); got != "Foo" {
 		t.Fatalf("codecName = %q", got)
 	}
-	if got := f.codecName("other.Bar"); got != "other.Bar" {
+	if got := must(f.codecName("other.Bar")); got != "other.Bar" {
 		t.Fatalf("codecName = %q", got)
 	}
 
 	f.foreignTypes[typename.FullName("other.Bar")] = struct{}{}
-	if got := f.codecName("other.Bar"); got != "Bar" {
+	if got := must(f.codecName("other.Bar")); got != "Bar" {
 		t.Fatalf("codecName = %q", got)
 	}
-	if got := f.Var("other.Bar"); got != "BarBinco" {
+	if got := must(f.Var("other.Bar")); got != "BarBinco" {
 		t.Fatalf("Var = %q", got)
 	}
 	if got := f.upperFirst("foo"); got != "Foo" {
@@ -234,12 +262,30 @@ func TestSerializerFnsTypeName(t *testing.T) {
 	if got := f.lowerFirst("Foo"); got != "foo" {
 		t.Fatalf("lowerFirst = %q", got)
 	}
+	if got := f.lowerFirst(""); got != "" {
+		t.Fatalf("lowerFirst of an empty name = %q", got)
+	}
+}
+
+// TestSerializerFnsNameCollision covers D7: two types with the same bare name
+// used to collapse into one generated serializer.
+func TestSerializerFnsNameCollision(t *testing.T) {
+	f := newTestSerializerFns(t)
+	f.foreignTypes[typename.FullName("a.Foo")] = struct{}{}
+	f.foreignTypes[typename.FullName("b.Foo")] = struct{}{}
+	if _, err := f.codecName("a.Foo"); err != nil {
+		t.Fatalf("first codecName: %v", err)
+	}
+	if _, err := f.codecName("b.Foo"); err == nil {
+		t.Fatal("a name collision was not reported")
+	}
 }
 
 func TestSerializerFnsCustomNames(t *testing.T) {
+	must := mustName(t)
 	f := newTestSerializerFns(t,
 		genopts.WithSerializer(reflect.TypeFor[testdata.Int](), "CustomInt"))
-	if got := f.Var("testdata.Int"); got != "CustomIntBinco" {
+	if got := must(f.Var("testdata.Int")); got != "CustomIntBinco" {
 		t.Fatalf("Var = %q", got)
 	}
 }
@@ -251,7 +297,7 @@ func TestTmplFns(t *testing.T) {
 	if !f.PtrType("*int") || f.PtrType("int") {
 		t.Fatal("PtrType misclassified a name")
 	}
-	if !f.ArrayType("[3]int") || f.ArrayType("int") {
+	if !f.ArrayType("[3]int") || f.ArrayType("int") || f.ArrayType("int32") || f.ArrayType("Foo1Bar") {
 		t.Fatal("ArrayType misclassified a name")
 	}
 	if f.WithComma("") != "" || f.WithComma("x") != ", x" {

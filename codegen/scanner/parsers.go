@@ -46,8 +46,7 @@ func (s DefinedType[T]) makeDefinedType(match []string) (t TypeInfo[T]) {
 }
 
 func (s DefinedType[T]) Parse() (t TypeInfo[T], ok bool) {
-	re := regexp.MustCompile(FullNamePattern)
-	match := re.FindStringSubmatch(string(s))
+	match := FullNameRe.FindStringSubmatch(string(s))
 	if len(match) != 6 {
 		return
 	}
@@ -65,6 +64,12 @@ const (
 	// "foo.Type" (when module name is just foo).
 	FullNamePattern = `^(\**)(?:([.\w/-]+)/)*(?:([\w-]+)\.)([\w]+)(?:·\d+)*(?:\[(.+)\](?:·\d+)*)?$`
 )
+
+// FullNameRe matches a defined type name.
+//
+// It is compiled once: Parse runs for every type name the generator meets, and
+// compiling the expression per call was measurable.
+var FullNameRe = regexp.MustCompile(FullNamePattern)
 
 // ContainerType parses array, slice and map names.
 type ContainerType[T QualifiedName] string

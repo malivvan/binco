@@ -1,6 +1,6 @@
-{{/* dtmBlock: {Types []string, Start int} */}}
+{{/* dtmBlock: []dtmValue */}}
 const (
-  {{- range $i, $name := .Types }}
-    {{ $name }}DTM{{ if eq $i 0 }} binco.DTM = iota + {{ $.Start }}{{ end }}
+  {{- range . }}
+    {{ .Name }}DTM binco.DTM = {{ .ID }}
   {{- end }}
 )

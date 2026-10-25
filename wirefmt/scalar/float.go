@@ -3,6 +3,7 @@ package scalar
 import (
 	"math"
 
+	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/wirefmt"
 )
 
@@ -10,6 +11,10 @@ import (
 var Float64 = f64Codec{}
 
 type f64Codec struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s f64Codec) FixedWidth() int { return binco.Num64RawSize }
 
 func (f64Codec) Marshal(v float64, w wirefmt.Writer) (n int, err error) {
 	return writeLE64(math.Float64bits(v), w)
@@ -35,6 +40,10 @@ func (f64Codec) Skip(r wirefmt.Reader) (n int, err error) {
 var Float32 = f32Codec{}
 
 type f32Codec struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s f32Codec) FixedWidth() int { return binco.Num32RawSize }
 
 func (f32Codec) Marshal(v float32, w wirefmt.Writer) (n int, err error) {
 	return writeLE32(math.Float32bits(v), w)

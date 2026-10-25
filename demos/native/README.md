@@ -59,8 +59,9 @@ Fixes, in order of cost:
 * `zerocpy.NewArraySerializer[T, V]` is the only array serializer, because decoding into
   an array means reinterpreting the decoded elements as the array type. It
   rejects payloads whose length differs from the array type.
-* The package assumes little-endian byte order and panics at init on a
-  big-endian host (`binco.ErrUnsupportedArch`), so it can never silently emit a
-  payload that violates the format.
+* Scalars are converted with an explicit little-endian order, so the package is
+  correct on any host byte order and at an unaligned offset. The array serializer
+  checks at construction that its type parameters really describe an array of the
+  element type, and panics with `binco.ErrWrongArrayType` if they do not.
 * Generating code with `genopts.WithUnsafe()` (or `WithNotUnsafe()`, which uses
   `zerocpy` for everything except strings) picks these serializers automatically.

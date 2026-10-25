@@ -11,6 +11,10 @@ var Float64 = f64Codec{}
 
 type f64Codec struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s f64Codec) FixedWidth() int { return binco.Num64RawSize }
+
 func (s f64Codec) Marshal(v float64, bs []byte) (n int) {
 	return putLE64(math.Float64bits(v), bs)
 }
@@ -35,6 +39,10 @@ func (s f64Codec) Skip(bs []byte) (n int, err error) {
 var Float32 = f32Codec{}
 
 type f32Codec struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s f32Codec) FixedWidth() int { return binco.Num32RawSize }
 
 func (s f32Codec) Marshal(v float32, bs []byte) (n int) {
 	return putLE32(math.Float32bits(v), bs)

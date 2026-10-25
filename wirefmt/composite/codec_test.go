@@ -119,7 +119,7 @@ func TestString(t *testing.T) {
 	if _, _, err := composite.String.Unmarshal(reader(5, 'a')); !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("Unmarshal of a truncated string returned %v", err)
 	}
-	if _, err := composite.String.Skip(reader(5, 'a')); !errors.Is(err, io.EOF) {
+	if _, err := composite.String.Skip(reader(5, 'a')); !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("Skip of a truncated string returned %v", err)
 	}
 
@@ -168,7 +168,7 @@ func TestByteSlice(t *testing.T) {
 	if _, _, err := composite.ByteSlice.Unmarshal(reader(3, 1)); !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("Unmarshal of a truncated slice returned %v", err)
 	}
-	if _, err := composite.ByteSlice.Skip(reader(3, 1)); !errors.Is(err, io.EOF) {
+	if _, err := composite.ByteSlice.Skip(reader(3, 1)); !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("Skip of a truncated slice returned %v", err)
 	}
 
@@ -225,7 +225,7 @@ func TestPtr(t *testing.T) {
 		t.Fatalf("Skip of an empty stream returned %v", err)
 	}
 
-	if _, _, err = serializer.Unmarshal(reader(byte(binco.PtrNotNil), 0x80)); !errors.Is(err, io.EOF) {
+	if _, _, err = serializer.Unmarshal(reader(byte(binco.PtrNotNil), 0x80)); !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("Unmarshal of a truncated value returned %v", err)
 	}
 }

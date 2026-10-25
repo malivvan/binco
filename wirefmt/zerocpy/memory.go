@@ -1,143 +1,157 @@
 package zerocpy
 
 import (
+	"encoding/binary"
 	"io"
-	"strconv"
-	unsafe_mod "unsafe"
 
 	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/wirefmt"
-	"github.com/malivvan/binco/wirefmt/scalar"
 )
 
+// The helpers below assemble fixed-width values in a local buffer and issue one
+// Write, instead of casting the value with unsafe and issuing one WriteByte per
+// byte. Besides being portable across byte orders, that turns eight virtual
+// calls per uint64 into one.
+
 // writeLE64 writes a 64-bit value in little-endian order.
-func writeLE64[T binco.Integer64](t T, w wirefmt.Writer) (n int,
-	err error,
-) {
-	arr := *(*[binco.Num64RawSize]byte)(unsafe_mod.Pointer(&t))
-	return w.Write(arr[:])
+func writeLE64[T binco.Integer64](t T, w wirefmt.Writer) (n int, err error) {
+	var buf [binco.Num64RawSize]byte
+	binary.LittleEndian.PutUint64(buf[:], uint64(t))
+	return w.Write(buf[:])
 }
 
 // writeLE32 writes a 32-bit value in little-endian order.
-func writeLE32[T binco.Integer32](t T, w wirefmt.Writer) (n int,
-	err error,
-) {
-	arr := *(*[binco.Num32RawSize]byte)(unsafe_mod.Pointer(&t))
-	return w.Write(arr[:])
+func writeLE32[T binco.Integer32](t T, w wirefmt.Writer) (n int, err error) {
+	var buf [binco.Num32RawSize]byte
+	binary.LittleEndian.PutUint32(buf[:], uint32(t))
+	return w.Write(buf[:])
 }
 
 // writeLE16 writes a 16-bit value in little-endian order.
-func writeLE16[T binco.Integer16](t T, w wirefmt.Writer) (n int,
-	err error,
-) {
-	arr := *(*[binco.Num16RawSize]byte)(unsafe_mod.Pointer(&t))
-	return w.Write(arr[:])
+func writeLE16[T binco.Integer16](t T, w wirefmt.Writer) (n int, err error) {
+	var buf [binco.Num16RawSize]byte
+	binary.LittleEndian.PutUint16(buf[:], uint16(t))
+	return w.Write(buf[:])
 }
 
 // writeLE8 writes an 8-bit value.
-func writeLE8[T binco.Integer8](t T, w wirefmt.Writer) (n int,
-	err error,
-) {
-	arr := *(*[binco.Num8RawSize]byte)(unsafe_mod.Pointer(&t))
-	return w.Write(arr[:])
+func writeLE8[T binco.Integer8](t T, w wirefmt.Writer) (n int, err error) {
+	var buf [binco.Num8RawSize]byte
+	buf[0] = byte(t)
+	return w.Write(buf[:])
 }
 
 // loadLE64 reads a 64-bit value from little-endian bytes.
-func loadLE64[T binco.Integer64](r wirefmt.Reader) (t T, n int,
-	err error,
-) {
-	b := (*byte)(unsafe_mod.Pointer(&t))
-	n, err = io.ReadFull(r, unsafe_mod.Slice(b, binco.Num64RawSize))
-	return
+func loadLE64[T binco.Integer64](r wirefmt.Reader) (t T, n int, err error) {
+	var buf [binco.Num64RawSize]byte
+	n, err = io.ReadFull(r, buf[:])
+	if err != nil {
+		return
+	}
+	return T(binary.LittleEndian.Uint64(buf[:])), n, nil
 }
 
 // loadLE32 reads a 32-bit value from little-endian bytes.
-func loadLE32[T binco.Integer32](r wirefmt.Reader) (t T, n int,
-	err error,
-) {
-	b := (*byte)(unsafe_mod.Pointer(&t))
-	n, err = io.ReadFull(r, unsafe_mod.Slice(b, binco.Num32RawSize))
-	return
+func loadLE32[T binco.Integer32](r wirefmt.Reader) (t T, n int, err error) {
+	var buf [binco.Num32RawSize]byte
+	n, err = io.ReadFull(r, buf[:])
+	if err != nil {
+		return
+	}
+	return T(binary.LittleEndian.Uint32(buf[:])), n, nil
 }
 
 // loadLE16 reads a 16-bit value from little-endian bytes.
-func loadLE16[T binco.Integer16](r wirefmt.Reader) (t T, n int,
-	err error,
-) {
-	b := (*byte)(unsafe_mod.Pointer(&t))
-	n, err = io.ReadFull(r, unsafe_mod.Slice(b, binco.Num16RawSize))
-	return
+func loadLE16[T binco.Integer16](r wirefmt.Reader) (t T, n int, err error) {
+	var buf [binco.Num16RawSize]byte
+	n, err = io.ReadFull(r, buf[:])
+	if err != nil {
+		return
+	}
+	return T(binary.LittleEndian.Uint16(buf[:])), n, nil
 }
 
 // loadLE8 reads an 8-bit value.
-func loadLE8[T binco.Integer8](r wirefmt.Reader) (t T, n int,
-	err error,
-) {
-	b := (*byte)(unsafe_mod.Pointer(&t))
-	n, err = io.ReadFull(r, unsafe_mod.Slice(b, binco.Num8RawSize))
-	return
-}
-
-// writeWord writes an int of the host word size.
-var writeWord func(v int, w wirefmt.Writer) (int, error)
-
-// loadWord reads an int of the host word size.
-var loadWord func(r wirefmt.Reader) (int, int, error)
-
-// wordSize is the width of an int on this host.
-var wordSize func(v int) int
-
-// skipWord advances over an int of the host word size.
-var skipWord func(r wirefmt.Reader) (int, error)
-
-// writeWordUnsigned writes a uint of the host word size.
-var writeWordUnsigned func(v uint, w wirefmt.Writer) (int, error)
-
-// loadWordUnsigned reads a uint of the host word size.
-var loadWordUnsigned func(r wirefmt.Reader) (uint, int, error)
-
-// wordUnsignedSize is the width of a uint on this host.
-var wordUnsignedSize func(v uint) int
-
-// skipWordUnsigned advances over a uint of the host word size.
-var skipWordUnsigned func(r wirefmt.Reader) (int, error)
-
-// bindWordInt selects the int helpers for the host word size.
-func bindWordInt(intSize int) {
-	switch intSize {
-	case 64:
-		writeWord = writeLE64[int]
-		loadWord = loadLE64[int]
-	case 32:
-		writeWord = writeLE32[int]
-		loadWord = loadLE32[int]
-	default:
-		panic(binco.ErrUnsupportedIntSize)
+func loadLE8[T binco.Integer8](r wirefmt.Reader) (t T, n int, err error) {
+	var buf [binco.Num8RawSize]byte
+	n, err = io.ReadFull(r, buf[:])
+	if err != nil {
+		return
 	}
-	wordSize = scalar.Int.Size
-	skipWord = scalar.Int.Skip
+	return T(buf[0]), n, nil
 }
 
-// bindWordUnsigned selects the uint helpers for the host word size.
-func bindWordUnsigned(intSize int) {
-	switch intSize {
-	case 64:
-		writeWordUnsigned = writeLE64[uint]
-		loadWordUnsigned = loadLE64[uint]
-	case 32:
-		writeWordUnsigned = writeLE32[uint]
-		loadWordUnsigned = loadLE32[uint]
-	default:
-		panic(binco.ErrUnsupportedIntSize)
+// wordSize is the encoded width of an int, and of a uint.
+//
+// It is a constant, so the compiler can inline and constant-fold the Size
+// methods; the earlier package-level function variables prevented that.
+func wordSize(v int) int {
+	return binco.IntWordBytes
+}
+
+// writeWord writes an int in the wire word width.
+func writeWord(v int, w wirefmt.Writer) (int, error) {
+	return writeLE64(int64(v), w)
+}
+
+// loadWord reads an int of the wire word width, reporting ErrOverflow when the
+// host int is narrower than the value.
+func loadWord(r wirefmt.Reader) (int, int, error) {
+	uv, n, err := loadLE64[int64](r)
+	if err != nil {
+		return 0, n, err
 	}
-	wordUnsignedSize = scalar.Uint.Size
-	skipWordUnsigned = scalar.Uint.Skip
+	v := int(uv)
+	if int64(v) != uv {
+		return 0, n, binco.ErrOverflow
+	}
+	return v, n, nil
 }
 
-func init() {
-	bindWordInt(strconv.IntSize)
+// skipWord advances over an int of the wire word width.
+//
+// It reads the value, so a host that cannot hold it reports the same
+// ErrOverflow that Unmarshal does.
+func skipWord(r wirefmt.Reader) (int, error) {
+	_, n, err := loadWord(r)
+	return n, err
 }
 
-func init() {
-	bindWordUnsigned(strconv.IntSize)
+// writeWordUnsigned writes a uint in the wire word width.
+func writeWordUnsigned(v uint, w wirefmt.Writer) (int, error) {
+	return writeLE64(uint64(v), w)
+}
+
+// loadWordUnsigned reads a uint of the wire word width, reporting ErrOverflow
+// when the host uint is narrower than the value.
+func loadWordUnsigned(r wirefmt.Reader) (uint, int, error) {
+	uv, n, err := loadLE64[uint64](r)
+	if err != nil {
+		return 0, n, err
+	}
+	v := uint(uv)
+	if uint64(v) != uv {
+		return 0, n, binco.ErrOverflow
+	}
+	return v, n, nil
+}
+
+// wordUnsignedSize reports the encoded width of a uint.
+func wordUnsignedSize(v uint) int {
+	return binco.IntWordBytes
+}
+
+// skipWordUnsigned advances over a uint of the wire word width.
+//
+// It reads the value, so a host that cannot hold it reports the same
+// ErrOverflow that Unmarshal does.
+func skipWordUnsigned(r wirefmt.Reader) (int, error) {
+	_, n, err := loadWordUnsigned(r)
+	return n, err
+}
+
+// skipLE64 advances over eight bytes.
+func skipLE64(r wirefmt.Reader) (int, error) {
+	var buf [binco.Num64RawSize]byte
+	return io.ReadFull(r, buf[:])
 }

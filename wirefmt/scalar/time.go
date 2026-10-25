@@ -12,6 +12,10 @@ var TimeUnix = unixCodec{}
 
 type unixCodec struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s unixCodec) FixedWidth() int { return binco.Num64RawSize }
+
 func (s unixCodec) Marshal(v time.Time, w wirefmt.Writer) (n int, err error) {
 	return Int64.Marshal(v.Unix(), w)
 }
@@ -21,7 +25,7 @@ func (s unixCodec) Unmarshal(r wirefmt.Reader) (v time.Time, n int, err error) {
 	if err != nil {
 		return
 	}
-	v = time.Unix(sec, 0)
+	v = time.Unix(sec, 0).UTC()
 	return
 }
 
@@ -38,6 +42,10 @@ var TimeUnixMilli = milliCodec{}
 
 type milliCodec struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s milliCodec) FixedWidth() int { return binco.Num64RawSize }
+
 func (s milliCodec) Marshal(v time.Time, w wirefmt.Writer) (n int,
 	err error,
 ) {
@@ -51,7 +59,7 @@ func (s milliCodec) Unmarshal(r wirefmt.Reader) (v time.Time, n int,
 	if err != nil {
 		return
 	}
-	v = time.UnixMilli(milli)
+	v = time.UnixMilli(milli).UTC()
 	return
 }
 
@@ -68,6 +76,10 @@ var TimeUnixMicro = microCodec{}
 
 type microCodec struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s microCodec) FixedWidth() int { return binco.Num64RawSize }
+
 func (s microCodec) Marshal(v time.Time, w wirefmt.Writer) (n int,
 	err error,
 ) {
@@ -81,7 +93,7 @@ func (s microCodec) Unmarshal(r wirefmt.Reader) (v time.Time, n int,
 	if err != nil {
 		return
 	}
-	v = time.UnixMicro(micro)
+	v = time.UnixMicro(micro).UTC()
 	return
 }
 
@@ -98,6 +110,10 @@ var TimeUnixNano = nanoCodec{}
 
 type nanoCodec struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s nanoCodec) FixedWidth() int { return binco.Num64RawSize }
+
 func (s nanoCodec) Marshal(v time.Time, w wirefmt.Writer) (n int, err error) {
 	return Int64.Marshal(v.UnixNano(), w)
 }
@@ -107,7 +123,7 @@ func (s nanoCodec) Unmarshal(r wirefmt.Reader) (v time.Time, n int, err error) {
 	if err != nil {
 		return
 	}
-	v = time.Unix(0, nano)
+	v = time.Unix(0, nano).UTC()
 	return
 }
 

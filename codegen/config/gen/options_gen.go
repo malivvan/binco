@@ -5,8 +5,12 @@ package genopts
 
 import (
 	"go/token"
+	"io"
+	"log"
 	"reflect"
+	"strconv"
 
+	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/codegen/typename"
 	"golang.org/x/mod/module"
 )
@@ -24,9 +28,19 @@ type Options struct {
 
 	Imports         []string
 	SerializerNames map[reflect.Type]string
+	// DTMs pins the wire identifier of a type that is registered as a versioned
+	// type or as an interface implementation. Without it the generator numbers
+	// the types in registration order, so adding or removing one renumbers the
+	// others and old payloads decode as the wrong type.
+	DTMs map[reflect.Type]binco.DTM
 
 	Mode   Mode
 	Stream bool
+
+	// Logger receives the warnings the generator produces, such as a type
+	// parameter without an explicit import alias. Library code must not write to
+	// the standard logger of the process.
+	Logger *log.Logger
 
 	importAliases map[ImportPath]Alias
 }
@@ -35,6 +49,8 @@ type Options struct {
 func New() Options {
 	return Options{
 		SerializerNames: make(map[reflect.Type]string),
+		DTMs:            make(map[reflect.Type]binco.DTM),
+		Logger:          log.New(io.Discard, "", 0),
 		importAliases:   make(map[ImportPath]Alias),
 	}
 }
@@ -75,7 +91,7 @@ func WithImport(importPath string) SetOption {
 			err = NewInvalidImportPathError(importPath)
 			return
 		}
-		o.Imports = append(o.Imports, `"`+importPath+`"`)
+		o.Imports = append(o.Imports, strconv.Quote(importPath))
 		return
 	}
 }
@@ -91,7 +107,7 @@ func WithImportAlias(importPath, alias string) SetOption {
 			err = NewInvalidAliasError(alias)
 			return
 		}
-		o.Imports = append(o.Imports, alias+" "+`"`+importPath+`"`)
+		o.Imports = append(o.Imports, alias+" "+strconv.Quote(importPath))
 		o.importAliases[ImportPath(importPath)] = Alias(alias)
 		return
 	}
@@ -101,6 +117,34 @@ func WithImportAlias(importPath, alias string) SetOption {
 func WithSerializer(t reflect.Type, serializerName string) SetOption {
 	return func(o *Options) (err error) {
 		o.SerializerNames[t] = serializerName
+		return
+	}
+}
+
+// WithLogger sets the destination of the generator's warnings. The default
+// discards them.
+func WithLogger(logger *log.Logger) SetOption {
+	return func(o *Options) (err error) {
+		if logger == nil {
+			logger = log.New(io.Discard, "", 0)
+		}
+		o.Logger = logger
+		return
+	}
+}
+
+// WithDTM pins the wire identifier of a type that is registered as a versioned
+// type or as an interface implementation.
+//
+// Identifiers are written to the payload and cannot change without breaking
+// stored data, so pin them instead of relying on registration order. If any
+// type is pinned, every type that receives an identifier must be pinned.
+func WithDTM(t reflect.Type, dtm binco.DTM) SetOption {
+	return func(o *Options) (err error) {
+		if dtm <= 0 {
+			return binco.ErrOverflow
+		}
+		o.DTMs[t] = dtm
 		return
 	}
 }
@@ -151,6 +195,12 @@ func Apply(ops []SetOption, o *Options) (err error) {
 				return
 			}
 		}
+	}
+	if o.DTMs == nil {
+		o.DTMs = make(map[reflect.Type]binco.DTM)
+	}
+	if o.Logger == nil {
+		o.Logger = log.New(io.Discard, "", 0)
 	}
 	addImportAlias(o)
 	return o.Validate()

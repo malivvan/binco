@@ -176,7 +176,8 @@ func TestGenerateInterface(t *testing.T) {
 	src := generate(t, g)
 
 	mustContain(t, src,
-		"const (\n\tStructImplDTM binco.DTM = iota + 1\n\tDefinedImplDTM\n)",
+		"StructImplDTM  binco.DTM = 1",
+		"DefinedImplDTM binco.DTM = 2",
 		"var UniversalBinco = universalBinco{}",
 		"var StructImplTypedBinco = typeid.NewSerializer(StructImplDTM, StructImplBinco)",
 		"var DefinedImplTypedBinco = typeid.NewSerializer(DefinedImplDTM, DefinedImplBinco)",
@@ -516,8 +517,10 @@ func TestGenerateDTMNumbering(t *testing.T) {
 	src := generate(t, g)
 
 	mustContain(t, src,
-		"StructImplDTM binco.DTM = iota + 1",
-		"const (\n\tNamedADTM binco.DTM = iota + 3\n\tNamedBDTM\n)",
+		"StructImplDTM  binco.DTM = 1",
+		"DefinedImplDTM binco.DTM = 2",
+		"NamedADTM binco.DTM = 3",
+		"NamedBDTM binco.DTM = 4",
 	)
 }
 

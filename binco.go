@@ -11,4 +11,16 @@
 // Marshaller interfaces, the Encode and Decode helpers, the error values, the
 // type identifier, the validator interface, the pointer maps and the numeric
 // constraints.
+//
+// Three guarantees apply to every codec in the module:
+//
+//   - A decoded length is checked without overflow and never drives an
+//     allocation larger than the bytes that could hold it (see CheckLength and
+//     AllocHint). Hostile input returns ErrTooSmallByteSlice instead of
+//     exhausting memory or panicking.
+//   - Marshal reports a short output buffer by panicking with
+//     ErrTooSmallByteSlice, the same sentinel everywhere, so one recover can
+//     recognise it.
+//   - Recursive codecs stop at MaxDepth (or MaxPointerDepth) with ErrTooDeep
+//     rather than exhausting the goroutine stack.
 package binco

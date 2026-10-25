@@ -1,7 +1,5 @@
 package binco
 
-import "strconv"
-
 // Num64RawSize is the width of a 64-bit value in bytes.
 const Num64RawSize = 8
 
@@ -78,39 +76,26 @@ const Uint16MaxLastByte byte = 3
 // Uint8MaxLastByte is the largest final byte of a uint8 varnum.
 const Uint8MaxLastByte byte = 1
 
-var varintWordLen int
+// IntWordBits is the wire width of the int and uint codecs.
+//
+// The width does not follow the host: an int is always encoded and decoded as
+// a 64-bit value, and a 32-bit build reports ErrOverflow for values it cannot
+// represent. A payload written on one architecture therefore reads back on
+// every other one.
+const IntWordBits = 64
 
-var varintWordLast byte
+// IntWordBytes is the wire width of int and uint in bytes.
+const IntWordBytes = IntWordBits / 8
 
-func init() {
-	maxLen, maxLast, ok := wordLimits(strconv.IntSize)
-	if !ok {
-		panic("unsupported IntSize")
-	}
-	varintWordLen, varintWordLast = maxLen, maxLast
-}
-
-// wordLimits returns the varint limits of an int of the given size in bits.
-func wordLimits(intSize int) (maxLen int, maxLast byte, ok bool) {
-	switch intSize {
-	case 64:
-		return Uint64MaxVarintLen, Uint64MaxLastByte, true
-	case 32:
-		return Uint32MaxVarintLen, Uint32MaxLastByte, true
-	case 16:
-		return Uint16MaxVarintLen, Uint16MaxLastByte, true
-	case 8:
-		return Uint8MaxVarintLen, Uint8MaxLastByte, true
-	}
-	return 0, 0, false
-}
-
-// UintMaxVarintLen is the longest varint encoding on this host.
+// UintMaxVarintLen is the longest varint encoding on any host.
+//
+// It is the limit of a uint64 even on a 32-bit build, because int and uint use
+// the same wire width everywhere.
 func UintMaxVarintLen() int {
-	return varintWordLen
+	return Uint64MaxVarintLen
 }
 
-// UintMaxLastByte is the largest final varint byte on this host.
+// UintMaxLastByte is the largest final varint byte on any host.
 func UintMaxLastByte() byte {
-	return varintWordLast
+	return Uint64MaxLastByte
 }

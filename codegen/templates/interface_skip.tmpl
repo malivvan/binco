@@ -8,6 +8,8 @@ if err != nil {
 }
 var n1 int
 switch dtm {
+	case 0:
+		return n, nil
 {{- range $e := .Impls }}
 	case {{ Serializer.DTMVar $e }}:
 		n1, err = {{ Serializer.TypedVar $e }}.SkipData({{ $ulp }})

@@ -168,8 +168,10 @@ families still interoperate.
   add it yourself or use a type identifier, as shown in
   [Streaming protocols](#811-streaming-protocols).
 * No reflection at run time: reflection exists only in the code generator.
-* No canonical map order: encoding a map is not deterministic; see
-  [Collections](#85-collections) for the workaround.
+* No canonical map order by default: a Go map iterates in a random order, so
+  encoding one is not deterministic. `composite.NewSortedMapSerializer` writes
+  the entries sorted by their encoded key bytes when the bytes must be
+  reproducible; see [Collections](#85-collections).
 
 ## 2. Install and requirements
 
@@ -217,8 +219,9 @@ type Serializer[T any] interface {
 }
 ```
 
-* `Marshal` fills `bs` and returns the number of bytes written. It panics when
-  `bs` is too small - a caller bug, not a data error.
+* `Marshal` fills `bs` and returns the number of bytes written. It panics with
+  `binco.ErrTooSmallByteSlice` when `bs` is too small - a caller bug, not a data
+  error.
 * `Unmarshal` parses one value and never reads past it, so the rest of the
   buffer can be decoded by the next codec.
 * `Size` returns exactly the number of bytes `Marshal` will write.
@@ -267,14 +270,24 @@ consequences:
 3. **You can drop data by not reading it.** Unknown trailing fields are not an
    error; a reader that knows fewer fields simply stops early.
 
+The generator writes a `SchemaFingerprint` constant next to every struct: a
+SHA-256 of the field names and types in declaration order. Comparing it with the
+value that produced a payload turns a silent misread (two `int` fields swapped)
+into a clear failure. See
+[Compatibility rules](#512-compatibility-rules).
+
 ### 3.4 Errors and panics
 
-`Marshal` panics when the output buffer is too small; that is the only panic in
-normal operation and it signals a bug in the caller (`binco.Encode` sizes the
-buffer for you and never triggers it). `Unmarshal` and `Skip` never panic on
-malformed input: they return one of the errors in the
+`Marshal` panics with `binco.ErrTooSmallByteSlice` when the output buffer is too
+small; that is the only panic in normal operation and it signals a bug in the
+caller (`binco.Encode` sizes the buffer for you and never triggers it). Every
+codec panics with that same sentinel rather than with a raw index error, so one
+`recover` can recognise the case. `Unmarshal` and `Skip` never panic on malformed
+input: they return one of the errors in the
 [error reference](#12-error-reference), all prefixed with `binco: ` and all
 comparable with `errors.Is`.
+A value that exceeds `binco.MaxDepth` levels of nesting reports
+`binco.ErrTooDeep` instead of exhausting the stack.
 
 ```go
 name, err := binco.Decode(composite.String, bs)
@@ -286,8 +299,13 @@ case errors.Is(err, binco.ErrNegativeLength):
 }
 ```
 
-Streaming codecs additionally return whatever the `Writer` or `Reader` returned
-(`io.EOF`, `io.ErrUnexpectedEOF`, network errors), unchanged and unwrapped.
+Streaming codecs additionally return whatever the `Writer` or `Reader` returned,
+unchanged and unwrapped, with one rule: `io.EOF` before the first byte of a value
+is a clean end of stream, and `io.ErrUnexpectedEOF` after it is a truncated
+message. The two are distinguishable.
+
+`Skip` applies the same range checks as `Unmarshal`: a value that `Unmarshal`
+would reject as out of range is not silently skipped either.
 
 ### 3.5 Sizes skipping and the exactly-N-bytes invariant
 
@@ -545,6 +563,11 @@ small:
 `varnum.PositiveInt` and its sized variants skip the ZigZag step. They are meant
 for values that cannot be negative: lengths, type identifiers, pointer ids.
 
+An encoding must be *canonical*: the shortest form of the value. A multi-byte
+encoding whose final byte is zero (`[128 128 128 0]`) is rejected with
+`binco.ErrNonCanonical`, so every value has exactly one byte representation and
+hashing, signing or de-duplicating payloads by their bytes is meaningful.
+
 An encoding may not exceed the width of its type. When it does, decoding fails
 with `binco.ErrOverflow`:
 
@@ -562,7 +585,9 @@ bits), which keeps `0.0` and small denormals short and `1.5` at nine bytes.
 
 `package scalar` writes numbers in little-endian byte order using the width of
 their Go type: eight bytes for 64-bit values, four for 32-bit, two for 16-bit,
-one for 8-bit.
+one for 8-bit. `int` and `uint` are always encoded as eight bytes, whatever the
+host word size is, so a payload written on amd64 reads back on a 32-bit build; a
+value the host cannot hold is reported as `binco.ErrOverflow`.
 
 ```
 uint64 40     ->  [40 0 0 0 0 0 0 0]
@@ -666,7 +691,16 @@ list               ->  [3 2 0 20 2 0 2 1 40]
 ```
 
 Ids start at zero in encounter order and are shared by every `ptrmap` codec of one
-value. See [Shared pointers and identity](#87-shared-pointers-and-identity).
+value. An id remembers the type it was decoded as, and a reference is only
+resolved when that type matches: a payload cannot make a `*string` out of an
+`*int`, and the mismatch is reported as `binco.ErrWrongType`.
+
+Both pointer codecs bound their recursion. `ptrmap` counts depth per decoded
+value and stops at `binco.MaxDepth` (1000); the plain pointer codec shares one
+atomic counter per serializer and stops at `binco.MaxPointerDepth` (10000). A
+payload of nested pointers therefore returns `binco.ErrTooDeep` instead of
+exhausting the goroutine stack. See
+[Shared pointers and identity](#87-shared-pointers-and-identity).
 
 ### 5.9 Time
 
@@ -678,8 +712,10 @@ time.Date(2024, 5, 6, 7, 8, 9, 0, time.UTC)
 ```
 
 Four units are available: seconds, milliseconds, microseconds and nanoseconds.
-The `UTC` variants force the decoded value into UTC; the others return
-`time.Unix` semantics (local zone). Precision the unit cannot represent is lost.
+Every variant decodes to UTC, so the same payload compares equal on machines in
+different zones; the `...UTC` names are kept for compatibility and mean the same
+thing. Precision the unit cannot represent is lost, and `UnixNano` overflows
+silently outside roughly 1678-2262 (`UnixMilli` has a far wider range).
 
 ### 5.10 Type identifiers
 
@@ -707,6 +743,13 @@ default:
 
 DTMs are the only "framing" the format has, which makes them the tool of choice
 for streams and files of heterogeneous values.
+
+Ids are positive: a zero or negative id would be written as a huge unsigned
+number, so `typeid.DTMSerializer` rejects it with `binco.ErrOverflow`. In the
+generator, pin the id of every registered type with `genopts.WithDTM`; without it
+the generator numbers the types in registration order, and adding or removing one
+renumbers the others. Generated constants carry literal values, duplicate ids are
+rejected, and `Generator.DTMRegistry` returns the mapping for a golden file.
 
 ### 5.11 A payload dissected
 
@@ -756,6 +799,10 @@ sequence with the same codecs. In practice:
 
 When a break is unavoidable, introduce a new version and keep the reader able to
 decode the old one; see [Versioning and migration](#810-versioning-and-migration).
+
+The generated `SchemaFingerprint` constant is the cheap check: store it beside a
+payload (or compare it at deployment time) and a reordered field is caught before
+the data is misread.
 
 ## 6. Choosing codecs
 
@@ -949,9 +996,11 @@ composite.NewValidMapSerializer[T comparable, V any](keySerializer binco.Seriali
 	opts ...mapopts.SetOption[T, V])
 ```
 
-The `New*` constructors ignore validators; the `NewValid*` ones run them. Both
-accept the same option types, so a codec can be built with options and then
-"upgraded" by switching the constructor.
+Every constructor honours the validators it is given; the `NewValid*` names are
+kept because they name the intent, not because they behave differently. A
+validator passed to `NewStringSerializer`, `NewByteSliceSerializer`,
+`NewSliceSerializer` or `NewMapSerializer` is now run while decoding. The
+constructors return `binco.Serializer[T]`, which is all a caller needs.
 
 Building blocks for hand-written codecs:
 
@@ -987,12 +1036,17 @@ zerocpy.NewValidArraySerializer[T, V any](elemSerializer binco.Serializer[V], op
 Rules:
 
 * A decoded `string` or `[]byte` **aliases the input buffer**. It is valid while
-  the buffer is, and it must not be modified.
-* The package assumes little-endian byte order and panics at init on a
-  big-endian host (`binco.ErrUnsupportedArch`), so it can never silently produce
-  a non-conforming payload.
+  the buffer is, and it must not be modified. Reusing the buffer (for example
+  from a `sync.Pool`) silently mutates values that were already decoded, and any
+  small string keeps the whole buffer alive.
+* Scalars are converted through `encoding/binary` with an explicit little-endian
+  order, so the codecs are correct on any host byte order and at an unaligned
+  offset. Only the array codec reinterprets memory, and it checks with reflection
+  that its two type parameters really describe an array of the element type
+  (panicking with `binco.ErrWrongArrayType` if they do not).
 * Arrays live only here: decoding into an array means reinterpreting the decoded
-  elements as the array type.
+  elements as the array type. The length is checked before any element is read,
+  and decoding fills the array in place.
 
 ### 7.6 ptrmap
 
@@ -1008,12 +1062,19 @@ wrapped := ptrmap.Wrap(ptrMap, revPtrMap, anyCodec)       // resets the maps per
 Wiring rules:
 
 1. Every `ptrmap` codec of one value shares the same pair of maps.
-2. The outermost codec is wrapped with `ptrmap.Wrap`, which clears the maps around
-   every operation (including `Size`, which assigns ids). Calling `Size` or
+2. The outermost codec is wrapped with `ptrmap.Wrap`, which clears both maps
+   around every operation (including `Size`, which assigns ids). Calling `Size` or
    `Marshal` on an inner codec directly leaves ids behind and breaks the
    `Size`/`Marshal` invariant.
 3. A wrapped codec is not safe for concurrent use; give each goroutine its own
    maps (see [Concurrency](#818-concurrency)).
+
+An identifier is stored together with the type it was decoded as, and the encoder
+keys its table by `(address, type)`. Two pointers that share an address (a struct
+and its first field, or any two zero-size values) therefore get different ids, and
+a reference read as a different type fails with `binco.ErrWrongType` instead of
+being cast with `unsafe.Pointer`. Recursive references stop at
+`binco.MaxDepth` with `binco.ErrTooDeep`.
 
 ### 7.7 typeid
 
@@ -1058,7 +1119,9 @@ bounded := composite.NewValidStringSerializer(
 fixedLengths := composite.NewSliceSerializer(varnum.Int, slopts.WithLenSerializer[int](scalar.Int))
 ```
 
-The streaming tree has the same options under `binco/wirefmt/config/*`.
+The streaming tree has the same options under `binco/wirefmt/config/*`. In both
+trees the plain constructors honour the validators, so `WithLenValidator` is never
+silently ignored.
 
 ### 7.9 wirefmt
 
@@ -1090,7 +1153,23 @@ do the buffering for you:
 ```go
 n, err := wirefmt.Encode(wcomposite.String, w, "hello")
 v, n, err := wirefmt.Decode(wcomposite.String, r)
+
+// Reuse one buffer for a whole stream.
+enc := wirefmt.NewEncoder(w)
+dec := wirefmt.NewDecoder(r)
+n, err = wirefmt.EncodeTo(enc, wcomposite.String, "hello")
+v, n, err = wirefmt.DecodeFrom(dec, wcomposite.String)
 ```
+
+`Decode` never buffers a reader it cannot read one byte from, because it cannot
+know whether the caller still needs the bytes it would read ahead; buffering per
+call used to swallow the next message of a shared stream. `NewDecoder` owns one
+`bufio.Reader` for the lifetime of the stream, buffers once and is the fast
+option. `Encode` reuses a pooled `bufio.Writer`.
+
+Truncation is `io.ErrUnexpectedEOF`; only a stream that ends before the first
+byte of a value returns `io.EOF`. `wirefmt.SliceWriter` adapts a `[]byte` to a
+`Writer`, which is useful for testing and for embedding a streaming codec.
 
 Marshalling and helper packages:
 
@@ -2042,7 +2121,10 @@ id, _, err := varnum.Int.Unmarshal(bs)
 
 **Unknown trailing fields.** A reader for an older schema stops after the fields
 it knows; the remainder is simply not read. This is how a forward-compatible
-reader tolerates extra data.
+reader tolerates extra data. When a protocol carries exactly one value per
+message, `binco.DecodeExact` is the strict form: it returns
+`binco.ErrTrailingBytes` if anything follows the value, instead of silently
+dropping it.
 
 **Forward compatibility for containers.** If a slice may grow new element
 shapes, keep the element schema fixed and add optional trailing fields inside
@@ -2364,6 +2446,11 @@ allocates a new slice each time).
 
 * **Buffer codecs are stateless** (except `ptrmap`), so they are safe to share
   across goroutines. A single `varnum.Int` in a global is fine.
+* **The plain pointer codec counts nesting in an atomic.** `composite.NewPtrSerializer`
+  keeps one atomic counter per serializer to bound recursion; it stays free of
+  data races, and only extremely deep *concurrent* nesting (tens of thousands of
+  levels at once) could reach the limit. `ptrmap` counts per decoded value
+  instead.
 * **`ptrmap` codecs are stateful.** The maps are per-value state, so each goroutine
   needs its own maps and its own wrapper:
 
@@ -2377,6 +2464,9 @@ allocates a new slice each time).
 * **Buffers are not shared.** One buffer per goroutine, or a `sync.Pool`.
 * **Writers are not safe for concurrent use.** Serialize writes (or give each
   goroutine its own buffer and a channel to the writer).
+* **A `codegen.Generator` is not safe for concurrent use.** It records the types
+  it renders, the packages it has seen and the names it has handed out; create one
+  per generation run.
 
 ### 8.19 Testing your codecs
 
@@ -2585,6 +2675,8 @@ g, err := codegen.NewGenerator(
 	genopts.WithImport("time"),                      // extra import
 	genopts.WithImportAlias("github.com/x/y", "y"),  // extra import + alias
 	genopts.WithSerializer(reflect.TypeFor[other.Type](), "other.CustomSerializer"),
+	genopts.WithDTM(reflect.TypeFor[event.Login](), 7), // pin a wire id
+	genopts.WithLogger(logger),                          // destination of warnings
 	genopts.WithStream(), // generate for io.Writer/io.Reader
 	genopts.WithUnsafe(), // use the zero-copy codecs
 	// genopts.WithNotUnsafe(), // zero-copy except for strings
@@ -2598,6 +2690,8 @@ g, err := codegen.NewGenerator(
 | `WithImport` | add an import path |
 | `WithImportAlias` | add an import path with an alias; also used to resolve cross-package type names |
 | `WithSerializer` | custom serializer name for a type (may carry a package) |
+| `WithDTM` | pin the wire identifier of a versioned type or interface implementation |
+| `WithLogger` | receive the generator's warnings; the default discards them |
 | `WithStream` | generate streaming codecs |
 | `WithUnsafe` | generate with `binco/zerocpy` everywhere |
 | `WithNotUnsafe` | generate with `binco/zerocpy`, except for strings |
@@ -2609,8 +2703,13 @@ g, err := codegen.NewGenerator(
 * *Not unsafe*: like unsafe, but strings use the copying `composite` codec, which
   removes the zero-copy side effects.
 
-`ErrCodeGenFailed` is returned by `Generate` when the produced source does not
-parse; the returned bytes are still useful to see what went wrong.
+`Generate` wraps `ErrCodeGenFailed` around the real cause, so
+`errors.Is(err, codegen.ErrCodeGenFailed)` matches and the message names the
+template, the invalid expression or the name collision that failed. The returned
+bytes are still useful to see what went wrong. Bad validator and migration
+expressions, an unexported field of a foreign struct and two types that would be
+generated under the same name are all reported when the type is added, not as a
+compile error inside the output.
 
 ### 9.3 Generator methods
 
@@ -2623,6 +2722,7 @@ g.RegisterInterface(t reflect.Type, opts ...intropts.SetRegisterOption) error
 g.AddVersioned(t reflect.Type, opts ...veropts.SetOption) error
 g.RegisterVersioned(t reflect.Type, opts ...veropts.SetOption) error
 g.Generate() ([]byte, error)
+g.DTMRegistry() (map[string]binco.DTM, error)   // type name -> wire id, for a golden file
 ```
 
 **AddDefinedType** - a type whose underlying type is a number, string, array,
@@ -2820,15 +2920,23 @@ panic(...)
 ```
 
 Either way the receiver switches on the DTM and reports `UnexpectedDTMError` for
-unknown ids.
+unknown ids. A nil interface value is written as the reserved identifier `0` and
+decodes back to nil, so `Marshal(nil)` no longer panics.
 
 ### 9.7 Versioned types
 
 The generated versioned codec is exactly the hand-written one from
 [Versioning and migration](#810-versioning-and-migration): `Marshal` writes the
 current version, `Unmarshal` accepts every version and migrates, `Skip` advances
-over every version. DTMs are numbered automatically, continuously across all
-registrations of one generator, so they do not collide.
+over every version.
+
+Pin the identifiers with `genopts.WithDTM` in anything that is stored or sent.
+Without it the generator numbers the types in registration order, which is stable
+within one run but renumbers the payloads as soon as a type is added or removed.
+Generated constants carry literal values, a duplicate id or a negative id fails
+generation with `binco.ErrDuplicateDTM`, and mixing pinned and automatic ids is
+rejected. `g.DTMRegistry()` returns the mapping so you can commit it as a golden
+file and compare it in CI.
 
 ### 9.8 Multi-package and cross-package generation
 
@@ -2886,7 +2994,10 @@ package.
 | `use the Generator.AddStruct method` | a struct was passed to `AddDefinedType` (or vice versa) |
 | `not enough structops.WithField() calls` | one `WithField` per field, always |
 | generated code refers to a package that does not exist | the target package path is wrong, or the field type needs `WithImportAlias` |
-| `can't get serializer for ...` panic | a field type has no codec; add a defined type, a `WithSerializer`, or change the schema |
+| `cannot get a serializer for ...` error | a field type has no codec; add a defined type, a `WithSerializer`, or change the schema |
+| `generated name collision` | two types with the same bare name; give one `genopts.WithSerializer` |
+| `... is not a Go expression` | a validator or migration option contains a typo |
+| `... has the unexported field ...` | a struct from another package must export every field to be generated |
 
 ## 10. Performance guide
 
@@ -2895,13 +3006,18 @@ reuse. The `Encoder` pattern in
 [Zero-allocation encoding](#817-zero-allocation-encoding) is the recommended
 shape for hot paths.
 
+**Encode fixed-width slices in bulk.** A slice whose element codec reports a
+fixed width (`scalar` and `zerocpy` scalars) is copied in one operation instead of
+one interface call per element, provided the host is little-endian. The fast path
+is automatic; element validators keep the per-element path.
+
 **Pick the codec family per field.**
 
 * `varnum` for small and medium integers, ids, counters, lengths.
 * `scalar` for values above the thresholds in [Fixed width](#54-fixed-width), for constant-size
   records, and when CPU matters more than bytes.
-* `zerocpy` for scalars and blobs on little-endian hosts, keeping in mind the
-  aliasing rules.
+* `zerocpy` for scalars and blobs on paths where the aliasing rules are
+  acceptable; it is correct on every byte order.
 
 **Skip what you do not need.** `Skip` costs a few branches and no allocation.
 Decoding a field you immediately discard is pure overhead.
@@ -2933,33 +3049,54 @@ traffic; measure with your structs rather than synthetic scalars. `go test
   on numbers; `composite`/`zerocpy` agree on strings and byte slices.
 * Decoding never reads past the value it returns and never panics on malformed
   input.
+* Lengths are checked without overflow: a decoded `MaxInt64` length returns
+  `ErrTooSmallByteSlice` instead of wrapping into a slice panic.
+* A decoded length never drives an allocation larger than the input that could
+  contain it; a streaming blob grows with the bytes that actually arrive.
+* Varints are canonical: every value has exactly one byte representation.
 * The generator's output compiles and behaves like hand-written code; the test
-  suite regenerates, compiles and runs it.
+  suite regenerates, compiles and runs it, and CI fails when the committed output
+  differs from a fresh run.
 
 **Security notes**
 
-* Treat every length as hostile: use the validating codecs at a trust boundary.
+* Treat every length as hostile: the codecs already cap what a length can make
+  them allocate, and the validating codecs let you reject implausible ones before
+  they are read.
 * Reject unknown DTMs in protocols; do not attempt to skip them.
 * A payload can legitimately be empty; distinguish "empty message" from
   "connection closed" by protocol design, not by guessing.
-* `binco/zerocpy` panics at init on big-endian hosts rather than producing
-  non-conforming bytes.
-* Recursive codecs recurse as deeply as the data; extremely deep or cyclic
-  structures (without `ptrmap`) can exhaust the stack. Bound depth in your schema or
-  validate before decoding.
+* Pointer identifiers are typed: a payload cannot reinterpret one type as another
+  (`ErrWrongType`), and two values that share an address get different ids.
+* Nested pointers stop at `binco.MaxDepth` / `binco.MaxPointerDepth` with
+  `ErrTooDeep` instead of exhausting the stack. Containers whose elements consume
+  no bytes are capped by `binco.MaxZeroSizeElements`.
+* `binco/zerocpy` converts scalars explicitly, so it is safe on any byte order and
+  at unaligned offsets. Its strings and slices still alias the input buffer.
+* The generator validates validator and migration expressions before it emits
+  them, replaces panics with errors, and reports name collisions instead of
+  silently merging two types.
 
 ## 12. Error reference
 
 | Error | Returned when |
 |-------|---------------|
-| `binco.ErrOverflow` | a varint carries more bits than the type has |
+| `binco.ErrOverflow` | a varint carries more bits than the type has, or a value does not fit the host word |
 | `binco.ErrNegativeLength` | a decoded length is negative |
+| `binco.ErrNonCanonical` | a varint is not in its shortest form |
 | `binco.ErrWrongFormat` | a flag byte or shape is invalid (bool > 1, unknown pointer flag) |
 | `binco.ErrTooSmallByteSlice` | the input ends inside a value, or the output buffer is too short |
-| `binco.ErrTooLargeLength` | a length exceeds a fixed maximum (array length) |
-| `binco.ErrWrongLength` | a length does not match the type (array shorter than its type) |
-| `binco.ErrUnsupportedIntSize` | the host's `int` is neither 32 nor 64 bits |
-| `binco.ErrUnsupportedArch` | `binco/zerocpy` is used on a big-endian host |
+| `binco.ErrTooLargeLength` | a length exceeds a fixed maximum (array length, zero-size container) |
+| `binco.ErrWrongLength` | a length does not match the type (array shorter or longer than its type) |
+| `binco.ErrTooDeep` | a value nests deeper than `binco.MaxDepth` / `binco.MaxPointerDepth` |
+| `binco.ErrWrongType` | a pointer identifier was defined by another type |
+| `binco.ErrTrailingBytes` | `binco.DecodeExact` read a complete value followed by more bytes |
+| `binco.ErrWrongArrayType` | `NewArraySerializer` was built with mismatched type parameters |
+| `binco.ErrNilInterface` | reserved for a nil interface where a value was required |
+| `binco.ErrDuplicateDTM` | the generator assigned the same type identifier twice |
+| `codegen.ErrNameCollision` | two types would be generated under the same name |
+| `binco.ErrUnsupportedIntSize` | kept for compatibility; no code path raises it now that `int` has a fixed wire width |
+| `binco.ErrUnsupportedArch` | kept for compatibility; `zerocpy` no longer requires a little-endian host |
 | `binco.UnexpectedDTMError` | a dispatcher read an unknown type identifier |
 | `binco.WrongDTMError` | `typeid.Serializer` read a different identifier than its own |
 | `io.EOF` (streams) | the stream ended cleanly between values |
@@ -3074,6 +3211,14 @@ and runs serializers for a fixture package in a temporary module.
 
 ### Fuzzing
 
+Fuzz targets live behind the `fuzz` build tag. They cover the varint codecs
+(buffer and streaming), the composite containers, `zerocpy`, `scalar`, `ptrmap`,
+`typeid` and the generator's scanner. Every target asserts the same invariants:
+decoding arbitrary bytes never panics, the consumed count stays inside the
+input, `Skip` agrees with `Unmarshal`, and a decoded value round-trips with an
+exact `Size`. The container targets also run under a memory limit, so an
+allocation regression fails instead of killing the runner.
+
 Fuzz targets are excluded from `go test` by the `fuzz` build tag. Run one
 explicitly:
 
@@ -3163,6 +3308,8 @@ concern, not by Go type, so a change usually touches one file:
 | `codec.go` | the `Serializer` contract and its helpers, or the smallest codecs of a package |
 | `numbers.go`, `scalar.go` | numeric and boolean codecs, and the host-word-size dispatch |
 | `integer.go`, `memory.go` | byte-level packing and unpacking, little-endian |
+| `fixed.go`, `length.go` | `FixedWidth` (bulk slice path), overflow-safe length checks |
+| `codec.go` | interfaces, `Encode`/`Decode`, `DecodeExact`, append helpers |
 | `blobs.go`, `text.go` | length-prefixed payloads: strings and byte slices |
 | `list.go`, `dict.go` | slices and maps |
 | `time.go` | timestamp codecs |

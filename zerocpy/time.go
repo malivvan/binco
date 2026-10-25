@@ -7,9 +7,18 @@ import (
 )
 
 // TimeUnix serializes a time.Time as whole Unix seconds.
+//
+// Decoding always returns a time in UTC, so two payloads that carry the same
+// instant compare equal on machines with different local zones. The value is
+// truncated to whole seconds; use TimeUnixMilli, TimeUnixMicro or TimeUnixNano
+// to keep more precision.
 var TimeUnix = unixView{}
 
 type unixView struct{}
+
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s unixView) FixedWidth() int { return binco.Num64RawSize }
 
 func (s unixView) Marshal(v time.Time, bs []byte) (n int) {
 	return Int64.Marshal(v.Unix(), bs)
@@ -20,7 +29,7 @@ func (s unixView) Unmarshal(bs []byte) (v time.Time, n int, err error) {
 	if err != nil {
 		return
 	}
-	v = time.Unix(sec, 0)
+	v = time.Unix(sec, 0).UTC()
 	return
 }
 
@@ -37,6 +46,10 @@ var TimeUnixMilli = milliView{}
 
 type milliView struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s milliView) FixedWidth() int { return binco.Num64RawSize }
+
 func (s milliView) Marshal(v time.Time, bs []byte) (n int) {
 	return Int64.Marshal(v.UnixMilli(), bs)
 }
@@ -46,7 +59,7 @@ func (s milliView) Unmarshal(bs []byte) (v time.Time, n int, err error) {
 	if err != nil {
 		return
 	}
-	v = time.UnixMilli(milli)
+	v = time.UnixMilli(milli).UTC()
 	return
 }
 
@@ -63,6 +76,10 @@ var TimeUnixMicro = microView{}
 
 type microView struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s microView) FixedWidth() int { return binco.Num64RawSize }
+
 func (s microView) Marshal(v time.Time, bs []byte) (n int) {
 	return Int64.Marshal(v.UnixMicro(), bs)
 }
@@ -72,7 +89,7 @@ func (s microView) Unmarshal(bs []byte) (v time.Time, n int, err error) {
 	if err != nil {
 		return
 	}
-	v = time.UnixMicro(micro)
+	v = time.UnixMicro(micro).UTC()
 	return
 }
 
@@ -89,6 +106,10 @@ var TimeUnixNano = nanoView{}
 
 type nanoView struct{}
 
+// FixedWidth reports the encoded size of one value, which is the width of
+// the little-endian value itself.
+func (s nanoView) FixedWidth() int { return binco.Num64RawSize }
+
 func (s nanoView) Marshal(v time.Time, bs []byte) (n int) {
 	return Int64.Marshal(v.UnixNano(), bs)
 }
@@ -98,7 +119,7 @@ func (s nanoView) Unmarshal(bs []byte) (v time.Time, n int, err error) {
 	if err != nil {
 		return
 	}
-	v = time.Unix(0, nano)
+	v = time.Unix(0, nano).UTC()
 	return
 }
 

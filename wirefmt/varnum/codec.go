@@ -1,6 +1,7 @@
 package varnum
 
 import (
+	"io"
 	"math/bits"
 
 	"github.com/malivvan/binco"
@@ -11,6 +12,13 @@ import (
 func putUnsigned[T binco.Unsigned](t T, w wirefmt.Writer) (n int,
 	err error,
 ) {
+	if t < 0x80 {
+		err = w.WriteByte(byte(t))
+		if err != nil {
+			return
+		}
+		return 1, nil
+	}
 	for t >= 0x80 {
 		err = w.WriteByte(byte(t) | 0x80)
 		if err != nil {
@@ -28,16 +36,28 @@ func putUnsigned[T binco.Unsigned](t T, w wirefmt.Writer) (n int,
 }
 
 // getUnsigned reads an unsigned varint of at most maxLen bytes.
+//
+// The encoding must be canonical: a multi-byte value whose final byte is zero
+// is rejected with ErrNonCanonical, so every value has exactly one byte
+// representation.
+//
+// An io.EOF at the first byte means the stream ended cleanly between values and
+// is returned unchanged. An io.EOF after the value has started means the stream
+// was truncated and is returned as io.ErrUnexpectedEOF, so a caller can tell a
+// corrupt message from the end of the stream.
 func getUnsigned[T binco.Unsigned](maxVarintLen int, maxLastByte byte,
 	r wirefmt.Reader,
 ) (t T, n int, err error) {
-	var b byte
-
-	var shift int
-
+	var (
+		b     byte
+		shift int
+	)
 	for {
 		b, err = r.ReadByte()
 		if err != nil {
+			if err == io.EOF && n > 0 {
+				err = io.ErrUnexpectedEOF
+			}
 			return
 		}
 		n++
@@ -45,6 +65,9 @@ func getUnsigned[T binco.Unsigned](maxVarintLen int, maxLastByte byte,
 			return 0, n, binco.ErrOverflow
 		}
 		if b < 0x80 {
+			if b == 0 && n > 1 {
+				return 0, n, binco.ErrNonCanonical
+			}
 			t = t | T(b)<<shift
 			return
 		}
@@ -66,6 +89,9 @@ func skipUnsigned(maxVarintLen int, maxLastByte byte, r wirefmt.Reader) (n int,
 	for {
 		b, err = r.ReadByte()
 		if err != nil {
+			if err == io.EOF && n > 0 {
+				err = io.ErrUnexpectedEOF
+			}
 			return
 		}
 		n++
@@ -75,6 +101,9 @@ func skipUnsigned(maxVarintLen int, maxLastByte byte, r wirefmt.Reader) (n int,
 			return
 		}
 		if b < 0x80 {
+			if b == 0 && n > 1 {
+				err = binco.ErrNonCanonical
+			}
 			return
 		}
 	}
@@ -154,9 +183,7 @@ func (u32Codec) Marshal(v uint32, w wirefmt.Writer) (n int, err error) {
 }
 
 func (u32Codec) Unmarshal(r wirefmt.Reader) (v uint32, n int, err error) {
-	return getUnsigned[uint32](binco.Uint32MaxVarintLen,
-		binco.Uint32MaxLastByte,
-		r)
+	return getUnsigned[uint32](binco.Uint32MaxVarintLen, binco.Uint32MaxLastByte, r)
 }
 
 func (u32Codec) Size(v uint32) int {
@@ -177,9 +204,7 @@ func (u64Codec) Marshal(v uint64, w wirefmt.Writer) (n int, err error) {
 }
 
 func (u64Codec) Unmarshal(r wirefmt.Reader) (v uint64, n int, err error) {
-	return getUnsigned[uint64](binco.Uint64MaxVarintLen,
-		binco.Uint64MaxLastByte,
-		r)
+	return getUnsigned[uint64](binco.Uint64MaxVarintLen, binco.Uint64MaxLastByte, r)
 }
 
 func (u64Codec) Size(v uint64) int {
@@ -190,23 +215,33 @@ func (u64Codec) Skip(r wirefmt.Reader) (n int, err error) {
 	return skipUnsigned(binco.Uint64MaxVarintLen, binco.Uint64MaxLastByte, r)
 }
 
-// Uint serializes a uint, following the word size of the host.
+// Uint serializes a uint. The wire width is always 64 bits, whatever the host
+// word size is.
 var Uint = wordCodec{}
 
 type wordCodec struct{}
 
 func (wordCodec) Marshal(v uint, w wirefmt.Writer) (n int, err error) {
-	return putUnsigned(v, w)
+	return Uint64.Marshal(uint64(v), w)
 }
 
 func (wordCodec) Unmarshal(r wirefmt.Reader) (v uint, n int, err error) {
-	return getUnsigned[uint](binco.UintMaxVarintLen(), binco.UintMaxLastByte(), r)
+	uv, n, err := Uint64.Unmarshal(r)
+	if err != nil {
+		return
+	}
+	v = uint(uv)
+	if uint64(v) != uv {
+		return 0, n, binco.ErrOverflow
+	}
+	return
 }
 
-func (wordCodec) Size(v uint) int {
-	return unsignedLen(v)
+func (wordCodec) Size(v uint) (size int) {
+	return Uint64.Size(uint64(v))
 }
 
 func (wordCodec) Skip(r wirefmt.Reader) (n int, err error) {
-	return skipUnsigned(binco.UintMaxVarintLen(), binco.UintMaxLastByte(), r)
+	_, n, err = wordCodec{}.Unmarshal(r)
+	return
 }
