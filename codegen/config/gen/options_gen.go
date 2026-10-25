@@ -12,7 +12,7 @@ import (
 
 	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/codegen/typename"
-	"golang.org/x/mod/module"
+	"github.com/malivvan/binco/internal/modpath"
 )
 
 // ImportPath is a Go import path.
@@ -87,7 +87,7 @@ func WithPackage(str string) SetOption {
 // WithImport adds an import path to the generated file.
 func WithImport(importPath string) SetOption {
 	return func(o *Options) (err error) {
-		if err = module.CheckImportPath(importPath); err != nil {
+		if err = modpath.CheckImportPath(importPath); err != nil {
 			err = NewInvalidImportPathError(importPath)
 			return
 		}
@@ -99,7 +99,7 @@ func WithImport(importPath string) SetOption {
 // WithImportAlias adds an import path together with the alias used to refer to it.
 func WithImportAlias(importPath, alias string) SetOption {
 	return func(o *Options) (err error) {
-		if err = module.CheckImportPath(importPath); err != nil {
+		if err = modpath.CheckImportPath(importPath); err != nil {
 			err = NewInvalidImportPathError(importPath)
 			return
 		}

@@ -17,5 +17,11 @@
 // SchemaFingerprint constant, a hash of its field names and types that makes a
 // positional schema change visible.
 //
+// The generated import block is derived from the packages of the types the
+// generator resolved, then pruned of unused entries and gofmt-formatted. A
+// package that only appears inside a validator or migration expression has no
+// type to derive it from, so that one still has to be named with
+// genopts.WithImport.
+//
 // A Generator is not safe for concurrent use.
 package codegen

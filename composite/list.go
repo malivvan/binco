@@ -6,6 +6,7 @@ import (
 
 	"github.com/malivvan/binco"
 	slopts "github.com/malivvan/binco/config/slice"
+	"github.com/malivvan/binco/internal/fixedwidth"
 	"github.com/malivvan/binco/varnum"
 )
 
@@ -92,30 +93,12 @@ func (s checkedList[T]) Unmarshal(bs []byte) (v []T, n int, err error) {
 	return UnmarshalValidSlice(bs, s.ElemSerializer, s.LenSerializer, s.lenVl, s.elemVl)
 }
 
-// fixedWidth reports the width of the encoded element when the element
-// serializer writes raw little-endian values of exactly the size of T.
-//
-// It is what enables the bulk path below: one copy instead of one interface call
-// per element. A codec that does anything else with the value does not implement
-// binco.FixedWidth, and a host that is not little-endian falls back to the loop.
-func fixedWidth[T any](elemSerializer binco.Serializer[T]) (width int, ok bool) {
-	fixed, isFixed := elemSerializer.(binco.FixedWidth)
-	if !isFixed || !binco.HostLittleEndian {
-		return 0, false
-	}
-	width = fixed.FixedWidth()
-	if width <= 0 || int(unsafe.Sizeof(*new(T))) != width {
-		return 0, false
-	}
-	return width, true
-}
-
 // MarshalSlice writes v, prefixed by its length, into bs.
 func MarshalSlice[T any](v []T, elemSerializer binco.Serializer[T],
 	lenSerializer binco.Serializer[int], bs []byte,
 ) (n int) {
 	n = lenSerializer.Marshal(len(v), bs)
-	if width, ok := fixedWidth(elemSerializer); ok {
+	if width, ok := fixedwidth.Of[T](elemSerializer); ok {
 		if len(v) == 0 {
 			return n
 		}
@@ -151,7 +134,7 @@ func UnmarshalSlice[T any](bs []byte, elemSerializer binco.Serializer[T],
 		err = binco.ErrNegativeLength
 		return
 	}
-	if width, ok := fixedWidth(elemSerializer); ok {
+	if width, ok := fixedwidth.Of[T](elemSerializer); ok {
 		return unmarshalFixedSlice[T](bs, n, length, width)
 	}
 	// Elements take at least one byte each; allocating more than the input can
@@ -204,7 +187,7 @@ func SizeSlice[T any](v []T, elemSerializer binco.Serializer[T],
 ) (size int) {
 	length := len(v)
 	size = lenSerializer.Size(length)
-	if width, ok := fixedWidth(elemSerializer); ok && length <= math.MaxInt/width {
+	if width, ok := fixedwidth.Of[T](elemSerializer); ok && length <= math.MaxInt/width {
 		return size + length*width
 	}
 	for i := range length {
@@ -225,7 +208,7 @@ func SkipSlice[T any](bs []byte, elemSerializer binco.Serializer[T],
 		err = binco.ErrNegativeLength
 		return
 	}
-	if width, ok := fixedWidth(elemSerializer); ok {
+	if width, ok := fixedwidth.Of[T](elemSerializer); ok {
 		if err = binco.CheckLengthElem(bs, n, length, width); err != nil {
 			return n, err
 		}

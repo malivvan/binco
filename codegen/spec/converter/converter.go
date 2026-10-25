@@ -8,6 +8,7 @@ package converter
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -26,6 +27,37 @@ type TypeNameConverter struct {
 	knownPkgs map[typename.Package]typename.PkgPath
 	mu        *sync.Mutex
 	gopts     genopts.Options
+}
+
+// Import is a package the generated file has to import because a type it
+// serializes comes from it.
+type Import struct {
+	// Alias is the name generated code uses for the package.
+	Alias typename.Package
+	// Path is the import path of the package.
+	Path typename.PkgPath
+}
+
+// Imports returns the packages the converter has seen, excluding the package the
+// generated file belongs to, sorted by path.
+//
+// The generator uses it to write the imports the generated code needs: every
+// type name it resolved during the build came from one of these packages. Names
+// that no longer appear in the output are dropped by internal/importfix.
+func (c TypeNameConverter) Imports() []Import {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	imports := make([]Import, 0, len(c.knownPkgs))
+	for alias, path := range c.knownPkgs {
+		if path == c.gopts.PkgPath {
+			continue
+		}
+		imports = append(imports, Import{Alias: alias, Path: path})
+	}
+	sort.Slice(imports, func(i, j int) bool {
+		return imports[i].Path < imports[j].Path
+	})
+	return imports
 }
 
 // ConvertToRelativeName returns the name the generated file uses for fname.

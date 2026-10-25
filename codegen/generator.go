@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
-	"go/parser"
-	"go/token"
 	"io/fs"
+	"path"
 	"reflect"
+	"strconv"
 	"text/template"
 
 	"github.com/malivvan/binco"
@@ -21,7 +21,7 @@ import (
 	bldr "github.com/malivvan/binco/codegen/spec/builder"
 	cnvtr "github.com/malivvan/binco/codegen/spec/converter"
 	"github.com/malivvan/binco/codegen/typename"
-	"golang.org/x/tools/imports"
+	"github.com/malivvan/binco/internal/importfix"
 )
 
 // Generator collects the types to generate code for and renders the result.
@@ -39,15 +39,6 @@ type Generator struct {
 	dtmIDs       map[string]binco.DTM
 	resolvedDTMs map[string]binco.DTM
 	opts         genops.Options
-}
-
-func (g *Generator) checkSyntax(scratch []byte) (err error) {
-	var (
-		fs  = token.NewFileSet()
-		src = string(scratch)
-	)
-	_, err = parser.ParseFile(fs, "", src, parser.AllErrors)
-	return
 }
 
 func (g *Generator) isForeign(t reflect.Type) bool {
@@ -133,7 +124,11 @@ func (g *Generator) renderAll(buf *bytes.Buffer) (err error) {
 	if err = g.rootTmpl.ExecuteTemplate(buf, packageTmpl, g.opts); err != nil {
 		return fmt.Errorf("package: %w", err)
 	}
-	if err = g.rootTmpl.ExecuteTemplate(buf, importsTmpl, g.opts); err != nil {
+	// The import block starts as the caller's imports plus everything the
+	// templates can name; internal/importfix drops what the output does not use.
+	importOpts := g.opts
+	importOpts.Imports = g.templateImports()
+	if err = g.rootTmpl.ExecuteTemplate(buf, importsTmpl, importOpts); err != nil {
 		return fmt.Errorf("imports: %w", err)
 	}
 	groups, err := g.resolveDTMs()
@@ -187,14 +182,29 @@ func (g *Generator) Generate() (scratch []byte, err error) {
 		return nil, fmt.Errorf("%w: %w", ErrCodeGenFailed, err)
 	}
 	tmp := buf.Bytes()
-	scratch, err = imports.Process("", tmp, nil)
+	scratch, err = importfix.Process(tmp)
 	if err != nil {
 		return tmp, fmt.Errorf("%w: %v", ErrCodeGenFailed, err)
 	}
-	if err = g.checkSyntax(scratch); err != nil {
-		return tmp, fmt.Errorf("%w: %v", ErrCodeGenFailed, err)
-	}
 	return scratch, nil
+}
+
+// templateImports returns the import lines for the imports template: the ones
+// the caller configured plus the packages of every type the generator resolved.
+//
+// A package whose name differs from the last element of its path, as with the
+// /vN suffix of a major version, is imported under its package name explicitly.
+func (g *Generator) templateImports() []string {
+	imports := append([]string(nil), g.opts.Imports...)
+	for _, imp := range g.converter.Imports() {
+		quoted := strconv.Quote(string(imp.Path))
+		if imp.Alias == "" || string(imp.Alias) == path.Base(string(imp.Path)) {
+			imports = append(imports, quoted)
+			continue
+		}
+		imports = append(imports, string(imp.Alias)+" "+quoted)
+	}
+	return imports
 }
 
 func (g *Generator) addDTM(entries []dtmEntry) {

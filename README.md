@@ -185,9 +185,11 @@ described in [The wire format](#5-the-wire-format) is frozen for the v1 series.
 Release notes live in [CHANGELOG.md](./CHANGELOG.md).
 
 * Go 1.27.3 or newer.
-* The core packages have **no dependencies**.
-* Only the generator (`binco/codegen`) depends on `golang.org/x/tools` and
-  `golang.org/x/mod`.
+* The module has **no third-party dependencies**: `go.mod` requires nothing, and
+  there is no `go.sum` or `vendor` directory. The few helpers the generator needs
+  from `golang.org/x/tools` and `golang.org/x/mod` live in `internal/` as a small
+  local implementation (see
+  [How the code is organized](#17-how-the-code-is-organized)).
 
 Add the import you need:
 
@@ -2954,9 +2956,12 @@ g, _ := codegen.NewGenerator(
 Generated references then use `serializers.CustomBarBinco`.
 
 To generate a serializer **for** a type from another package, point
-`WithPath` at the destination and add the type as usual. Add `WithImport`
-when the generated file needs an import the analysis cannot infer (a package
-that only appears inside a validator expression, for example).
+`WithPath` at the destination and add the type as usual. The generated import
+block is built from the packages of every type the generator resolved, so a
+`time.Time` field or a type from another package imports itself. Add
+`WithImport` or `WithImportAlias` for a package that appears only inside a
+validator or migration expression, since no type refers to it. Unused imports are
+pruned and the result is gofmt-formatted.
 
 ### 9.9 Streaming mode
 
@@ -3305,11 +3310,10 @@ concern, not by Go type, so a change usually touches one file:
 
 | File | Contents |
 |------|----------|
-| `codec.go` | the `Serializer` contract and its helpers, or the smallest codecs of a package |
-| `numbers.go`, `scalar.go` | numeric and boolean codecs, and the host-word-size dispatch |
-| `integer.go`, `memory.go` | byte-level packing and unpacking, little-endian |
+| `codec.go` | the `Serializer` contract, `Encode`/`Decode`, `DecodeExact`, append helpers, or the smallest codecs of a package |
+| `numbers.go`, `scalar.go` | numeric and boolean codecs |
+| `integer.go`, `memory.go` | thin wrappers over `internal/le` / `internal/lew` |
 | `fixed.go`, `length.go` | `FixedWidth` (bulk slice path), overflow-safe length checks |
-| `codec.go` | interfaces, `Encode`/`Decode`, `DecodeExact`, append helpers |
 | `blobs.go`, `text.go` | length-prefixed payloads: strings and byte slices |
 | `list.go`, `dict.go` | slices and maps |
 | `time.go` | timestamp codecs |
@@ -3337,6 +3341,20 @@ The streaming tree mirrors the buffer tree file for file:
 | `binco/ptrmap` | `binco/wirefmt/ptrmap` |
 | `binco/typeid` | `binco/wirefmt/typeid` |
 | `binco/config/*` | `binco/wirefmt/config/*` |
+
+### Internal helpers
+
+`internal/` holds the code that would otherwise be duplicated between the two
+trees, plus the two small replacements for the former dependencies. Nothing there
+is public API.
+
+| Package | Purpose | Replaces |
+|---------|---------|----------|
+| `internal/le`, `internal/lew` | little-endian fixed-width coding, in memory and on a stream | duplicated `scalar`/`zerocpy` helpers |
+| `internal/fixedwidth` | decides when a slice can be copied in bulk | duplicated slice fast-path check |
+| `internal/wireio` | reads and skips a fixed number of stream bytes | duplicated blob helpers |
+| `internal/importfix` | prunes unused imports and formats generated source | `golang.org/x/tools/imports` |
+| `internal/modpath` | validates module and import paths | `golang.org/x/mod/module` |
 
 ## License
 

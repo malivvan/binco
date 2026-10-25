@@ -4,7 +4,7 @@ import (
 	"go/token"
 	"path/filepath"
 
-	"golang.org/x/mod/module"
+	"github.com/malivvan/binco/internal/modpath"
 )
 
 // Package is a Go package name.
@@ -29,7 +29,7 @@ func (p PkgPath) Base() string {
 
 // StrToPkgPath checks that str is a valid import path.
 func StrToPkgPath(str string) (path PkgPath, err error) {
-	if err = module.CheckPath(str); err != nil {
+	if err = modpath.CheckPath(str); err != nil {
 		err = NewInvalidPkgPathError(str)
 		return
 	}

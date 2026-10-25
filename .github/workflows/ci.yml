@@ -28,6 +28,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: go.mod
 
       - name: Check formatting
         shell: bash
@@ -86,6 +87,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: go.mod
 
       - name: Test
         run: go test ./...
@@ -102,6 +104,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: go.mod
 
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
@@ -184,6 +187,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: go.mod
 
       # A push gets a quick smoke run; the nightly schedule runs long enough to
       # explore new inputs.

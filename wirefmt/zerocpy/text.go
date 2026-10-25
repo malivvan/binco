@@ -1,10 +1,8 @@
 package zerocpy
 
 import (
-	"bytes"
-	"io"
-
 	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/internal/wireio"
 	"github.com/malivvan/binco/wirefmt"
 	"github.com/malivvan/binco/wirefmt/composite"
 	stropts "github.com/malivvan/binco/wirefmt/config/string"
@@ -61,7 +59,7 @@ func (s textView) Unmarshal(r wirefmt.Reader) (v string, n int, err error) {
 	}
 	var n1 int
 	var body []byte
-	body, n1, err = readFixed(r, length)
+	body, n1, err = wireio.ReadFixed(r, length)
 	n += n1
 	if err != nil {
 		return
@@ -97,32 +95,10 @@ func (s checkedText) Unmarshal(r wirefmt.Reader) (v string, n int, err error) {
 	}
 	var n1 int
 	var body []byte
-	body, n1, err = readFixed(r, length)
+	body, n1, err = wireio.ReadFixed(r, length)
 	n += n1
 	if err != nil {
 		return
 	}
 	return string(body), n, nil
-}
-
-// readFixed reads exactly length bytes from r.
-//
-// The buffer grows with the bytes that arrive rather than being allocated from
-// the declared length, so an announced length that the stream never delivers
-// costs nothing. A truncation is io.ErrUnexpectedEOF, because the value has
-// already started.
-func readFixed(r wirefmt.Reader, length int) (body []byte, n int, err error) {
-	if length == 0 {
-		return []byte{}, 0, nil
-	}
-	var buf bytes.Buffer
-	var n1 int64
-	n1, err = io.CopyN(&buf, r, int64(length))
-	if err != nil {
-		if err == io.EOF {
-			err = io.ErrUnexpectedEOF
-		}
-		return nil, int(n1), err
-	}
-	return buf.Bytes(), int(n1), nil
 }

@@ -1,10 +1,8 @@
 package composite
 
 import (
-	"bytes"
-	"io"
-
 	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/internal/wireio"
 	"github.com/malivvan/binco/wirefmt"
 	bslopts "github.com/malivvan/binco/wirefmt/config/byte_slice"
 	stropts "github.com/malivvan/binco/wirefmt/config/string"
@@ -62,7 +60,7 @@ func (s textCodec) Unmarshal(r wirefmt.Reader) (v string, n int, err error) {
 	}
 	var n1 int
 	var body []byte
-	body, n1, err = readFixed(r, length)
+	body, n1, err = wireio.ReadFixed(r, length)
 	n += n1
 	if err != nil {
 		return
@@ -98,49 +96,12 @@ func (s checkedText) Unmarshal(r wirefmt.Reader) (v string, n int, err error) {
 	}
 	var n1 int
 	var body []byte
-	body, n1, err = readFixed(r, length)
+	body, n1, err = wireio.ReadFixed(r, length)
 	n += n1
 	if err != nil {
 		return
 	}
 	return string(body), n, nil
-}
-
-// readFixed reads exactly length bytes from r.
-//
-// The result grows as the bytes arrive instead of being allocated from the
-// declared length, so a stream that announces one gigabyte and then ends after
-// five bytes costs five bytes and not one gigabyte. A truncation is reported as
-// io.ErrUnexpectedEOF: the value has already started, so the stream did not end
-// cleanly between two values.
-func readFixed(r wirefmt.Reader, length int) (body []byte, n int, err error) {
-	if length == 0 {
-		return []byte{}, 0, nil
-	}
-	var buf bytes.Buffer
-	var n1 int64
-	n1, err = io.CopyN(&buf, r, int64(length))
-	if err != nil {
-		if err == io.EOF {
-			err = io.ErrUnexpectedEOF
-		}
-		return nil, int(n1), err
-	}
-	return buf.Bytes(), int(n1), nil
-}
-
-// discardFixed skips exactly length bytes, reporting a truncation as
-// io.ErrUnexpectedEOF.
-func discardFixed(r wirefmt.Reader, length int) (n int, err error) {
-	if length == 0 {
-		return 0, nil
-	}
-	var n1 int64
-	n1, err = io.CopyN(io.Discard, r, int64(length))
-	if err != nil && err == io.EOF {
-		err = io.ErrUnexpectedEOF
-	}
-	return int(n1), err
 }
 
 // MarshalString writes v, prefixed by its length, to w.
@@ -171,7 +132,7 @@ func SkipString(r wirefmt.Reader, lenSerializer wirefmt.Serializer[int]) (n int,
 		return n, binco.ErrNegativeLength
 	}
 	var n1 int
-	n1, err = discardFixed(r, length)
+	n1, err = wireio.DiscardFixed(r, length)
 	n += n1
 	return
 }
@@ -234,7 +195,7 @@ func (s blobCodec) Unmarshal(r wirefmt.Reader) (v []byte, n int, err error) {
 		return nil, n, binco.ErrNegativeLength
 	}
 	var n1 int
-	v, n1, err = readFixed(r, length)
+	v, n1, err = wireio.ReadFixed(r, length)
 	n += n1
 	return
 }
@@ -253,7 +214,7 @@ func (s blobCodec) Skip(r wirefmt.Reader) (n int, err error) {
 		return n, binco.ErrNegativeLength
 	}
 	var n1 int
-	n1, err = discardFixed(r, length)
+	n1, err = wireio.DiscardFixed(r, length)
 	n += n1
 	return
 }
@@ -277,7 +238,7 @@ func (s checkedBlob) Unmarshal(r wirefmt.Reader) (v []byte, n int, err error) {
 		}
 	}
 	var n1 int
-	v, n1, err = readFixed(r, length)
+	v, n1, err = wireio.ReadFixed(r, length)
 	n += n1
 	return
 }

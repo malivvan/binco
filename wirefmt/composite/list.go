@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/internal/fixedwidth"
 	"github.com/malivvan/binco/wirefmt"
 	slopts "github.com/malivvan/binco/wirefmt/config/slice"
 	"github.com/malivvan/binco/wirefmt/varnum"
@@ -95,20 +96,6 @@ func (s checkedList[T]) Unmarshal(r wirefmt.Reader) (v []T, n int, err error) {
 	return UnmarshalValidSlice(s.elemSerializer, s.lenSerializer, s.lenVl, s.elemVl, r)
 }
 
-// fixedWidth reports the width of the encoded element when the element
-// serializer writes raw little-endian values of exactly the size of T.
-func fixedWidth[T any](elemSerializer wirefmt.Serializer[T]) (width int, ok bool) {
-	fixed, isFixed := elemSerializer.(binco.FixedWidth)
-	if !isFixed || !binco.HostLittleEndian {
-		return 0, false
-	}
-	width = fixed.FixedWidth()
-	if width <= 0 || int(unsafe.Sizeof(*new(T))) != width {
-		return 0, false
-	}
-	return width, true
-}
-
 // rawBytes returns the memory of v as bytes, which is the wire form of a fixed
 // width little-endian element.
 func rawBytes[T any](v []T) []byte {
@@ -125,7 +112,7 @@ func MarshalSlice[T any](v []T, elemSerializer wirefmt.Serializer[T],
 	if err != nil {
 		return
 	}
-	if _, ok := fixedWidth(elemSerializer); ok {
+	if _, ok := fixedwidth.Of[T](elemSerializer); ok {
 		if len(v) == 0 {
 			return n, nil
 		}
@@ -159,7 +146,7 @@ func UnmarshalSlice[T any](elemSerializer wirefmt.Serializer[T],
 	if length < 0 {
 		return nil, n, binco.ErrNegativeLength
 	}
-	if width, ok := fixedWidth(elemSerializer); ok {
+	if width, ok := fixedwidth.Of[T](elemSerializer); ok {
 		return unmarshalFixedSlice[T](r, n, length, width)
 	}
 	v = make([]T, 0, hintLength(length))
@@ -237,7 +224,7 @@ func hintLength(length int) int {
 func SizeSlice[T any](v []T, elemSerializer wirefmt.Serializer[T],
 	lenSerializer wirefmt.Serializer[int]) (size int) {
 	size = lenSerializer.Size(len(v))
-	if width, ok := fixedWidth(elemSerializer); ok && len(v) <= math.MaxInt/width {
+	if width, ok := fixedwidth.Of[T](elemSerializer); ok && len(v) <= math.MaxInt/width {
 		return size + len(v)*width
 	}
 	for i := range v {
@@ -256,7 +243,7 @@ func SkipSlice[T any](elemSerializer wirefmt.Serializer[T],
 	if length < 0 {
 		return n, binco.ErrNegativeLength
 	}
-	if width, ok := fixedWidth(elemSerializer); ok {
+	if width, ok := fixedwidth.Of[T](elemSerializer); ok {
 		if width > 0 && length > math.MaxInt/width {
 			return n, binco.ErrTooLargeLength
 		}
@@ -302,7 +289,7 @@ func UnmarshalValidSlice[T any](elemSerializer wirefmt.Serializer[T],
 		}
 	}
 	if elemVl == nil {
-		if width, ok := fixedWidth(elemSerializer); ok {
+		if width, ok := fixedwidth.Of[T](elemSerializer); ok {
 			return unmarshalFixedSlice[T](r, n, length, width)
 		}
 	}

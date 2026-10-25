@@ -57,6 +57,17 @@ noted.
 
 ### Changed
 
+- The module has no third-party dependencies. `go.mod` requires nothing, and
+  `go.sum` and the `vendor/` tree are gone.
+- The generator no longer uses `golang.org/x/tools/imports`. Its import block is
+  built from the packages of the types it resolved, pruned of unused entries and
+  formatted locally (`internal/importfix`). Path validation moved to
+  `internal/modpath` instead of `golang.org/x/mod`. A package referenced only
+  inside a validator or migration expression now needs `genopts.WithImport`.
+- Little-endian coding, the bulk fixed-width check and the streaming
+  fixed-length read now have one implementation each (`internal/le`,
+  `internal/lew`, `internal/fixedwidth`, `internal/wireio`) instead of one per
+  package.
 - `int` and `uint` are encoded as 64 bits on every architecture; a value the host
   cannot hold is `ErrOverflow`.
 - Time codecs always decode to UTC; `TimeUnix*` no longer returns a local time.

@@ -331,18 +331,20 @@ func TestGeneratedCodeCompilesAndRuns(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	goSum, err := os.ReadFile(filepath.Join(repoRoot, "go.sum"))
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
 	gomod := "module fixture\n\ngo " + moduleGoVersion(t, repoRoot) + "\n\n" +
 		"require github.com/malivvan/binco v0.0.0\n\n" +
 		"replace github.com/malivvan/binco => " + repoRoot + "\n"
 	if err = os.WriteFile(filepath.Join(dir, "go.mod"), []byte(gomod), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if err = os.WriteFile(filepath.Join(dir, "go.sum"), goSum, 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
+	// The module has no third-party dependencies, so a go.sum only exists if
+	// something added one; copy it when it is there.
+	if goSum, readErr := os.ReadFile(filepath.Join(repoRoot, "go.sum")); readErr == nil {
+		if err = os.WriteFile(filepath.Join(dir, "go.sum"), goSum, 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+	} else if !os.IsNotExist(readErr) {
+		t.Fatalf("ReadFile: %v", readErr)
 	}
 	program := `package main
 
