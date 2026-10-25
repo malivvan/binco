@@ -1,4 +1,4 @@
-package zerocpy_test
+package zerocopy_test
 
 import (
 	"bytes"
@@ -16,8 +16,8 @@ import (
 	sstropts "github.com/malivvan/binco/wirefmt/config/string"
 	wscalar "github.com/malivvan/binco/wirefmt/scalar"
 	wvarnum "github.com/malivvan/binco/wirefmt/varnum"
-	snative "github.com/malivvan/binco/wirefmt/zerocpy"
-	"github.com/malivvan/binco/zerocpy"
+	snative "github.com/malivvan/binco/wirefmt/zerocopy"
+	"github.com/malivvan/binco/zerocopy"
 )
 
 func encodeStream[T any](t *testing.T, s wirefmt.Serializer[T], v T) []byte {
@@ -41,25 +41,25 @@ func TestParity(t *testing.T) {
 		stream []byte
 		buffer []byte
 	}{
-		{"bool", encodeStream(t, snative.Bool, true), binco.Encode(zerocpy.Bool, true)},
-		{"byte", encodeStream(t, snative.Byte, 255), binco.Encode(zerocpy.Byte, 255)},
-		{"uint8", encodeStream(t, snative.Uint8, 200), binco.Encode(zerocpy.Uint8, 200)},
-		{"uint16", encodeStream(t, snative.Uint16, math.MaxUint16), binco.Encode(zerocpy.Uint16, math.MaxUint16)},
-		{"uint32", encodeStream(t, snative.Uint32, math.MaxUint32), binco.Encode(zerocpy.Uint32, math.MaxUint32)},
-		{"uint64", encodeStream(t, snative.Uint64, math.MaxUint64), binco.Encode(zerocpy.Uint64, math.MaxUint64)},
-		{"uint", encodeStream(t, snative.Uint, 7), binco.Encode(zerocpy.Uint, 7)},
-		{"int8", encodeStream(t, snative.Int8, -128), binco.Encode(zerocpy.Int8, -128)},
-		{"int16", encodeStream(t, snative.Int16, -1), binco.Encode(zerocpy.Int16, -1)},
-		{"int32", encodeStream(t, snative.Int32, -1), binco.Encode(zerocpy.Int32, -1)},
-		{"int64", encodeStream(t, snative.Int64, math.MinInt64), binco.Encode(zerocpy.Int64, math.MinInt64)},
-		{"int", encodeStream(t, snative.Int, -7), binco.Encode(zerocpy.Int, -7)},
-		{"float64", encodeStream(t, snative.Float64, 1.5), binco.Encode(zerocpy.Float64, 1.5)},
-		{"float32", encodeStream(t, snative.Float32, 1.5), binco.Encode(zerocpy.Float32, 1.5)},
-		{"string", encodeStream(t, snative.String, "hello"), binco.Encode(zerocpy.String, "hello")},
-		{"time", encodeStream(t, snative.TimeUnixUTC, ts), binco.Encode(zerocpy.TimeUnixUTC, ts)},
-		{"time milli", encodeStream(t, snative.TimeUnixMilliUTC, ts), binco.Encode(zerocpy.TimeUnixMilliUTC, ts)},
-		{"time micro", encodeStream(t, snative.TimeUnixMicroUTC, ts), binco.Encode(zerocpy.TimeUnixMicroUTC, ts)},
-		{"time nano", encodeStream(t, snative.TimeUnixNanoUTC, ts), binco.Encode(zerocpy.TimeUnixNanoUTC, ts)},
+		{"bool", encodeStream(t, snative.Bool, true), binco.Encode(zerocopy.Bool, true)},
+		{"byte", encodeStream(t, snative.Byte, 255), binco.Encode(zerocopy.Byte, 255)},
+		{"uint8", encodeStream(t, snative.Uint8, 200), binco.Encode(zerocopy.Uint8, 200)},
+		{"uint16", encodeStream(t, snative.Uint16, math.MaxUint16), binco.Encode(zerocopy.Uint16, math.MaxUint16)},
+		{"uint32", encodeStream(t, snative.Uint32, math.MaxUint32), binco.Encode(zerocopy.Uint32, math.MaxUint32)},
+		{"uint64", encodeStream(t, snative.Uint64, math.MaxUint64), binco.Encode(zerocopy.Uint64, math.MaxUint64)},
+		{"uint", encodeStream(t, snative.Uint, 7), binco.Encode(zerocopy.Uint, 7)},
+		{"int8", encodeStream(t, snative.Int8, -128), binco.Encode(zerocopy.Int8, -128)},
+		{"int16", encodeStream(t, snative.Int16, -1), binco.Encode(zerocopy.Int16, -1)},
+		{"int32", encodeStream(t, snative.Int32, -1), binco.Encode(zerocopy.Int32, -1)},
+		{"int64", encodeStream(t, snative.Int64, math.MinInt64), binco.Encode(zerocopy.Int64, math.MinInt64)},
+		{"int", encodeStream(t, snative.Int, -7), binco.Encode(zerocopy.Int, -7)},
+		{"float64", encodeStream(t, snative.Float64, 1.5), binco.Encode(zerocopy.Float64, 1.5)},
+		{"float32", encodeStream(t, snative.Float32, 1.5), binco.Encode(zerocopy.Float32, 1.5)},
+		{"string", encodeStream(t, snative.String, "hello"), binco.Encode(zerocopy.String, "hello")},
+		{"time", encodeStream(t, snative.TimeUnixUTC, ts), binco.Encode(zerocopy.TimeUnixUTC, ts)},
+		{"time milli", encodeStream(t, snative.TimeUnixMilliUTC, ts), binco.Encode(zerocopy.TimeUnixMilliUTC, ts)},
+		{"time micro", encodeStream(t, snative.TimeUnixMicroUTC, ts), binco.Encode(zerocopy.TimeUnixMicroUTC, ts)},
+		{"time nano", encodeStream(t, snative.TimeUnixNanoUTC, ts), binco.Encode(zerocopy.TimeUnixNanoUTC, ts)},
 	}
 	for _, tc := range tests {
 		if !bytes.Equal(tc.stream, tc.buffer) {
@@ -121,7 +121,7 @@ func TestSameBytesAsRaw(t *testing.T) {
 	if a, b := encodeStream(t, snative.TimeUnixNano, ts), encodeStream(t, wscalar.TimeUnixNano, ts); !bytes.Equal(a, b) {
 		t.Fatalf("time nano: %v != %v", a, b)
 	}
-	if a, b := binco.Encode(zerocpy.Float64, 2.5), binco.Encode(scalar.Float64, 2.5); !bytes.Equal(a, b) {
+	if a, b := binco.Encode(zerocopy.Float64, 2.5), binco.Encode(scalar.Float64, 2.5); !bytes.Equal(a, b) {
 		t.Fatalf("float64: %v != %v", a, b)
 	}
 }
@@ -146,36 +146,36 @@ func checkScalarStream[T comparable](t *testing.T, name string,
 }
 
 func TestAllScalars(t *testing.T) {
-	checkScalarStream(t, "byte", snative.Byte, zerocpy.Byte, []byte{0, 1, 255})
-	checkScalarStream(t, "uint8", snative.Uint8, zerocpy.Uint8, []uint8{0, 1, 255})
-	checkScalarStream(t, "uint16", snative.Uint16, zerocpy.Uint16,
+	checkScalarStream(t, "byte", snative.Byte, zerocopy.Byte, []byte{0, 1, 255})
+	checkScalarStream(t, "uint8", snative.Uint8, zerocopy.Uint8, []uint8{0, 1, 255})
+	checkScalarStream(t, "uint16", snative.Uint16, zerocopy.Uint16,
 		[]uint16{0, 1, math.MaxUint16})
-	checkScalarStream(t, "uint32", snative.Uint32, zerocpy.Uint32,
+	checkScalarStream(t, "uint32", snative.Uint32, zerocopy.Uint32,
 		[]uint32{0, 1, math.MaxUint32})
-	checkScalarStream(t, "uint64", snative.Uint64, zerocpy.Uint64,
+	checkScalarStream(t, "uint64", snative.Uint64, zerocopy.Uint64,
 		[]uint64{0, 1, math.MaxUint64})
-	checkScalarStream(t, "uint", snative.Uint, zerocpy.Uint, []uint{0, 1, math.MaxUint})
-	checkScalarStream(t, "int8", snative.Int8, zerocpy.Int8,
+	checkScalarStream(t, "uint", snative.Uint, zerocopy.Uint, []uint{0, 1, math.MaxUint})
+	checkScalarStream(t, "int8", snative.Int8, zerocopy.Int8,
 		[]int8{math.MinInt8, -1, 0, math.MaxInt8})
-	checkScalarStream(t, "int16", snative.Int16, zerocpy.Int16,
+	checkScalarStream(t, "int16", snative.Int16, zerocopy.Int16,
 		[]int16{math.MinInt16, -1, math.MaxInt16})
-	checkScalarStream(t, "int32", snative.Int32, zerocpy.Int32,
+	checkScalarStream(t, "int32", snative.Int32, zerocopy.Int32,
 		[]int32{math.MinInt32, -1, math.MaxInt32})
-	checkScalarStream(t, "int64", snative.Int64, zerocpy.Int64,
+	checkScalarStream(t, "int64", snative.Int64, zerocopy.Int64,
 		[]int64{math.MinInt64, -1, math.MaxInt64})
-	checkScalarStream(t, "int", snative.Int, zerocpy.Int,
+	checkScalarStream(t, "int", snative.Int, zerocopy.Int,
 		[]int{math.MinInt, -1, 0, math.MaxInt})
-	checkScalarStream(t, "float32", snative.Float32, zerocpy.Float32,
+	checkScalarStream(t, "float32", snative.Float32, zerocopy.Float32,
 		[]float32{0, 1.5, -1.5, math.MaxFloat32})
-	checkScalarStream(t, "float64", snative.Float64, zerocpy.Float64,
+	checkScalarStream(t, "float64", snative.Float64, zerocopy.Float64,
 		[]float64{0, 1.5, -1.5, math.MaxFloat64, math.SmallestNonzeroFloat64})
-	checkScalarStream(t, "bool", snative.Bool, zerocpy.Bool, []bool{true, false})
+	checkScalarStream(t, "bool", snative.Bool, zerocopy.Bool, []bool{true, false})
 }
 
 func TestStringSerializers(t *testing.T) {
 	for _, v := range []string{"", "a", "hello world", "héllo"} {
 		bs := encodeStream(t, snative.String, v)
-		if want := binco.Encode(zerocpy.String, v); !bytes.Equal(bs, want) {
+		if want := binco.Encode(zerocopy.String, v); !bytes.Equal(bs, want) {
 			t.Fatalf("Marshal(%q) = %v, want %v", v, bs, want)
 		}
 		got, n, err := snative.String.Unmarshal(wirefmt.NewReader(bytes.NewReader(bs)))
@@ -191,7 +191,7 @@ func TestStringSerializers(t *testing.T) {
 	}
 
 	wantErr := errors.New("too long")
-	valid := snative.NewValidStringSerializer(
+	valid := snative.NewStringSerializer(
 		sstropts.WithLenValidator(binco.ValidatorFn[int](func(n int) error {
 			if n > 2 {
 				return wantErr
@@ -231,14 +231,14 @@ func TestTimeAllUnits(t *testing.T) {
 		stream wirefmt.Serializer[time.Time]
 		buffer binco.Serializer[time.Time]
 	}{
-		{"unix", snative.TimeUnix, zerocpy.TimeUnix},
-		{"unix milli", snative.TimeUnixMilli, zerocpy.TimeUnixMilli},
-		{"unix micro", snative.TimeUnixMicro, zerocpy.TimeUnixMicro},
-		{"unix nano", snative.TimeUnixNano, zerocpy.TimeUnixNano},
-		{"unix utc", snative.TimeUnixUTC, zerocpy.TimeUnixUTC},
-		{"unix milli utc", snative.TimeUnixMilliUTC, zerocpy.TimeUnixMilliUTC},
-		{"unix micro utc", snative.TimeUnixMicroUTC, zerocpy.TimeUnixMicroUTC},
-		{"unix nano utc", snative.TimeUnixNanoUTC, zerocpy.TimeUnixNanoUTC},
+		{"unix", snative.TimeUnix, zerocopy.TimeUnix},
+		{"unix milli", snative.TimeUnixMilli, zerocopy.TimeUnixMilli},
+		{"unix micro", snative.TimeUnixMicro, zerocopy.TimeUnixMicro},
+		{"unix nano", snative.TimeUnixNano, zerocopy.TimeUnixNano},
+		{"unix utc", snative.TimeUnixUTC, zerocopy.TimeUnixUTC},
+		{"unix milli utc", snative.TimeUnixMilliUTC, zerocopy.TimeUnixMilliUTC},
+		{"unix micro utc", snative.TimeUnixMicroUTC, zerocopy.TimeUnixMicroUTC},
+		{"unix nano utc", snative.TimeUnixNanoUTC, zerocopy.TimeUnixNanoUTC},
 	}
 	values := []time.Time{
 		sec,
@@ -282,7 +282,7 @@ func TestTimeAllUnits(t *testing.T) {
 
 func TestValidArray(t *testing.T) {
 	wantErr := errors.New("elem")
-	serializer := snative.NewValidArraySerializer[[2]int, int](wvarnum.Int,
+	serializer := snative.NewArraySerializer[[2]int, int](wvarnum.Int,
 		sarropts.WithElemValidator[int](binco.ValidatorFn[int](func(v int) error {
 			if v < 0 {
 				return wantErr
@@ -298,7 +298,7 @@ func TestValidArray(t *testing.T) {
 		t.Fatalf("Unmarshal = (%v, %v)", got, err)
 	}
 
-	rawLen := snative.NewValidArraySerializer[[2]int, int](wvarnum.Int,
+	rawLen := snative.NewArraySerializer[[2]int, int](wvarnum.Int,
 		sarropts.WithLenSerializer[int](wscalar.Int))
 	bs := encodeStream(t, rawLen, [2]int{1, 2})
 	if len(bs) != 10 || bs[0] != 2 {
@@ -428,7 +428,7 @@ func TestWriterErrors(t *testing.T) {
 }
 
 func TestValidStringErrors(t *testing.T) {
-	valid := snative.NewValidStringSerializer()
+	valid := snative.NewStringSerializer()
 	reader := func(bs ...byte) wirefmt.Reader {
 		return wirefmt.NewReader(bytes.NewReader(bs))
 	}
@@ -442,7 +442,7 @@ func TestValidStringErrors(t *testing.T) {
 		t.Fatalf("Unmarshal of a truncated string returned %v", err)
 	}
 
-	if _, _, err = snative.NewValidStringSerializer(
+	if _, _, err = snative.NewStringSerializer(
 		sstropts.WithLenSerializer(negativeLenSerializer{})).Unmarshal(reader(0)); err != binco.ErrNegativeLength {
 		t.Fatalf("Unmarshal returned %v, want ErrNegativeLength", err)
 	}

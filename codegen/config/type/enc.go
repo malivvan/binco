@@ -16,6 +16,7 @@ const (
 // NumEncoding selects how a number is written.
 type NumEncoding int
 
+// Package names the codec package a number encoding lives in.
 func (e NumEncoding) Package() (pkg string) {
 	switch e {
 	case NumEncodingUndefined, NumEncodingVarint, NumEncodingVarintPositive:
@@ -27,6 +28,7 @@ func (e NumEncoding) Package() (pkg string) {
 	}
 }
 
+// LenSerializer names the codec a length of this encoding uses.
 func (e NumEncoding) LenSerializer() string {
 	switch e {
 	case NumEncodingUndefined, NumEncodingVarintPositive:

@@ -26,6 +26,7 @@ const (
 // TimeUnit selects the unit and the UTC handling of a timestamp.
 type TimeUnit int
 
+// Serializer names the time codec of the unit.
 func (u TimeUnit) Serializer() string {
 	switch u {
 	case TimeUnitSec:

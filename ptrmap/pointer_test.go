@@ -135,10 +135,10 @@ func TestCyclicGraph(t *testing.T) {
 
 func TestPtrErrors(t *testing.T) {
 	serializer := ptrmap.NewPtrSerializer(binco.NewPtrMap(), binco.NewReversePtrMap(), varnum.Int)
-	if _, _, err := serializer.Unmarshal(nil); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := serializer.Unmarshal(nil); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal(nil) returned %v", err)
 	}
-	if _, err := serializer.Skip(nil); err != binco.ErrTooSmallByteSlice {
+	if _, err := serializer.Skip(nil); err != binco.ErrTruncated {
 		t.Fatalf("Skip(nil) returned %v", err)
 	}
 	for _, bs := range [][]byte{{byte(binco.PtrNotNil), 0}, {3, 0}} {
@@ -150,7 +150,7 @@ func TestPtrErrors(t *testing.T) {
 		}
 	}
 
-	if _, _, err := serializer.Unmarshal([]byte{byte(binco.PtrMapping), 0x80}); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := serializer.Unmarshal([]byte{byte(binco.PtrMapping), 0x80}); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal of a truncated id returned %v", err)
 	}
 }

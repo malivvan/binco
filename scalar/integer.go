@@ -6,7 +6,7 @@ import (
 )
 
 // The fixed-width codecs delegate the byte-level work to internal/le, which
-// package zerocpy shares. The encoding is little-endian on every host.
+// package zerocopy shares. The encoding is little-endian on every host.
 
 // putLE64 writes t as eight little-endian bytes.
 func putLE64[T binco.Integer64](t T, bs []byte) int { return le.Put64(bs, t) }

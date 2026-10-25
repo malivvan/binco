@@ -7,7 +7,7 @@ import (
 )
 
 // The fixed-width codecs delegate the byte-level work to internal/lew, which
-// package wirefmt/zerocpy shares. Each value is assembled in a local buffer and
+// package wirefmt/zerocopy shares. Each value is assembled in a local buffer and
 // written with one call, or read with one io.ReadFull.
 
 // writeLE64 writes a 64-bit value in little-endian order.

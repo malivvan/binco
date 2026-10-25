@@ -105,6 +105,7 @@ func (s Scanner[T]) scan(name T, position Position) (err error) {
 	return NewUnsupportedQualifiedNameError(name)
 }
 
+// Scan walks the name and reports every type it contains.
 func (s Scanner[T]) Scan(name T) error {
 	return s.scan(name, 0)
 }

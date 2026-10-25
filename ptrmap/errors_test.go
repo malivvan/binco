@@ -21,7 +21,7 @@ func TestPointerCodecErrors(t *testing.T) {
 		{"unmarshal empty", func() error {
 			_, _, err := newSerializer().Unmarshal(nil)
 			return err
-		}, binco.ErrTooSmallByteSlice},
+		}, binco.ErrTruncated},
 		{"unmarshal unknown flag", func() error {
 			_, _, err := newSerializer().Unmarshal([]byte{0xFF})
 			return err
@@ -29,15 +29,15 @@ func TestPointerCodecErrors(t *testing.T) {
 		{"unmarshal truncated id", func() error {
 			_, _, err := newSerializer().Unmarshal([]byte{byte(binco.PtrMapping)})
 			return err
-		}, binco.ErrTooSmallByteSlice},
+		}, binco.ErrTruncated},
 		{"unmarshal truncated data", func() error {
 			_, _, err := newSerializer().Unmarshal([]byte{byte(binco.PtrMapping), 0})
 			return err
-		}, binco.ErrTooSmallByteSlice},
+		}, binco.ErrTruncated},
 		{"skip empty", func() error {
 			_, err := newSerializer().Skip(nil)
 			return err
-		}, binco.ErrTooSmallByteSlice},
+		}, binco.ErrTruncated},
 		{"skip unknown flag", func() error {
 			_, err := newSerializer().Skip([]byte{0xFF})
 			return err
@@ -45,11 +45,11 @@ func TestPointerCodecErrors(t *testing.T) {
 		{"skip truncated id", func() error {
 			_, err := newSerializer().Skip([]byte{byte(binco.PtrMapping)})
 			return err
-		}, binco.ErrTooSmallByteSlice},
+		}, binco.ErrTruncated},
 		{"skip truncated data", func() error {
 			_, err := newSerializer().Skip([]byte{byte(binco.PtrMapping), 0})
 			return err
-		}, binco.ErrTooSmallByteSlice},
+		}, binco.ErrTruncated},
 	}
 
 	for _, tc := range tests {

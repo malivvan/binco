@@ -16,6 +16,7 @@ type TmplFns struct {
 	tmpl *template.Template
 }
 
+// ModImportName is the package name of the API a template targets: binco or wirefmt.
 func (f TmplFns) ModImportName(opts genopts.Options) string {
 	if opts.Stream {
 		return "wirefmt"
@@ -23,6 +24,7 @@ func (f TmplFns) ModImportName(opts genopts.Options) string {
 	return "binco"
 }
 
+// SkipLastParam is the argument a Skip call passes on.
 func (f TmplFns) SkipLastParam(opts genopts.Options) string {
 	if opts.Stream {
 		return "r"
@@ -30,6 +32,7 @@ func (f TmplFns) SkipLastParam(opts genopts.Options) string {
 	return "bs[n:]"
 }
 
+// SkipSignatureLastParam is the last parameter of a Skip signature.
 func (f TmplFns) SkipSignatureLastParam(opts genopts.Options) string {
 	if opts.Stream {
 		return "r wirefmt.Reader"
@@ -37,6 +40,7 @@ func (f TmplFns) SkipSignatureLastParam(opts genopts.Options) string {
 	return "bs []byte"
 }
 
+// UnmarshalLastParam is the argument an Unmarshal call passes on.
 func (f TmplFns) UnmarshalLastParam(first bool, opts genopts.Options) string {
 	if opts.Stream {
 		return "r"
@@ -47,6 +51,7 @@ func (f TmplFns) UnmarshalLastParam(first bool, opts genopts.Options) string {
 	return "bs[n:]"
 }
 
+// UnmarshalSignatureLastParam is the last parameter of an Unmarshal signature.
 func (f TmplFns) UnmarshalSignatureLastParam(opts genopts.Options) string {
 	if opts.Stream {
 		return "r wirefmt.Reader"
@@ -54,6 +59,7 @@ func (f TmplFns) UnmarshalSignatureLastParam(opts genopts.Options) string {
 	return "bs []byte"
 }
 
+// MarshalLastParam is the argument a Marshal call passes on.
 func (f TmplFns) MarshalLastParam(first bool, opts genopts.Options) string {
 	if opts.Stream {
 		return "w"
@@ -64,6 +70,7 @@ func (f TmplFns) MarshalLastParam(first bool, opts genopts.Options) string {
 	return "bs[n:]"
 }
 
+// MarshalSignatureLastParam is the last parameter of a Marshal signature.
 func (f TmplFns) MarshalSignatureLastParam(opts genopts.Options) string {
 	if opts.Stream {
 		return "w wirefmt.Writer"
@@ -71,6 +78,7 @@ func (f TmplFns) MarshalSignatureLastParam(opts genopts.Options) string {
 	return "bs []byte"
 }
 
+// Include renders another template into the current one.
 func (f TmplFns) Include(name string, pipeline any) (str string, err error) {
 	var buf bytes.Buffer
 	if err = f.tmpl.ExecuteTemplate(&buf, name, pipeline); err != nil {
@@ -80,19 +88,23 @@ func (f TmplFns) Include(name string, pipeline any) (str string, err error) {
 	return
 }
 
+// TimeSerializer is the name of the time codec a template should use.
 func (f TmplFns) TimeSerializer(topts tpopts.Options) string {
 	return topts.TimeUnit.Serializer()
 }
 
+// ByteSliceStream reports whether byte slices need the streaming codec.
 func (f TmplFns) ByteSliceStream(name typename.FullName,
 	gopts genopts.Options) bool {
 	return gopts.Stream && (name == "[]byte" || name == "[]uint8")
 }
 
+// Minus subtracts b from a, for templates that must compare indices.
 func (f TmplFns) Minus(a int, b int) int {
 	return a - b
 }
 
+// WithComma prefixes a non-empty option list with a comma and a space.
 func (f TmplFns) WithComma(str string) string {
 	if str == "" {
 		return str
@@ -100,10 +112,12 @@ func (f TmplFns) WithComma(str string) string {
 	return ", " + str
 }
 
+// ArrayType reports whether a type name is an array.
 func (f TmplFns) ArrayType(name typename.FullName) (ok bool) {
 	return arrayRe.MatchString(string(name))
 }
 
+// PtrType reports whether a type name is a pointer.
 func (f TmplFns) PtrType(name typename.FullName) (ok bool) {
 	return ptrRe.MatchString(string(name))
 }

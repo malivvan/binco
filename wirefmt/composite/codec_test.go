@@ -133,7 +133,7 @@ func TestString(t *testing.T) {
 	}
 
 	wantErr := errors.New("too long")
-	valid := composite.NewValidStringSerializer(stropts.WithLenValidator(binco.ValidatorFn[int](
+	valid := composite.NewStringSerializer(stropts.WithLenValidator(binco.ValidatorFn[int](
 		func(n int) error {
 			if n > 2 {
 				return wantErr
@@ -173,7 +173,7 @@ func TestByteSlice(t *testing.T) {
 	}
 
 	wantErr := errors.New("too long")
-	valid := composite.NewValidByteSliceSerializer(bslopts.WithLenValidator(binco.ValidatorFn[int](
+	valid := composite.NewByteSliceSerializer(bslopts.WithLenValidator(binco.ValidatorFn[int](
 		func(n int) error {
 			if n > 2 {
 				return wantErr
@@ -256,7 +256,7 @@ func TestSlice(t *testing.T) {
 	}
 
 	lenErr, elemErr := errors.New("len"), errors.New("elem")
-	valid := composite.NewValidSliceSerializer(wvarnum.Int,
+	valid := composite.NewSliceSerializer(wvarnum.Int,
 		slopts.WithLenValidator[int](binco.ValidatorFn[int](func(n int) error {
 			if n > 1 {
 				return lenErr
@@ -315,7 +315,7 @@ func TestMap(t *testing.T) {
 	}
 
 	lenErr := errors.New("len")
-	valid := composite.NewValidMapSerializer(wvarnum.Int, wvarnum.Int,
+	valid := composite.NewMapSerializer(wvarnum.Int, wvarnum.Int,
 		mapopts.WithLenValidator[int, int](binco.ValidatorFn[int](func(n int) error {
 			if n > 1 {
 				return lenErr

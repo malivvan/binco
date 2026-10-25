@@ -1,6 +1,9 @@
 package binco
 
-import "slices"
+import (
+	"fmt"
+	"slices"
+)
 
 // Serializer is the contract every codec in this module implements: encode into a caller-owned buffer, decode from one, report the encoded size, and skip a value.
 //
@@ -58,8 +61,10 @@ func Decode[T any](s Serializer[T], bs []byte) (v T, err error) {
 //
 // Unmarshal deliberately ignores trailing bytes, which lets a caller decode the
 // first field of a longer record. A protocol that carries exactly one value per
-// message wants the opposite, and this is the variant that provides it.
-func DecodeExact[T any](s Serializer[T], bs []byte) (v T, n int, err error) {
+// message wants the opposite, and this is the variant that provides it: it
+// returns ErrTrailingBytes instead of silently dropping the rest.
+func DecodeExact[T any](s Serializer[T], bs []byte) (v T, err error) {
+	var n int
 	v, n, err = s.Unmarshal(bs)
 	if err != nil {
 		return
@@ -73,33 +78,40 @@ func DecodeExact[T any](s Serializer[T], bs []byte) (v T, n int, err error) {
 // AppendEncode appends the encoded form of v to dst and returns the grown
 // slice.
 //
-// It is the form to use with a reusable buffer: Size is exact, so dst is grown
-// once and no temporary allocation is needed.
-func AppendEncode[T any](s Serializer[T], dst []byte, v T) []byte {
+// dst comes first, like in append. It is the form to use with a reusable
+// buffer: Size is exact, so dst is grown once and no temporary allocation is
+// needed.
+func AppendEncode[T any](dst []byte, s Serializer[T], v T) []byte {
 	size := s.Size(v)
 	start := len(dst)
 	dst = slices.Grow(dst, size)
 	dst = dst[:start+size]
-	s.Marshal(v, dst[start:])
+	if n := s.Marshal(v, dst[start:]); n != size {
+		panic(fmt.Errorf("%w: serializer wrote %d of %d bytes", ErrWrongSize, n, size))
+	}
 	return dst
 }
 
 // AppendMarshal is AppendEncode for a value that encodes itself.
-func AppendMarshal(v Marshaller, dst []byte) []byte {
+func AppendMarshal(dst []byte, v Marshaller) []byte {
 	size := v.SizeBinco()
 	start := len(dst)
 	dst = slices.Grow(dst, size)
 	dst = dst[:start+size]
-	v.MarshalBinco(dst[start:])
+	if n := v.MarshalBinco(dst[start:]); n != size {
+		panic(fmt.Errorf("%w: marshaller wrote %d of %d bytes", ErrWrongSize, n, size))
+	}
 	return dst
 }
 
 // AppendMarshalTyped is AppendMarshal with the type identifier included.
-func AppendMarshalTyped(v MarshallerTyped, dst []byte) []byte {
+func AppendMarshalTyped(dst []byte, v MarshallerTyped) []byte {
 	size := v.SizeTypedBinco()
 	start := len(dst)
 	dst = slices.Grow(dst, size)
 	dst = dst[:start+size]
-	v.MarshalTypedBinco(dst[start:])
+	if n := v.MarshalTypedBinco(dst[start:]); n != size {
+		panic(fmt.Errorf("%w: typed marshaller wrote %d of %d bytes", ErrWrongSize, n, size))
+	}
 	return dst
 }

@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	stringOpNvQW5om8MLxbCPLTsHBgΞΞ = composite.NewValidStringSerializer(stropts.WithLenValidator(binco.ValidatorFn[int](ValidateLength)))
+	stringOpNvQW5om8MLxbCPLTsHBgΞΞ = composite.NewStringSerializer(stropts.WithLenValidator(binco.ValidatorFn[int](ValidateLength)))
 )
 
 // CustomFooSchemaFingerprint identifies the wire layout of Foo: a hash

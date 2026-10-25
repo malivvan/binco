@@ -19,11 +19,11 @@ func TestDecodeExact(t *testing.T) {
 	if v, err := binco.Decode(composite.String, bs); err != nil || v != "hi" {
 		t.Fatalf("Decode = (%q, %v)", v, err)
 	}
-	if _, _, err := binco.DecodeExact(composite.String, bs); !errors.Is(err, binco.ErrTrailingBytes) {
+	if _, err := binco.DecodeExact(composite.String, bs); !errors.Is(err, binco.ErrTrailingBytes) {
 		t.Fatalf("DecodeExact returned %v, want ErrTrailingBytes", err)
 	}
 	exact := binco.Encode(varnum.Int, 300)
-	if v, n, err := binco.DecodeExact(varnum.Int, exact); err != nil || v != 300 || n != len(exact) {
-		t.Fatalf("DecodeExact of an exact payload = (%d, %d, %v)", v, n, err)
+	if v, err := binco.DecodeExact(varnum.Int, exact); err != nil || v != 300 {
+		t.Fatalf("DecodeExact of an exact payload = (%d, %v)", v, err)
 	}
 }

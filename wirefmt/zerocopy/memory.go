@@ -1,4 +1,4 @@
-package zerocpy
+package zerocopy
 
 import (
 	"github.com/malivvan/binco"

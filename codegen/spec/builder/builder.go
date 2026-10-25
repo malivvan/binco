@@ -144,6 +144,7 @@ func (b TypeBuilder) checkFields(t reflect.Type, sops stopts.Options) (
 	return
 }
 
+// CollectAnonTypes records the anonymous serializers a type name needs.
 func (b TypeBuilder) CollectAnonTypes(name typename.FullName,
 	m map[spec.AnonSerializerName]spec.AnonType,
 	tops tpopts.Options,
@@ -155,6 +156,7 @@ func (b TypeBuilder) CollectAnonTypes(name typename.FullName,
 	return scanner.Scan(scanner.Config{}, name, op, tops)
 }
 
+// BuildAnonType returns the anonymous serializer a type name needs, if any.
 func (b TypeBuilder) BuildAnonType(name typename.FullName, tops tpopts.Options) (
 	anonType spec.AnonType, ok bool, err error) {
 	if err = validateTypeOptions(tops); err != nil {
@@ -172,6 +174,7 @@ func (b TypeBuilder) BuildAnonType(name typename.FullName, tops tpopts.Options) 
 	return
 }
 
+// BuildTimeType describes a defined type that wraps time.Time.
 func (b TypeBuilder) BuildTimeType(t reflect.Type, uops stopts.UnderlyingTimeOptions,
 	validator string,
 ) (definedType spec.DefinedType, err error) {
@@ -199,6 +202,7 @@ func (b TypeBuilder) BuildTimeType(t reflect.Type, uops stopts.UnderlyingTimeOpt
 	return
 }
 
+// BuildVersionedType describes a type with several versions.
 func (b TypeBuilder) BuildVersionedType(t reflect.Type, vops veropts.Options) (
 	versionedType spec.VersionedType, err error,
 ) {
@@ -226,6 +230,7 @@ func (b TypeBuilder) BuildVersionedType(t reflect.Type, vops veropts.Options) (
 	return
 }
 
+// BuildInterfaceType describes an interface and its implementations.
 func (b TypeBuilder) BuildInterfaceType(t reflect.Type, iops intropts.Options) (
 	interfaceType spec.InterfaceType, err error,
 ) {
@@ -248,6 +253,7 @@ func (b TypeBuilder) BuildInterfaceType(t reflect.Type, iops intropts.Options) (
 	return
 }
 
+// BuildTyped describes the typed serializer of a type.
 func (b TypeBuilder) BuildTyped(t reflect.Type) (
 	tp spec.Type, err error,
 ) {
@@ -261,6 +267,7 @@ func (b TypeBuilder) BuildTyped(t reflect.Type) (
 	return
 }
 
+// BuildStructType describes a struct, its fields and its schema fingerprint.
 func (b TypeBuilder) BuildStructType(t reflect.Type, sops stopts.Options) (
 	structType spec.StructType, err error,
 ) {
@@ -329,6 +336,7 @@ func schemaFingerprint(fields []spec.FieldType) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// BuildDefinedType describes a defined type and its underlying type.
 func (b TypeBuilder) BuildDefinedType(t reflect.Type, tops tpopts.Options) (
 	definedTime spec.DefinedType, err error) {
 	if !classifier.DefinedBasicType(t) {

@@ -45,6 +45,7 @@ func (s DefinedType[T]) makeDefinedType(match []string) (t TypeInfo[T]) {
 	return
 }
 
+// Parse splits a name into its package, type and type parameters.
 func (s DefinedType[T]) Parse() (t TypeInfo[T], ok bool) {
 	match := FullNameRe.FindStringSubmatch(string(s))
 	if len(match) != 6 {
@@ -74,6 +75,7 @@ var FullNameRe = regexp.MustCompile(FullNamePattern)
 // ContainerType parses array, slice and map names.
 type ContainerType[T QualifiedName] string
 
+// ParseMap splits a map name into its key and element types.
 func (s ContainerType[T]) ParseMap() (t TypeInfo[T], keyType, elemType T, ok bool) {
 	str := string(s)
 
@@ -123,6 +125,7 @@ func (s ContainerType[T]) ParseMap() (t TypeInfo[T], keyType, elemType T, ok boo
 	return
 }
 
+// ParseSlice splits a slice name into its element type.
 func (s ContainerType[T]) ParseSlice() (t TypeInfo[T], elemType T, ok bool) {
 	match := SliceRe.FindStringSubmatch(string(s))
 	if len(match) != 4 {
@@ -138,6 +141,7 @@ func (s ContainerType[T]) ParseSlice() (t TypeInfo[T], elemType T, ok bool) {
 	return
 }
 
+// ParseArray splits an array name into its length and element type.
 func (s ContainerType[T]) ParseArray() (t TypeInfo[T], elemType T, ok bool) {
 	match := ArrayRe.FindStringSubmatch(string(s))
 	if len(match) != 5 {
@@ -187,6 +191,7 @@ var (
 // PrimitiveType parses the built-in scalar names.
 type PrimitiveType[T QualifiedName] string
 
+// Parse splits a built-in scalar name into its optional pointer and type name.
 func (s PrimitiveType[T]) Parse() (t TypeInfo[T], ok bool) {
 	match := PrimitiveRe.FindStringSubmatch(string(s))
 	if len(match) != 3 {

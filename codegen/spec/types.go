@@ -109,6 +109,7 @@ type AnonSerializerName string
 // AnonKind says which container an anonymous serializer belongs to.
 type AnonKind int
 
+// String names the kind for templates and for generated serializer names.
 func (k AnonKind) String() string {
 	switch k {
 	case AnonKindString:

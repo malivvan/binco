@@ -228,9 +228,9 @@ func TestGenerateUnsafeModes(t *testing.T) {
 	}
 	src := generate(t, g)
 	mustContain(t, src,
-		`"github.com/malivvan/binco/zerocpy"`,
-		"zerocpy.Int.Marshal(v.Num, bs)",
-		"zerocpy.String.Marshal(v.Str, bs[n:])",
+		`"github.com/malivvan/binco/zerocopy"`,
+		"zerocopy.Int.Marshal(v.Num, bs)",
+		"zerocopy.String.Marshal(v.Str, bs[n:])",
 	)
 
 	g = newGenerator(t, genopts.WithNotUnsafe())
@@ -238,7 +238,7 @@ func TestGenerateUnsafeModes(t *testing.T) {
 		t.Fatalf("AddStruct: %v", err)
 	}
 	src = generate(t, g)
-	mustContain(t, src, "zerocpy.Int.Marshal(v.Num, bs)", "composite.String.Marshal(v.Str, bs[n:])")
+	mustContain(t, src, "zerocopy.Int.Marshal(v.Num, bs)", "composite.String.Marshal(v.Str, bs[n:])")
 }
 
 func TestCustomSerializerName(t *testing.T) {

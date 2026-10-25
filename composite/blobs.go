@@ -13,9 +13,8 @@ var String = NewStringSerializer()
 // NewStringSerializer returns a string serializer whose length codec can be
 // replaced through opts.
 //
-// A WithLenValidator option is honoured here as well as in
-// NewValidStringSerializer: there is no constructor that silently ignores a
-// validator.
+// A WithLenValidator option is honoured, so a length can be bounded before it
+// is used.
 func NewStringSerializer(opts ...stropts.SetOption) binco.Serializer[string] {
 	o := stropts.Options{}
 	stropts.Apply(opts, &o)
@@ -25,13 +24,6 @@ func NewStringSerializer(opts ...stropts.SetOption) binco.Serializer[string] {
 		return checkedText{s, o.LenVl}
 	}
 	return s
-}
-
-// NewValidStringSerializer returns a string serializer that runs its length validator while decoding.
-func NewValidStringSerializer(opts ...stropts.SetOption) checkedText {
-	o := stropts.Options{}
-	stropts.Apply(opts, &o)
-	return checkedText{newTextCodec(o), o.LenVl}
 }
 
 func newTextCodec(o stropts.Options) textCodec {
@@ -110,7 +102,7 @@ func MarshalString(v string, lenSerializer binco.Serializer[int], bs []byte) (n 
 	length := len(v)
 	n = lenSerializer.Marshal(length, bs)
 	if len(bs)-n < length {
-		panic(binco.ErrTooSmallByteSlice)
+		panic(binco.ErrBufferTooSmall)
 	}
 	return n + copy(bs[n:], v)
 }
@@ -147,18 +139,6 @@ func NewByteSliceSerializer(opts ...bslopts.SetOption) binco.Serializer[[]byte] 
 		return checkedBlob{s, o.LenVl}
 	}
 	return s
-}
-
-// NewValidByteSliceSerializer returns a byte slice serializer that runs its length validator while decoding.
-func NewValidByteSliceSerializer(opts ...bslopts.SetOption) checkedBlob {
-	o := bslopts.Options{}
-	bslopts.Apply(opts, &o)
-
-	var lenVl binco.Validator[int]
-	if o.LenVl != nil {
-		lenVl = o.LenVl
-	}
-	return checkedBlob{newBlobCodec(o), lenVl}
 }
 
 func newBlobCodec(o bslopts.Options) blobCodec {
@@ -236,7 +216,7 @@ func MarshalByteSlice(v []byte, lenSerializer binco.Serializer[int], bs []byte) 
 	length := len(v)
 	n = lenSerializer.Marshal(length, bs)
 	if len(bs)-n < length {
-		panic(binco.ErrTooSmallByteSlice)
+		panic(binco.ErrBufferTooSmall)
 	}
 	return n + copy(bs[n:], v)
 }

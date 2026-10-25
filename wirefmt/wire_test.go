@@ -21,7 +21,7 @@ import (
 	wscalar "github.com/malivvan/binco/wirefmt/scalar"
 	wtypeid "github.com/malivvan/binco/wirefmt/typeid"
 	wvarnum "github.com/malivvan/binco/wirefmt/varnum"
-	snative "github.com/malivvan/binco/wirefmt/zerocpy"
+	snative "github.com/malivvan/binco/wirefmt/zerocopy"
 )
 
 func encode[T any](t *testing.T, s wirefmt.Serializer[T], v T) []byte {

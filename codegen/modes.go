@@ -10,7 +10,7 @@ const (
 	VarnumPkg          = "varnum"
 	ScalarPkg          = "scalar"
 	CompositePkg       = "composite"
-	ZerocpyPkg         = "zerocpy"
+	ZerocopyPkg        = "zerocopy"
 	DefTimeSerializer  = "TimeUnixUTC"
 	TimeSerializerRule = "time_serializer"
 )
@@ -57,8 +57,8 @@ func portableRules(tops tpopts.Options) map[string]string {
 func nativeRules(tops tpopts.Options, opts genopts.Options) map[string]string {
 	var (
 		m              = make(map[string]string)
-		numPkg         = ZerocpyPkg
-		byteSlicePkg   = ZerocpyPkg
+		numPkg         = ZerocopyPkg
+		byteSlicePkg   = ZerocopyPkg
 		timeSerializer = DefTimeSerializer
 	)
 	if tops.NumEncoding != tpopts.NumEncodingUndefined {
@@ -79,14 +79,14 @@ func nativeRules(tops tpopts.Options, opts genopts.Options) map[string]string {
 	m["uint32"] = numPkg
 	m["uint16"] = numPkg
 
-	m["int8"] = ZerocpyPkg
-	m["uint8"] = ZerocpyPkg
-	m["float64"] = ZerocpyPkg
-	m["float32"] = ZerocpyPkg
-	m["time.Time"] = ZerocpyPkg
-	m["byte"] = ZerocpyPkg
-	m["bool"] = ZerocpyPkg
-	m["string"] = ZerocpyPkg
+	m["int8"] = ZerocopyPkg
+	m["uint8"] = ZerocopyPkg
+	m["float64"] = ZerocopyPkg
+	m["float32"] = ZerocopyPkg
+	m["time.Time"] = ZerocopyPkg
+	m["byte"] = ZerocopyPkg
+	m["bool"] = ZerocopyPkg
+	m["string"] = ZerocopyPkg
 
 	m["[]byte"] = byteSlicePkg
 	m["[]uint8"] = byteSlicePkg

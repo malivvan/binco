@@ -23,7 +23,7 @@ func (s boolCodec) Marshal(v bool, bs []byte) (n int) {
 
 func (s boolCodec) Unmarshal(bs []byte) (v bool, n int, err error) {
 	if len(bs) < 1 {
-		return false, 0, binco.ErrTooSmallByteSlice
+		return false, 0, binco.ErrTruncated
 	}
 	if bs[0] > 1 {
 		return false, 0, binco.ErrWrongFormat
@@ -42,7 +42,7 @@ func (s boolCodec) Skip(bs []byte) (n int, err error) {
 // SkipBool advances over an encoded bool.
 func SkipBool(bs []byte) (n int, err error) {
 	if len(bs) < 1 {
-		return 0, binco.ErrTooSmallByteSlice
+		return 0, binco.ErrTruncated
 	}
 	if bs[0] == 0 || bs[0] == 1 {
 		return 1, nil
@@ -90,7 +90,7 @@ func (s ptrCodec[T]) Marshal(v *T, bs []byte) (n int) {
 
 func (s ptrCodec[T]) Unmarshal(bs []byte) (v *T, n int, err error) {
 	if len(bs) < 1 {
-		err = binco.ErrTooSmallByteSlice
+		err = binco.ErrTruncated
 		return
 	}
 	if bs[0] == byte(binco.PtrNil) {
@@ -127,7 +127,7 @@ func (s ptrCodec[T]) Size(v *T) (size int) {
 
 func (s ptrCodec[T]) Skip(bs []byte) (n int, err error) {
 	if len(bs) < 1 {
-		err = binco.ErrTooSmallByteSlice
+		err = binco.ErrTruncated
 		return
 	}
 	if bs[0] == byte(binco.PtrNil) {

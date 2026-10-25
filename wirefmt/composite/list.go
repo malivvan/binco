@@ -28,30 +28,6 @@ func NewSliceSerializer[T any](elemSerializer wirefmt.Serializer[T], opts ...slo
 	return s
 }
 
-// NewValidSliceSerializer returns a slice serializer that runs its length and element validators while decoding.
-func NewValidSliceSerializer[T any](elemSerializer wirefmt.Serializer[T],
-	opts ...slopts.SetOption[T],
-) checkedList[T] {
-	o := slopts.Options[T]{}
-	slopts.Apply(opts, &o)
-
-	var lenVl binco.Validator[int]
-
-	var elemVl binco.Validator[T]
-
-	if o.LenVl != nil {
-		lenVl = o.LenVl
-	}
-	if o.ElemVl != nil {
-		elemVl = o.ElemVl
-	}
-	return checkedList[T]{
-		listCodec: newListCodec(elemSerializer, o),
-		lenVl:     lenVl,
-		elemVl:    elemVl,
-	}
-}
-
 func newListCodec[T any](elemSerializer wirefmt.Serializer[T], o slopts.Options[T]) (
 	s listCodec[T],
 ) {

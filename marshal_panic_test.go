@@ -11,7 +11,7 @@ import (
 )
 
 // TestMarshalPanicsWithOneSentinel covers the D5 note that Marshal panicked
-// sometimes with ErrTooSmallByteSlice and sometimes with a raw runtime index
+// sometimes with ErrBufferTooSmall and sometimes with a raw runtime index
 // error, so a caller could not write one recover for both.
 func TestMarshalPanicsWithOneSentinel(t *testing.T) {
 	tests := []struct {
@@ -42,8 +42,8 @@ func TestMarshalPanicsWithOneSentinel(t *testing.T) {
 					t.Fatal("Marshal did not panic")
 				}
 				err, ok := r.(error)
-				if !ok || !errors.Is(err, binco.ErrTooSmallByteSlice) {
-					t.Fatalf("panic value %v, want ErrTooSmallByteSlice", r)
+				if !ok || !errors.Is(err, binco.ErrBufferTooSmall) {
+					t.Fatalf("panic value %v, want ErrBufferTooSmall", r)
 				}
 			}()
 			tc.fn()

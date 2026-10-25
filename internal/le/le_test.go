@@ -132,10 +132,10 @@ func TestUnsignedWord(t *testing.T) {
 
 // TestShortInput checks that every reader reports the missing bytes.
 func TestShortInput(t *testing.T) {
-	if _, _, err := le.Get64[uint64](make([]byte, 7)); !errors.Is(err, binco.ErrTooSmallByteSlice) {
+	if _, _, err := le.Get64[uint64](make([]byte, 7)); !errors.Is(err, binco.ErrTruncated) {
 		t.Fatalf("Get64 = %v", err)
 	}
-	if _, err := le.Skip32(make([]byte, 3)); !errors.Is(err, binco.ErrTooSmallByteSlice) {
+	if _, err := le.Skip32(make([]byte, 3)); !errors.Is(err, binco.ErrTruncated) {
 		t.Fatalf("Skip32 = %v", err)
 	}
 	// A stream distinguishes a clean end (io.EOF, nothing read) from a value

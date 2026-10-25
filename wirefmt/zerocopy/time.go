@@ -1,17 +1,13 @@
-package zerocpy
+package zerocopy
 
 import (
 	"time"
 
 	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/wirefmt"
 )
 
 // TimeUnix serializes a time.Time as whole Unix seconds.
-//
-// Decoding always returns a time in UTC, so two payloads that carry the same
-// instant compare equal on machines with different local zones. The value is
-// truncated to whole seconds; use TimeUnixMilli, TimeUnixMicro or TimeUnixNano
-// to keep more precision.
 var TimeUnix = unixView{}
 
 type unixView struct{}
@@ -20,12 +16,12 @@ type unixView struct{}
 // the little-endian value itself.
 func (s unixView) FixedWidth() int { return binco.Num64RawSize }
 
-func (s unixView) Marshal(v time.Time, bs []byte) (n int) {
-	return Int64.Marshal(v.Unix(), bs)
+func (s unixView) Marshal(v time.Time, w wirefmt.Writer) (n int, err error) {
+	return Int64.Marshal(v.Unix(), w)
 }
 
-func (s unixView) Unmarshal(bs []byte) (v time.Time, n int, err error) {
-	sec, n, err := Int64.Unmarshal(bs)
+func (s unixView) Unmarshal(r wirefmt.Reader) (v time.Time, n int, err error) {
+	sec, n, err := Int64.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -37,8 +33,8 @@ func (s unixView) Size(v time.Time) (size int) {
 	return binco.Num64RawSize
 }
 
-func (s unixView) Skip(bs []byte) (n int, err error) {
-	return Int64.Skip(bs)
+func (s unixView) Skip(r wirefmt.Reader) (n int, err error) {
+	return Int64.Skip(r)
 }
 
 // TimeUnixMilli serializes a time.Time as Unix milliseconds.
@@ -50,12 +46,16 @@ type milliView struct{}
 // the little-endian value itself.
 func (s milliView) FixedWidth() int { return binco.Num64RawSize }
 
-func (s milliView) Marshal(v time.Time, bs []byte) (n int) {
-	return Int64.Marshal(v.UnixMilli(), bs)
+func (s milliView) Marshal(v time.Time, w wirefmt.Writer) (n int,
+	err error,
+) {
+	return Int64.Marshal(v.UnixMilli(), w)
 }
 
-func (s milliView) Unmarshal(bs []byte) (v time.Time, n int, err error) {
-	milli, n, err := Int64.Unmarshal(bs)
+func (s milliView) Unmarshal(r wirefmt.Reader) (v time.Time, n int,
+	err error,
+) {
+	milli, n, err := Int64.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -67,8 +67,8 @@ func (s milliView) Size(v time.Time) (size int) {
 	return binco.Num64RawSize
 }
 
-func (s milliView) Skip(bs []byte) (n int, err error) {
-	return Int64.Skip(bs)
+func (s milliView) Skip(r wirefmt.Reader) (n int, err error) {
+	return Int64.Skip(r)
 }
 
 // TimeUnixMicro serializes a time.Time as Unix microseconds.
@@ -80,12 +80,16 @@ type microView struct{}
 // the little-endian value itself.
 func (s microView) FixedWidth() int { return binco.Num64RawSize }
 
-func (s microView) Marshal(v time.Time, bs []byte) (n int) {
-	return Int64.Marshal(v.UnixMicro(), bs)
+func (s microView) Marshal(v time.Time, w wirefmt.Writer) (n int,
+	err error,
+) {
+	return Int64.Marshal(v.UnixMicro(), w)
 }
 
-func (s microView) Unmarshal(bs []byte) (v time.Time, n int, err error) {
-	micro, n, err := Int64.Unmarshal(bs)
+func (s microView) Unmarshal(r wirefmt.Reader) (v time.Time, n int,
+	err error,
+) {
+	micro, n, err := Int64.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -97,8 +101,8 @@ func (s microView) Size(v time.Time) (size int) {
 	return binco.Num64RawSize
 }
 
-func (s microView) Skip(bs []byte) (n int, err error) {
-	return Int64.Skip(bs)
+func (s microView) Skip(r wirefmt.Reader) (n int, err error) {
+	return Int64.Skip(r)
 }
 
 // TimeUnixNano serializes a time.Time as Unix nanoseconds.
@@ -110,12 +114,12 @@ type nanoView struct{}
 // the little-endian value itself.
 func (s nanoView) FixedWidth() int { return binco.Num64RawSize }
 
-func (s nanoView) Marshal(v time.Time, bs []byte) (n int) {
-	return Int64.Marshal(v.UnixNano(), bs)
+func (s nanoView) Marshal(v time.Time, w wirefmt.Writer) (n int, err error) {
+	return Int64.Marshal(v.UnixNano(), w)
 }
 
-func (s nanoView) Unmarshal(bs []byte) (v time.Time, n int, err error) {
-	nano, n, err := Int64.Unmarshal(bs)
+func (s nanoView) Unmarshal(r wirefmt.Reader) (v time.Time, n int, err error) {
+	nano, n, err := Int64.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -127,8 +131,8 @@ func (s nanoView) Size(v time.Time) (size int) {
 	return binco.Num64RawSize
 }
 
-func (s nanoView) Skip(bs []byte) (n int, err error) {
-	return Int64.Skip(bs)
+func (s nanoView) Skip(r wirefmt.Reader) (n int, err error) {
+	return Int64.Skip(r)
 }
 
 // TimeUnixUTC is TimeUnix, but the decoded time is always in UTC.
@@ -138,8 +142,8 @@ type unixUTCView struct {
 	unixView
 }
 
-func (s unixUTCView) Unmarshal(bs []byte) (v time.Time, n int, err error) {
-	v, n, err = s.unixView.Unmarshal(bs)
+func (s unixUTCView) Unmarshal(r wirefmt.Reader) (v time.Time, n int, err error) {
+	v, n, err = s.unixView.Unmarshal(r)
 	if err == nil {
 		v = v.UTC()
 	}
@@ -153,8 +157,8 @@ type milliUTCView struct {
 	milliView
 }
 
-func (s milliUTCView) Unmarshal(bs []byte) (v time.Time, n int, err error) {
-	v, n, err = s.milliView.Unmarshal(bs)
+func (s milliUTCView) Unmarshal(r wirefmt.Reader) (v time.Time, n int, err error) {
+	v, n, err = s.milliView.Unmarshal(r)
 	if err == nil {
 		v = v.UTC()
 	}
@@ -168,8 +172,8 @@ type microUTCView struct {
 	microView
 }
 
-func (s microUTCView) Unmarshal(bs []byte) (v time.Time, n int, err error) {
-	v, n, err = s.microView.Unmarshal(bs)
+func (s microUTCView) Unmarshal(r wirefmt.Reader) (v time.Time, n int, err error) {
+	v, n, err = s.microView.Unmarshal(r)
 	if err == nil {
 		v = v.UTC()
 	}
@@ -183,8 +187,8 @@ type nanoUTCView struct {
 	nanoView
 }
 
-func (s nanoUTCView) Unmarshal(bs []byte) (v time.Time, n int, err error) {
-	v, n, err = s.nanoView.Unmarshal(bs)
+func (s nanoUTCView) Unmarshal(r wirefmt.Reader) (v time.Time, n int, err error) {
+	v, n, err = s.nanoView.Unmarshal(r)
 	if err == nil {
 		v = v.UTC()
 	}

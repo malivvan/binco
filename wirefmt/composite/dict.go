@@ -1,6 +1,7 @@
 package composite
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/malivvan/binco"
@@ -17,47 +18,21 @@ func NewMapSerializer[T comparable, V any](keySerializer wirefmt.Serializer[T],
 ) wirefmt.Serializer[map[T]V] {
 	o := mapopts.Options[T, V]{}
 	mapopts.Apply(opts, &o)
-
-	s := newDictCodec(keySerializer, valueSerializer, o)
-	if o.LenVl != nil || o.KeyVl != nil || o.ValueVl != nil {
-		return checkedDict[T, V]{
-			dictCodec: s,
-			lenVl:     o.LenVl,
-			keyVl:     o.KeyVl,
-			valueVl:   o.ValueVl,
-		}
-	}
-	return s
+	return newMapSerializer(newDictCodec(keySerializer, valueSerializer, o), o)
 }
 
-// NewValidMapSerializer returns a map serializer that runs its length, key and value validators while decoding.
-func NewValidMapSerializer[T comparable, V any](keySerializer wirefmt.Serializer[T],
-	valueSerializer wirefmt.Serializer[V], opts ...mapopts.SetOption[T, V],
-) checkedDict[T, V] {
-	o := mapopts.Options[T, V]{}
-	mapopts.Apply(opts, &o)
-
-	var lenVl binco.Validator[int]
-
-	var keyVl binco.Validator[T]
-
-	var valueVl binco.Validator[V]
-
-	if o.LenVl != nil {
-		lenVl = o.LenVl
+// newMapSerializer wraps the plain codec when any validator is set.
+func newMapSerializer[T comparable, V any](dict dictCodec[T, V],
+	o mapopts.Options[T, V],
+) wirefmt.Serializer[map[T]V] {
+	if o.LenVl == nil && o.KeyVl == nil && o.ValueVl == nil {
+		return dict
 	}
-	if o.KeyVl != nil {
-		keyVl = o.KeyVl
-	}
-	if o.ValueVl != nil {
-		valueVl = o.ValueVl
-	}
-
 	return checkedDict[T, V]{
-		dictCodec: newDictCodec(keySerializer, valueSerializer, o),
-		lenVl:     lenVl,
-		keyVl:     keyVl,
-		valueVl:   valueVl,
+		dictCodec: dict,
+		lenVl:     o.LenVl,
+		keyVl:     o.KeyVl,
+		valueVl:   o.ValueVl,
 	}
 }
 
@@ -73,11 +48,12 @@ func NewSortedMapSerializer[T comparable, V any](keySerializer wirefmt.Serialize
 	o := mapopts.Options[T, V]{}
 	mapopts.Apply(opts, &o)
 
+	dict := newDictCodec(keySerializer, valueSerializer, o)
 	return sortedDictCodec[T, V]{
-		serializer: NewMapSerializer(keySerializer, valueSerializer, opts...),
+		serializer: newMapSerializer(dict, o),
 		key:        keySerializer,
 		value:      valueSerializer,
-		lenSer:     newDictCodec(keySerializer, valueSerializer, o).lenSerializer,
+		lenSer:     dict.lenSerializer,
 	}
 }
 
@@ -93,24 +69,40 @@ type dictEntry struct {
 	value []byte
 }
 
-func encodeBuffer(size int, marshal func(*wirefmt.SliceWriter) (int, error)) []byte {
+// encodeBuffer marshals one map entry into a buffer of exactly the size its
+// serializer reported.
+//
+// An element serializer that fails or writes a different number of bytes than it
+// reported would shift every following entry, so the error is returned to the
+// caller (or, for the size mismatch, reported as one) rather than written out as
+// a corrupt payload.
+func encodeBuffer(size int, marshal func(*wirefmt.SliceWriter) (int, error)) ([]byte, error) {
 	w := wirefmt.NewSliceWriter(make([]byte, size))
 	n, err := marshal(w)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return w.Buf[:n]
+	if n != size {
+		return nil, fmt.Errorf("%w: serializer wrote %d of %d bytes", binco.ErrWrongSize, n, size)
+	}
+	return w.Buf[:n], nil
 }
 
 func (s sortedDictCodec[T, V]) Marshal(v map[T]V, w wirefmt.Writer) (n int, err error) {
 	entries := make([]dictEntry, 0, len(v))
 	for k, val := range v {
-		kb := encodeBuffer(s.key.Size(k), func(buf *wirefmt.SliceWriter) (int, error) {
+		kb, encodeErr := encodeBuffer(s.key.Size(k), func(buf *wirefmt.SliceWriter) (int, error) {
 			return s.key.Marshal(k, buf)
 		})
-		vb := encodeBuffer(s.value.Size(val), func(buf *wirefmt.SliceWriter) (int, error) {
+		if encodeErr != nil {
+			return 0, encodeErr
+		}
+		vb, encodeErr := encodeBuffer(s.value.Size(val), func(buf *wirefmt.SliceWriter) (int, error) {
 			return s.value.Marshal(val, buf)
 		})
+		if encodeErr != nil {
+			return 0, encodeErr
+		}
 		entries = append(entries, dictEntry{key: kb, value: vb})
 	}
 	sort.Slice(entries, func(i, j int) bool {

@@ -22,45 +22,45 @@ func TestStringEdgeCases(t *testing.T) {
 	})
 
 	// Skip must not read past the payload.
-	if _, err := composite.SkipString(varnum.PositiveInt, []byte{5, 'a'}); err != binco.ErrTooSmallByteSlice {
-		t.Fatalf("SkipString returned %v, want ErrTooSmallByteSlice", err)
+	if _, err := composite.SkipString(varnum.PositiveInt, []byte{5, 'a'}); err != binco.ErrTruncated {
+		t.Fatalf("SkipString returned %v, want ErrTruncated", err)
 	}
 
 	// The validating codec reports a rejected length and a short payload.
-	valid := composite.NewValidStringSerializer(stropts.WithLenValidator(
+	valid := composite.NewStringSerializer(stropts.WithLenValidator(
 		binco.ValidatorFn[int](func(int) error { return errTooLong })))
 	if _, _, err := valid.Unmarshal([]byte{3, 'a', 'b', 'c'}); !errors.Is(err, errTooLong) {
 		t.Fatalf("validated Unmarshal returned %v, want %v", err, errTooLong)
 	}
 
-	short := composite.NewValidStringSerializer(stropts.WithLenValidator(
+	short := composite.NewStringSerializer(stropts.WithLenValidator(
 		binco.ValidatorFn[int](func(int) error { return nil })))
-	if _, _, err := short.Unmarshal([]byte{3, 'a'}); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := short.Unmarshal([]byte{3, 'a'}); err != binco.ErrTruncated {
 		t.Fatalf("validated Unmarshal of a short payload returned %v", err)
 	}
 }
 
 func TestByteSliceEdgeCases(t *testing.T) {
-	if _, err := composite.SkipByteSlice(varnum.PositiveInt, []byte{3, 1}); err != binco.ErrTooSmallByteSlice {
-		t.Fatalf("SkipByteSlice returned %v, want ErrTooSmallByteSlice", err)
+	if _, err := composite.SkipByteSlice(varnum.PositiveInt, []byte{3, 1}); err != binco.ErrTruncated {
+		t.Fatalf("SkipByteSlice returned %v, want ErrTruncated", err)
 	}
 
-	valid := composite.NewValidByteSliceSerializer(bsopts.WithLenValidator(
+	valid := composite.NewByteSliceSerializer(bsopts.WithLenValidator(
 		binco.ValidatorFn[int](func(int) error { return errTooLong })))
 	if _, _, err := valid.Unmarshal([]byte{3, 1, 2, 3}); !errors.Is(err, errTooLong) {
 		t.Fatalf("validated Unmarshal returned %v, want %v", err, errTooLong)
 	}
 
-	short := composite.NewValidByteSliceSerializer(bsopts.WithLenValidator(
+	short := composite.NewByteSliceSerializer(bsopts.WithLenValidator(
 		binco.ValidatorFn[int](func(int) error { return nil })))
-	if _, _, err := short.Unmarshal([]byte{3, 1}); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := short.Unmarshal([]byte{3, 1}); err != binco.ErrTruncated {
 		t.Fatalf("validated Unmarshal of a short payload returned %v", err)
 	}
 }
 
 func TestPtrUnmarshalTruncated(t *testing.T) {
 	serializer := composite.NewPtrSerializer(varnum.Int)
-	if _, _, err := serializer.Unmarshal([]byte{byte(binco.PtrNotNil)}); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := serializer.Unmarshal([]byte{byte(binco.PtrNotNil)}); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal of a truncated pointer returned %v", err)
 	}
 }
@@ -68,13 +68,13 @@ func TestPtrUnmarshalTruncated(t *testing.T) {
 func TestValidContainersRejectBadData(t *testing.T) {
 	reject := binco.ValidatorFn[int](func(int) error { return errTooLong })
 
-	validSlice := composite.NewValidSliceSerializer(varnum.Int,
+	validSlice := composite.NewSliceSerializer(varnum.Int,
 		slopts.WithElemValidator[int](reject))
 	if _, _, err := validSlice.Unmarshal([]byte{2, 2, 4}); !errors.Is(err, errTooLong) {
 		t.Fatalf("element validator returned %v, want %v", err, errTooLong)
 	}
 
-	validMap := composite.NewValidMapSerializer(varnum.Int, varnum.Int,
+	validMap := composite.NewMapSerializer(varnum.Int, varnum.Int,
 		mapopts.WithKeyValidator[int, int](reject))
 	if _, _, err := validMap.Unmarshal([]byte{1, 2, 4}); !errors.Is(err, errTooLong) {
 		t.Fatalf("key validator returned %v, want %v", err, errTooLong)

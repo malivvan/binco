@@ -1,4 +1,4 @@
-// Package zerocpy encodes and decodes through direct memory access.
+// Package zerocopy encodes and decodes through direct memory access.
 //
 // The codecs here produce the same bytes as scalar and composite, but they hand
 // out strings and byte slices that point into the input buffer instead of
@@ -12,4 +12,4 @@
 // on any byte order and on architectures that fault on unaligned access. Only
 // the array codec reinterprets memory, and it validates at construction that the
 // type parameters really describe an array of the element type.
-package zerocpy
+package zerocopy

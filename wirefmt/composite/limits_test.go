@@ -36,25 +36,25 @@ func TestValidatedLengthsRejectBeforeReading(t *testing.T) {
 	}
 
 	t.Run("string", func(t *testing.T) {
-		ser := composite.NewValidStringSerializer(
+		ser := composite.NewStringSerializer(
 			stropts.WithLenValidator(validator))
 		assertRejected(t, ser, lengthPrefix(t, limit+1))
 	})
 
 	t.Run("byte slice", func(t *testing.T) {
-		ser := composite.NewValidByteSliceSerializer(
+		ser := composite.NewByteSliceSerializer(
 			bslopts.WithLenValidator(validator))
 		assertRejected(t, ser, lengthPrefix(t, limit+1))
 	})
 
 	t.Run("slice", func(t *testing.T) {
-		ser := composite.NewValidSliceSerializer(varnum.Int,
+		ser := composite.NewSliceSerializer(varnum.Int,
 			slopts.WithLenValidator[int](validator))
 		assertRejected(t, ser, lengthPrefix(t, limit+1))
 	})
 
 	t.Run("map", func(t *testing.T) {
-		ser := composite.NewValidMapSerializer(varnum.Int, varnum.Int,
+		ser := composite.NewMapSerializer(varnum.Int, varnum.Int,
 			mapopts.WithLenValidator[int, int](validator))
 		assertRejected(t, ser, lengthPrefix(t, limit+1))
 	})

@@ -70,5 +70,5 @@ go generate ./demos/gen ./demos/gen_options
   unmarshal.
 * Map iteration order is not deterministic, so examples that print a map render
   its keys in sorted order.
-* The `zerocpy` example deliberately demonstrates a misuse (keeping a decoded
+* The `zerocopy` example deliberately demonstrates a misuse (keeping a decoded
   string while the input buffer is reused) next to the correct alternatives.

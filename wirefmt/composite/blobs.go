@@ -14,8 +14,8 @@ var String = NewStringSerializer()
 
 // NewStringSerializer returns a string serializer whose length codec can be replaced through opts.
 //
-// A WithLenValidator option is honoured here as well as in
-// NewValidStringSerializer.
+// A WithLenValidator option is honoured, so a length can be bounded before it
+// is used.
 func NewStringSerializer(opts ...stropts.SetOption) wirefmt.Serializer[string] {
 	o := stropts.Options{}
 	stropts.Apply(opts, &o)
@@ -25,13 +25,6 @@ func NewStringSerializer(opts ...stropts.SetOption) wirefmt.Serializer[string] {
 		return checkedText{s, o.LenVl}
 	}
 	return s
-}
-
-// NewValidStringSerializer returns a string serializer that runs its length validator while decoding.
-func NewValidStringSerializer(opts ...stropts.SetOption) checkedText {
-	o := stropts.Options{}
-	stropts.Apply(opts, &o)
-	return checkedText{newTextCodec(o), o.LenVl}
 }
 
 func newTextCodec(o stropts.Options) textCodec {
@@ -150,18 +143,6 @@ func NewByteSliceSerializer(opts ...bslopts.SetOption) wirefmt.Serializer[[]byte
 		return checkedBlob{s, o.LenVl}
 	}
 	return s
-}
-
-// NewValidByteSliceSerializer returns a byte slice serializer that runs its length validator while decoding.
-func NewValidByteSliceSerializer(opts ...bslopts.SetOption) checkedBlob {
-	o := bslopts.Options{}
-	bslopts.Apply(opts, &o)
-
-	var lenVl binco.Validator[int]
-	if o.LenVl != nil {
-		lenVl = o.LenVl
-	}
-	return checkedBlob{newBlobCodec(o), lenVl}
 }
 
 func newBlobCodec(o bslopts.Options) blobCodec {

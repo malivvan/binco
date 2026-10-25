@@ -86,16 +86,3 @@ const IntWordBits = 64
 
 // IntWordBytes is the wire width of int and uint in bytes.
 const IntWordBytes = IntWordBits / 8
-
-// UintMaxVarintLen is the longest varint encoding on any host.
-//
-// It is the limit of a uint64 even on a 32-bit build, because int and uint use
-// the same wire width everywhere.
-func UintMaxVarintLen() int {
-	return Uint64MaxVarintLen
-}
-
-// UintMaxLastByte is the largest final varint byte on any host.
-func UintMaxLastByte() byte {
-	return Uint64MaxLastByte
-}

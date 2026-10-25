@@ -138,11 +138,11 @@ func TestUnmarshalErrors(t *testing.T) {
 				0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01})
 			return err
 		}},
-		{"empty", binco.ErrTooSmallByteSlice, func() error {
+		{"empty", binco.ErrTruncated, func() error {
 			_, _, err := varnum.Uint64.Unmarshal(nil)
 			return err
 		}},
-		{"truncated", binco.ErrTooSmallByteSlice, func() error {
+		{"truncated", binco.ErrTruncated, func() error {
 			_, _, err := varnum.Uint64.Unmarshal([]byte{0x80})
 			return err
 		}},
@@ -150,11 +150,11 @@ func TestUnmarshalErrors(t *testing.T) {
 			_, err := varnum.Uint8.Skip([]byte{0x80, 0x02})
 			return err
 		}},
-		{"skip empty", binco.ErrTooSmallByteSlice, func() error {
+		{"skip empty", binco.ErrTruncated, func() error {
 			_, err := varnum.Uint64.Skip(nil)
 			return err
 		}},
-		{"skip truncated", binco.ErrTooSmallByteSlice, func() error {
+		{"skip truncated", binco.ErrTruncated, func() error {
 			_, err := varnum.Uint64.Skip([]byte{0x80})
 			return err
 		}},

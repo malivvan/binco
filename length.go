@@ -6,16 +6,16 @@ package binco
 // The comparison is written so that it cannot overflow: length is never added
 // to n before the bounds check. Callers use it before slicing bs[n:n+length],
 // which is why a hostile length such as MaxInt64 turns into
-// ErrTooSmallByteSlice instead of a slice bounds panic.
+// ErrTruncated instead of a slice bounds panic.
 func CheckLength(bs []byte, n, length int) error {
 	if length < 0 {
 		return ErrNegativeLength
 	}
 	if n < 0 || n > len(bs) {
-		return ErrTooSmallByteSlice
+		return ErrTruncated
 	}
 	if length > len(bs)-n {
-		return ErrTooSmallByteSlice
+		return ErrTruncated
 	}
 	return nil
 }
@@ -36,7 +36,7 @@ func Remaining(bs []byte, n int) int {
 // five bytes of input ask for a multi-gigabyte allocation. Element codecs
 // consume at least one byte each, so a length above Remaining(bs, n) cannot be
 // honoured; using the smaller value makes a hostile length fail with
-// ErrTooSmallByteSlice after a bounded allocation instead of an out-of-memory
+// ErrTruncated after a bounded allocation instead of an out-of-memory
 // crash. The returned value is never negative.
 func AllocHint(length, remaining int) int {
 	if length <= 0 {
@@ -48,50 +48,29 @@ func AllocHint(length, remaining int) int {
 	return length
 }
 
-// AllocHintElem is AllocHint for elements of a known minimum width. A length of
-// n elements needs at least n*elemSize bytes; the multiplication is checked for
-// overflow, and a length that cannot fit is capped by remaining/elemSize.
-func AllocHintElem(length, remaining, elemSize int) int {
-	if length <= 0 {
-		return 0
-	}
-	if elemSize <= 1 {
-		return AllocHint(length, remaining)
-	}
-	if remaining < 0 {
-		return 0
-	}
-	fit := remaining / elemSize
-	if length > fit {
-		return fit
-	}
-	return length
-}
-
 // CheckLengthElem reports whether length elements of at least elemSize bytes
-// can be present in bs after offset n. It is the validating counterpart of
-// AllocHintElem and is used where an element cannot consume zero bytes.
+// can be present in bs after offset n, without multiplying length by elemSize.
 func CheckLengthElem(bs []byte, n, length, elemSize int) error {
 	if length < 0 {
 		return ErrNegativeLength
 	}
 	if n < 0 || n > len(bs) {
-		return ErrTooSmallByteSlice
+		return ErrTruncated
 	}
 	if elemSize <= 1 {
 		if length > len(bs)-n {
-			return ErrTooSmallByteSlice
+			return ErrTruncated
 		}
 		return nil
 	}
 	// length <= (len(bs)-n)/elemSize without multiplying length by elemSize.
 	if length > (len(bs)-n)/elemSize {
-		return ErrTooSmallByteSlice
+		return ErrTruncated
 	}
 	return nil
 }
 
-// CheckWrite panics with ErrTooSmallByteSlice when a marshaller is about to
+// CheckWrite panics with ErrBufferTooSmall when a marshaller is about to
 // write need bytes at offset n of a buffer that cannot hold them.
 //
 // Marshal has no error return, so a short output buffer is reported by panic.
@@ -99,7 +78,7 @@ func CheckLengthElem(bs []byte, n, length, elemSize int) error {
 // runtime index error, so a caller can recover and tell the two cases apart.
 func CheckWrite(bs []byte, n, need int) {
 	if n < 0 || need < 0 || n > len(bs) || need > len(bs)-n {
-		panic(ErrTooSmallByteSlice)
+		panic(ErrBufferTooSmall)
 	}
 }
 

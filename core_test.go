@@ -36,8 +36,8 @@ func TestEncodeDecode(t *testing.T) {
 	if got != v {
 		t.Fatalf("Decode returned %d, want %d", got, v)
 	}
-	if _, err = binco.Decode(varnum.Int, nil); !errors.Is(err, binco.ErrTooSmallByteSlice) {
-		t.Fatalf("Decode of empty input returned %v, want ErrTooSmallByteSlice", err)
+	if _, err = binco.Decode(varnum.Int, nil); !errors.Is(err, binco.ErrTruncated) {
+		t.Fatalf("Decode of empty input returned %v, want ErrTruncated", err)
 	}
 }
 
@@ -111,15 +111,6 @@ func TestPtrMaps(t *testing.T) {
 	rev.Clear()
 	if rev.Len() != 0 {
 		t.Fatalf("reverse Clear left %d entries", rev.Len())
-	}
-}
-
-func TestVarintLimits(t *testing.T) {
-	if got, want := binco.UintMaxVarintLen(), 10; got != want {
-		t.Fatalf("UintMaxVarintLen returned %d, want %d", got, want)
-	}
-	if got, want := binco.UintMaxLastByte(), byte(1); got != want {
-		t.Fatalf("UintMaxLastByte returned %d, want %d", got, want)
 	}
 }
 

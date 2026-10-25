@@ -7,13 +7,13 @@ import (
 	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/composite"
 	"github.com/malivvan/binco/varnum"
-	"github.com/malivvan/binco/zerocpy"
+	"github.com/malivvan/binco/zerocopy"
 )
 
 func main() {
 	var (
 		value      = [3]int{1, 2, 3}
-		serializer = zerocpy.NewArraySerializer[[3]int, int](varnum.Int)
+		serializer = zerocopy.NewArraySerializer[[3]int, int](varnum.Int)
 	)
 
 	size := serializer.Size(value)

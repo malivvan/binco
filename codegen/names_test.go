@@ -112,14 +112,14 @@ func TestSerializerFnsOf(t *testing.T) {
 
 	unsafeFns := newTestSerializerFns(t, genopts.WithUnsafe())
 	for _, tc := range []struct{ name, want string }{
-		{"int", "zerocpy.Int"},
-		{"int8", "zerocpy.Int8"},
-		{"uint64", "zerocpy.Uint64"},
-		{"float64", "zerocpy.Float64"},
-		{"bool", "zerocpy.Bool"},
-		{"string", "zerocpy.String"},
-		{"[]byte", "zerocpy.ByteSlice"},
-		{"time.Time", "zerocpy.TimeUnixUTC"},
+		{"int", "zerocopy.Int"},
+		{"int8", "zerocopy.Int8"},
+		{"uint64", "zerocopy.Uint64"},
+		{"float64", "zerocopy.Float64"},
+		{"bool", "zerocopy.Bool"},
+		{"string", "zerocopy.String"},
+		{"[]byte", "zerocopy.ByteSlice"},
+		{"time.Time", "zerocopy.TimeUnixUTC"},
 	} {
 		value, err := unsafeFns.Of(typename.FullName(tc.name), tpopts.Options{}, unsafeFns.gopts)
 		if err != nil {
@@ -131,7 +131,7 @@ func TestSerializerFnsOf(t *testing.T) {
 	}
 
 	notUnsafe := newTestSerializerFns(t, genopts.WithNotUnsafe())
-	if value, err := notUnsafe.Of("int", tpopts.Options{}, notUnsafe.gopts); err != nil || value != "zerocpy.Int" {
+	if value, err := notUnsafe.Of("int", tpopts.Options{}, notUnsafe.gopts); err != nil || value != "zerocopy.Int" {
 		t.Fatalf("not-unsafe Of(int) = (%q, %v)", value, err)
 	}
 	if value, err := notUnsafe.Of("string", tpopts.Options{}, notUnsafe.gopts); err != nil || value != "composite.String" {

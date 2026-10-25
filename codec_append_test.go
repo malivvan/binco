@@ -23,11 +23,11 @@ func (m selfEncodedTyped) SizeTypedBinco() (size int) { return varnum.Int.Size(m
 
 // TestAppendMarshal covers the P4 append helpers for self-encoding values.
 func TestAppendMarshal(t *testing.T) {
-	dst := binco.AppendMarshal(selfEncoded{v: 300}, []byte{0xAA})
+	dst := binco.AppendMarshal([]byte{0xAA}, selfEncoded{v: 300})
 	if want := append([]byte{0xAA}, binco.Encode(varnum.Int, 300)...); !bytes.Equal(dst, want) {
 		t.Fatalf("AppendMarshal = %v, want %v", dst, want)
 	}
-	dst = binco.AppendMarshalTyped(selfEncodedTyped{v: 300}, []byte{0xAA})
+	dst = binco.AppendMarshalTyped([]byte{0xAA}, selfEncodedTyped{v: 300})
 	if want := append([]byte{0xAA}, binco.Encode(varnum.Int, 300)...); !bytes.Equal(dst, want) {
 		t.Fatalf("AppendMarshalTyped = %v, want %v", dst, want)
 	}

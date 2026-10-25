@@ -113,7 +113,8 @@ func (e *Encoder) Flush() error {
 	return e.bw.Flush()
 }
 
-// Reset points the Encoder at w and drops the buffered state.
+// Reset points the Encoder at w. Bytes that are still buffered are dropped
+// without being written, so flush first when they matter.
 func (e *Encoder) Reset(w io.Writer) {
 	if e.bw != nil {
 		e.bw.Reset(w)
@@ -152,7 +153,9 @@ func (d *Decoder) Reader() Reader {
 	return d.r
 }
 
-// Reset points the Decoder at r and drops the buffered state.
+// Reset points the Decoder at r. Bytes that the previous reader had buffered
+// but the codec did not consume are dropped, so reset only at a message
+// boundary.
 func (d *Decoder) Reset(r io.Reader) {
 	if d.br != nil {
 		d.br.Reset(r)

@@ -1,4 +1,4 @@
-package zerocpy
+package zerocopy
 
 import (
 	unsafe_mod "unsafe"
@@ -27,13 +27,6 @@ func NewStringSerializer(opts ...stropts.SetOption) binco.Serializer[string] {
 		return checkedText{s, o.LenVl}
 	}
 	return s
-}
-
-// NewValidStringSerializer returns a string serializer that runs its length validator while decoding.
-func NewValidStringSerializer(opts ...stropts.SetOption) checkedText {
-	o := stropts.Options{}
-	stropts.Apply(opts, &o)
-	return checkedText{newTextView(o), o.LenVl}
 }
 
 func newTextView(o stropts.Options) textView {
@@ -127,18 +120,6 @@ func NewByteSliceSerializer(opts ...bslopts.SetOption) binco.Serializer[[]byte] 
 		return checkedBlob{s, o.LenVl}
 	}
 	return s
-}
-
-// NewValidByteSliceSerializer returns a byte slice serializer that runs its length validator while decoding.
-func NewValidByteSliceSerializer(opts ...bslopts.SetOption) checkedBlob {
-	o := bslopts.Options{}
-	bslopts.Apply(opts, &o)
-
-	var lenVl binco.Validator[int]
-	if o.LenVl != nil {
-		lenVl = o.LenVl
-	}
-	return checkedBlob{newBlobView(o), lenVl}
 }
 
 func newBlobView(o bslopts.Options) blobView {

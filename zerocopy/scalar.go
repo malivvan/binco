@@ -1,4 +1,4 @@
-package zerocpy
+package zerocopy
 
 import (
 	"math"
@@ -25,7 +25,7 @@ func (s boolView) Marshal(v bool, bs []byte) (n int) {
 
 func (s boolView) Unmarshal(bs []byte) (v bool, n int, err error) {
 	if len(bs) < 1 {
-		return false, 0, binco.ErrTooSmallByteSlice
+		return false, 0, binco.ErrTruncated
 	}
 	if bs[0] > 1 {
 		err = binco.ErrWrongFormat

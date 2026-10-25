@@ -1,6 +1,6 @@
 // Package le reads and writes little-endian fixed-width values in a byte slice.
 //
-// The buffer codecs of package scalar and package zerocpy need the same
+// The buffer codecs of package scalar and package zerocopy need the same
 // byte-level work; this package is the one implementation they share. The
 // encoding is always little-endian, whatever the host byte order is, and every
 // function checks the input or output length before touching it.
@@ -43,7 +43,7 @@ func Put8[T binco.Integer8](bs []byte, t T) int {
 // Get64 reads eight little-endian bytes.
 func Get64[T binco.Integer64](bs []byte) (t T, n int, err error) {
 	if len(bs) < binco.Num64RawSize {
-		return t, 0, binco.ErrTooSmallByteSlice
+		return t, 0, binco.ErrTruncated
 	}
 	return T(binary.LittleEndian.Uint64(bs)), binco.Num64RawSize, nil
 }
@@ -51,7 +51,7 @@ func Get64[T binco.Integer64](bs []byte) (t T, n int, err error) {
 // Get32 reads four little-endian bytes.
 func Get32[T binco.Integer32](bs []byte) (t T, n int, err error) {
 	if len(bs) < binco.Num32RawSize {
-		return t, 0, binco.ErrTooSmallByteSlice
+		return t, 0, binco.ErrTruncated
 	}
 	return T(binary.LittleEndian.Uint32(bs)), binco.Num32RawSize, nil
 }
@@ -59,7 +59,7 @@ func Get32[T binco.Integer32](bs []byte) (t T, n int, err error) {
 // Get16 reads two little-endian bytes.
 func Get16[T binco.Integer16](bs []byte) (t T, n int, err error) {
 	if len(bs) < binco.Num16RawSize {
-		return t, 0, binco.ErrTooSmallByteSlice
+		return t, 0, binco.ErrTruncated
 	}
 	return T(binary.LittleEndian.Uint16(bs)), binco.Num16RawSize, nil
 }
@@ -67,7 +67,7 @@ func Get16[T binco.Integer16](bs []byte) (t T, n int, err error) {
 // Get8 reads one byte.
 func Get8[T binco.Integer8](bs []byte) (t T, n int, err error) {
 	if len(bs) < binco.Num8RawSize {
-		return t, 0, binco.ErrTooSmallByteSlice
+		return t, 0, binco.ErrTruncated
 	}
 	return T(bs[0]), binco.Num8RawSize, nil
 }
@@ -86,7 +86,7 @@ func Skip8(bs []byte) (int, error) { return skip(bs, binco.Num8RawSize) }
 
 func skip(bs []byte, size int) (int, error) {
 	if len(bs) < size {
-		return 0, binco.ErrTooSmallByteSlice
+		return 0, binco.ErrTruncated
 	}
 	return size, nil
 }

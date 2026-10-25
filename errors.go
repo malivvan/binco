@@ -28,6 +28,11 @@ var ErrTooDeep = errors.New(ErrorPrefix + "too deep")
 // meaningful.
 var ErrNonCanonical = errors.New(ErrorPrefix + "non-canonical varint")
 
+// ErrWrongSize reports a codec that wrote a different number of bytes than its
+// Size method promised. It is a bug in the codec, not in the data; codecs that
+// cannot return an error panic with it.
+var ErrWrongSize = errors.New(ErrorPrefix + "size mismatch")
+
 // ErrTrailingBytes reports input that continues after a complete value.
 var ErrTrailingBytes = errors.New(ErrorPrefix + "trailing bytes")
 
@@ -70,13 +75,23 @@ var ErrUnsupportedIntSize = errors.New(ErrorPrefix + "unsupported IntSize")
 // ErrTooLargeLength reports a length above the maximum the type allows.
 var ErrTooLargeLength = errors.New(ErrorPrefix + "too large length")
 
-// ErrTooSmallByteSlice reports input that ends inside a value or an output buffer that is too short.
-var ErrTooSmallByteSlice = errors.New(ErrorPrefix + "too small byte slice")
+// ErrTruncated reports input that ends inside a value.
+//
+// It is the error a decoder returns when the bytes that arrived are not enough
+// for the value the schema describes. Encoders report a short output buffer with
+// ErrBufferTooSmall instead, so the two failures are distinguishable.
+var ErrTruncated = errors.New(ErrorPrefix + "truncated input")
+
+// ErrBufferTooSmall reports an output buffer that cannot hold the value.
+//
+// Marshal has no error return, so it panics with this value. Every codec uses it,
+// which lets a caller recognise a short buffer with one recover.
+var ErrBufferTooSmall = errors.New(ErrorPrefix + "buffer too small")
 
 // ErrWrongLength reports a length that does not match the type, such as a short array.
 var ErrWrongLength = errors.New(ErrorPrefix + "wrong length")
 
-// ErrUnsupportedArch reports a big-endian host, which package zerocpy cannot serve.
+// ErrUnsupportedArch reports a big-endian host, which package zerocopy cannot serve.
 var ErrUnsupportedArch = errors.New(ErrorPrefix + "unsupported architecture, " +
 	"little-endian byte order is required")
 

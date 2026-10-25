@@ -1,4 +1,4 @@
-package zerocpy_test
+package zerocopy_test
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 	sstropts "github.com/malivvan/binco/wirefmt/config/string"
 	wscalar "github.com/malivvan/binco/wirefmt/scalar"
 	wvarnum "github.com/malivvan/binco/wirefmt/varnum"
-	snative "github.com/malivvan/binco/wirefmt/zerocpy"
+	snative "github.com/malivvan/binco/wirefmt/zerocopy"
 )
 
 func TestArrayEdgeCases(t *testing.T) {
@@ -52,7 +52,7 @@ func TestEmptyWireText(t *testing.T) {
 	}
 
 	noop := binco.ValidatorFn[int](func(int) error { return nil })
-	valid := snative.NewValidStringSerializer(sstropts.WithLenValidator(noop))
+	valid := snative.NewStringSerializer(sstropts.WithLenValidator(noop))
 	if v, n, err := valid.Unmarshal(wirefmt.NewReader(bytes.NewReader([]byte{0}))); err != nil || v != "" || n != 1 {
 		t.Fatalf("validated String.Unmarshal = (%q, %d, %v)", v, n, err)
 	}

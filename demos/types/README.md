@@ -33,8 +33,8 @@ shorter payload: binco: wrong length
 
 An array is encoded exactly like a slice: `[length, elements...]`. Because the
 array type has a fixed length, a payload with a different number of elements is
-rejected (`binco.ErrWrongLength` when shorter, `binco.ErrTooLargeLength` when
-longer) instead of being decoded into uninitialized memory.
+rejected with `binco.ErrWrongLength` instead of being decoded into uninitialized
+memory.
 
 ## slice
 

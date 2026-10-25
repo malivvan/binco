@@ -10,7 +10,7 @@ import (
 func putUnsigned[T binco.Unsigned](t T, bs []byte) (n int) {
 	if t < 0x80 {
 		if len(bs) < 1 {
-			panic(binco.ErrTooSmallByteSlice)
+			panic(binco.ErrBufferTooSmall)
 		}
 		bs[0] = byte(t)
 		return 1
@@ -35,7 +35,7 @@ func getUnsigned[T binco.Unsigned](maxVarintLen int, maxLastByte byte,
 	bs []byte,
 ) (t T, n int, err error) {
 	if len(bs) == 0 {
-		err = binco.ErrTooSmallByteSlice
+		err = binco.ErrTruncated
 		return
 	}
 	if bs[0] < 0x80 {
@@ -60,7 +60,7 @@ func getUnsigned[T binco.Unsigned](maxVarintLen int, maxLastByte byte,
 		t = t | T(b&0x7F)<<shift
 		shift += 7
 	}
-	return 0, n, binco.ErrTooSmallByteSlice
+	return 0, n, binco.ErrTruncated
 }
 
 // unsignedLen reports how many bytes t occupies once encoded.
@@ -74,7 +74,7 @@ func skipUnsigned(maxVarintLen int, maxLastByte byte, bs []byte) (n int,
 	err error,
 ) {
 	if len(bs) == 0 {
-		err = binco.ErrTooSmallByteSlice
+		err = binco.ErrTruncated
 		return
 	}
 	for i := range bs {
@@ -88,7 +88,7 @@ func skipUnsigned(maxVarintLen int, maxLastByte byte, bs []byte) (n int,
 			return i + 1, nil
 		}
 	}
-	return len(bs), binco.ErrTooSmallByteSlice
+	return len(bs), binco.ErrTruncated
 }
 
 // Byte serializes a byte.

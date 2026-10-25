@@ -80,6 +80,7 @@ func (f SerializerFns) codecName(name typename.FullName) (string, error) {
 	return rname, nil
 }
 
+// MapOpts renders the option list of a map serializer.
 func (f SerializerFns) MapOpts(anonType spec.AnonType) (string, error) {
 	var (
 		b        = strings.Builder{}
@@ -120,6 +121,7 @@ func (f SerializerFns) MapOpts(anonType spec.AnonType) (string, error) {
 	return b.String(), nil
 }
 
+// SliceOpts renders the option list of a slice serializer.
 func (f SerializerFns) SliceOpts(anonType spec.AnonType) (string, error) {
 	var (
 		b        = strings.Builder{}
@@ -147,6 +149,7 @@ func (f SerializerFns) SliceOpts(anonType spec.AnonType) (string, error) {
 	return b.String(), nil
 }
 
+// ByteSliceOpts renders the option list of a byte slice serializer.
 func (f SerializerFns) ByteSliceOpts(anonType spec.AnonType) (string, error) {
 	b := strings.Builder{}
 	if anonType.LenSerializer != "" && anonType.LenSerializer != "nil" {
@@ -161,6 +164,7 @@ func (f SerializerFns) ByteSliceOpts(anonType spec.AnonType) (string, error) {
 	return b.String(), nil
 }
 
+// ArrayOpts renders the option list of an array serializer.
 func (f SerializerFns) ArrayOpts(anonType spec.AnonType) (string, error) {
 	var (
 		b        = strings.Builder{}
@@ -182,6 +186,7 @@ func (f SerializerFns) ArrayOpts(anonType spec.AnonType) (string, error) {
 	return b.String(), nil
 }
 
+// StringOpts renders the option list of a string serializer.
 func (f SerializerFns) StringOpts(anonData spec.AnonType) (string, error) {
 	b := strings.Builder{}
 	if anonData.LenSerializer != "" && anonData.LenSerializer != "nil" {
@@ -196,6 +201,7 @@ func (f SerializerFns) StringOpts(anonData spec.AnonType) (string, error) {
 	return b.String(), nil
 }
 
+// FieldTmplPipe builds the data one field template renders.
 func (f SerializerFns) FieldTmplPipe(structType spec.StructType,
 	fieldType spec.FieldType, index int, opts genopts.Options) FieldTmplPipe {
 	pipe := FieldTmplPipe{
@@ -222,10 +228,12 @@ func (f SerializerFns) RelName(name typename.FullName) (string, error) {
 	return string(rname), nil
 }
 
+// Elem returns the serializer expression for the element type of a container.
 func (f SerializerFns) Elem(anonType spec.AnonType, opts genopts.Options) (string, error) {
 	return f.Of(anonType.ElemType, tpopts.Options{}, opts)
 }
 
+// Key returns the serializer expression for the key type of a map.
 func (f SerializerFns) Key(anonType spec.AnonType, opts genopts.Options) (string, error) {
 	return f.Of(anonType.KeyType, tpopts.Options{}, opts)
 }
@@ -280,6 +288,7 @@ func (f SerializerFns) Of(fullName typename.FullName, tops tpopts.Options,
 	return pkg + "." + serializerName, nil
 }
 
+// Val is the name of the value parameter in generated methods.
 func (f SerializerFns) Val(tp any) string {
 	return "v"
 }
@@ -305,6 +314,7 @@ func (f SerializerFns) SchemaVar(fullName typename.FullName) (string, error) {
 	return name + "SchemaFingerprint", nil
 }
 
+// DTMVar returns the name of the generated identifier constant.
 func (f SerializerFns) DTMVar(fullName typename.FullName) (string, error) {
 	name, err := f.codecName(fullName)
 	if err != nil {
@@ -313,6 +323,7 @@ func (f SerializerFns) DTMVar(fullName typename.FullName) (string, error) {
 	return name + SuffixDTM, nil
 }
 
+// TypedVar returns the name of the generated typed serializer.
 func (f SerializerFns) TypedVar(fullName typename.FullName) (string, error) {
 	name, err := f.codecName(fullName)
 	if err != nil {

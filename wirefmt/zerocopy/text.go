@@ -1,4 +1,4 @@
-package zerocpy
+package zerocopy
 
 import (
 	"github.com/malivvan/binco"
@@ -24,13 +24,6 @@ func NewStringSerializer(opts ...stropts.SetOption) wirefmt.Serializer[string] {
 		return checkedText{s, o.LenVl}
 	}
 	return s
-}
-
-// NewValidStringSerializer returns a string serializer that runs its length validator while decoding.
-func NewValidStringSerializer(opts ...stropts.SetOption) checkedText {
-	o := stropts.Options{}
-	stropts.Apply(opts, &o)
-	return checkedText{newTextView(o), o.LenVl}
 }
 
 func newTextView(o stropts.Options) textView {

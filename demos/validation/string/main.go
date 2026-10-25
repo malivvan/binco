@@ -26,7 +26,7 @@ func (l lengthLimit) Validate(n int) error {
 
 func main() {
 
-	serializer := composite.NewValidStringSerializer(stropts.WithLenValidator(lengthLimit{max: maxLen}))
+	serializer := composite.NewStringSerializer(stropts.WithLenValidator(lengthLimit{max: maxLen}))
 
 	for _, value := range []string{"hello", strings.Repeat("a", maxLen+1)} {
 		bs := binco.Encode(serializer, value)

@@ -45,7 +45,7 @@ func (s ptrCodec[T]) Marshal(v *T, bs []byte) (n int) {
 
 func (s ptrCodec[T]) Unmarshal(bs []byte) (v *T, n int, err error) {
 	if len(bs) < 1 {
-		err = binco.ErrTooSmallByteSlice
+		err = binco.ErrTruncated
 		return
 	}
 	if err = s.revPtrMap.Enter(); err != nil {
@@ -99,7 +99,7 @@ func (s ptrCodec[T]) Size(v *T) (size int) {
 
 func (s ptrCodec[T]) Skip(bs []byte) (n int, err error) {
 	if len(bs) < 1 {
-		err = binco.ErrTooSmallByteSlice
+		err = binco.ErrTruncated
 		return
 	}
 	if err = s.revPtrMap.Enter(); err != nil {

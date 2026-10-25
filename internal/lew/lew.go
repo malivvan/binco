@@ -1,7 +1,7 @@
 // Package lew reads and writes little-endian fixed-width values on a stream.
 //
 // It is the streaming counterpart of internal/le: the streaming codecs of
-// package scalar and package zerocpy share this one implementation. Each value
+// package scalar and package zerocopy share this one implementation. Each value
 // is assembled in a local buffer and written with a single Write, or read with a
 // single io.ReadFull, instead of one call per byte.
 package lew

@@ -33,7 +33,7 @@ func main() {
 		return nil
 	})
 
-	serializer := composite.NewValidSliceSerializer(
+	serializer := composite.NewSliceSerializer(
 		composite.String,
 		slopts.WithLenValidator[string](lenVl),
 		slopts.WithElemValidator[string](elemVl),

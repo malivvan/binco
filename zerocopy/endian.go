@@ -1,4 +1,4 @@
-package zerocpy
+package zerocopy
 
 // This package used to refuse to run on a big-endian host, because it read and
 // wrote scalars by reinterpreting the bytes of the value in place. The codecs

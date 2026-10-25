@@ -23,6 +23,7 @@ func StrToPackage(str string) (pkg Package, err error) {
 // PkgPath is a Go import path.
 type PkgPath string
 
+// Base returns the last element of the path, which is the default package name.
 func (p PkgPath) Base() string {
 	return filepath.Base(string(p))
 }

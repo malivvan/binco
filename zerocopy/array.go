@@ -1,4 +1,4 @@
-package zerocpy
+package zerocopy
 
 import (
 	"fmt"
@@ -6,40 +6,34 @@ import (
 	unsafe_mod "unsafe"
 
 	"github.com/malivvan/binco"
-	"github.com/malivvan/binco/wirefmt"
-	"github.com/malivvan/binco/wirefmt/composite"
-	arropts "github.com/malivvan/binco/wirefmt/config/array"
-	"github.com/malivvan/binco/wirefmt/varnum"
+	"github.com/malivvan/binco/composite"
+	arropts "github.com/malivvan/binco/config/array"
+	"github.com/malivvan/binco/varnum"
 )
 
 // NewArraySerializer returns a serializer for the array type T, whose elements are encoded with the element serializer.
 //
 // T must be an array whose element type is exactly V; the constructor panics
-// with binco.ErrWrongArrayType otherwise, so mismatched type parameters cannot
-// read or write out of bounds through unsafe. A WithElemValidator option is
-// honoured.
-func NewArraySerializer[T, V any](elemSerializer wirefmt.Serializer[V],
+// with binco.ErrWrongArrayType otherwise. Without that check an accidental
+// `NewArraySerializer[[4]int32, int64]` would read and write out of bounds
+// through unsafe.
+//
+// A WithElemValidator option is honoured; a WithLenSerializer option replaces
+// the length codec.
+func NewArraySerializer[T, V any](elemSerializer binco.Serializer[V],
 	opts ...arropts.SetOption[V],
-) wirefmt.Serializer[T] {
+) binco.Serializer[T] {
 	o := arropts.Options[V]{}
 	arropts.Apply(opts, &o)
-	return newArrayView[T, V](elemSerializer, o, o.ElemVl)
+
+	return newArrayView[T, V](elemSerializer, o)
 }
 
-// NewValidArraySerializer is NewArraySerializer with element validation.
-func NewValidArraySerializer[T, V any](elemSerializer wirefmt.Serializer[V],
-	opts ...arropts.SetOption[V],
-) arrayView[T, V] {
-	o := arropts.Options[V]{}
-	arropts.Apply(opts, &o)
-	return newArrayView[T, V](elemSerializer, o, o.ElemVl)
-}
-
-func newArrayView[T, V any](elemSerializer wirefmt.Serializer[V],
-	o arropts.Options[V], elemVl binco.Validator[V],
+func newArrayView[T, V any](elemSerializer binco.Serializer[V],
+	o arropts.Options[V],
 ) arrayView[T, V] {
 	length := validateArrayType[T, V]()
-	var lenSerializer wirefmt.Serializer[int] = varnum.PositiveInt
+	var lenSerializer binco.Serializer[int] = varnum.PositiveInt
 	if o.LenSerializer != nil {
 		lenSerializer = o.LenSerializer
 	}
@@ -48,12 +42,13 @@ func newArrayView[T, V any](elemSerializer wirefmt.Serializer[V],
 		elemSerializer: elemSerializer,
 		lenSerializer:  lenSerializer,
 		lenVl:          lengthLimit(length),
-		elemVl:         elemVl,
+		elemVl:         o.ElemVl,
 	}
 }
 
 // validateArrayType reports the length of T after checking that T really is an
-// array of V.
+// array of V. Misuse is a programming error, so it panics at construction time
+// rather than corrupting memory later.
 func validateArrayType[T, V any]() (length int) {
 	at := reflect.TypeFor[T]()
 	vt := reflect.TypeFor[V]()
@@ -72,21 +67,21 @@ func validateArrayType[T, V any]() (length int) {
 
 type arrayView[T, V any] struct {
 	length         int
-	elemSerializer wirefmt.Serializer[V]
-	lenSerializer  wirefmt.Serializer[int]
+	elemSerializer binco.Serializer[V]
+	lenSerializer  binco.Serializer[int]
 	lenVl          binco.Validator[int]
 	elemVl         binco.Validator[V]
 }
 
-func (s arrayView[T, V]) Marshal(v T, w wirefmt.Writer) (n int, err error) {
+func (s arrayView[T, V]) Marshal(v T, bs []byte) (n int) {
 	sl := unsafe_mod.Slice((*V)(unsafe_mod.Pointer(&v)), s.length)
-	return composite.MarshalSlice(sl, s.elemSerializer, s.lenSerializer, w)
+	return composite.MarshalSlice(sl, s.elemSerializer, s.lenSerializer, bs)
 }
 
-// Unmarshal checks the decoded length before it decodes anything, and fills the
-// array memory directly instead of going through a temporary slice.
-func (s arrayView[T, V]) Unmarshal(r wirefmt.Reader) (v T, n int, err error) {
-	length, n, err := s.lenSerializer.Unmarshal(r)
+// Unmarshal checks the decoded length before it decodes or allocates anything,
+// and decodes straight into the array memory instead of into a temporary slice.
+func (s arrayView[T, V]) Unmarshal(bs []byte) (v T, n int, err error) {
+	length, n, err := s.lenSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
@@ -110,7 +105,7 @@ func (s arrayView[T, V]) Unmarshal(r wirefmt.Reader) (v T, n int, err error) {
 	var n1 int
 
 	for i := range s.length {
-		e, n1, err = s.elemSerializer.Unmarshal(r)
+		e, n1, err = s.elemSerializer.Unmarshal(bs[n:])
 		n += n1
 		if err != nil {
 			return v, n, err
@@ -130,8 +125,8 @@ func (s arrayView[T, V]) Size(v T) (size int) {
 	return composite.SizeSlice(sl, s.elemSerializer, s.lenSerializer)
 }
 
-func (s arrayView[T, V]) Skip(r wirefmt.Reader) (n int, err error) {
-	return composite.SkipSlice(s.elemSerializer, s.lenSerializer, r)
+func (s arrayView[T, V]) Skip(bs []byte) (n int, err error) {
+	return composite.SkipSlice(bs, s.elemSerializer, s.lenSerializer)
 }
 
 func lengthLimit(length int) binco.ValidatorFn[int] {

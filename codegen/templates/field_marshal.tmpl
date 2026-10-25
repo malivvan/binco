@@ -1,4 +1,4 @@
-{{- /* {Val string, FieldsCount int, Field data.FieldData, Index int, Gops genops.Options} */}}
+{{- /* {Val string, FieldsCount int, Field data.FieldData, Index int, Gops genopts.Options} */}}
 {{- $mlp := Tmpl.MarshalLastParam (eq .Index 0) .Gops }}
 
 {{- $vf := print .Val "." .Field.FieldName }}

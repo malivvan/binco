@@ -79,11 +79,11 @@ func TestWriterErrorsAtEveryStep(t *testing.T) {
 			return err
 		}},
 		{"valid slice", func(w wirefmt.Writer) error {
-			_, err := composite.NewValidSliceSerializer(wvarnum.Int).Marshal([]int{1, 2}, w)
+			_, err := composite.NewSliceSerializer(wvarnum.Int).Marshal([]int{1, 2}, w)
 			return err
 		}},
 		{"valid map", func(w wirefmt.Writer) error {
-			_, err := composite.NewValidMapSerializer(wvarnum.Int, wvarnum.Int).Marshal(
+			_, err := composite.NewMapSerializer(wvarnum.Int, wvarnum.Int).Marshal(
 				map[int]int{1: 2}, w)
 			return err
 		}},
@@ -152,11 +152,11 @@ func TestUnmarshalTruncatedStreams(t *testing.T) {
 			return err
 		}},
 		{"valid slice", func() error {
-			_, _, err := composite.NewValidSliceSerializer(wvarnum.Int).Unmarshal(reader(2, 2))
+			_, _, err := composite.NewSliceSerializer(wvarnum.Int).Unmarshal(reader(2, 2))
 			return err
 		}},
 		{"valid map", func() error {
-			_, _, err := composite.NewValidMapSerializer(wvarnum.Int, wvarnum.Int).Unmarshal(reader(1, 2))
+			_, _, err := composite.NewMapSerializer(wvarnum.Int, wvarnum.Int).Unmarshal(reader(1, 2))
 			return err
 		}},
 	}

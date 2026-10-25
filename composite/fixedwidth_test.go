@@ -58,7 +58,7 @@ func TestFixedWidthPathStillValidates(t *testing.T) {
 		}
 		return nil
 	})
-	serializer := composite.NewValidSliceSerializer(scalar.Int32,
+	serializer := composite.NewSliceSerializer(scalar.Int32,
 		slopts.WithElemValidator[int32](notNegative))
 	bs := binco.Encode(composite.NewSliceSerializer(scalar.Int32), []int32{1, -1})
 	if _, _, err := serializer.Unmarshal(bs); err == nil {
@@ -70,7 +70,7 @@ func TestFixedWidthPathStillValidates(t *testing.T) {
 // and write exactly the encoded value into the tail.
 func TestAppendHelpers(t *testing.T) {
 	dst := []byte{0xAA}
-	dst = binco.AppendEncode(varnum.Int, dst, 300)
+	dst = binco.AppendEncode(dst, varnum.Int, 300)
 	if want := append([]byte{0xAA}, binco.Encode(varnum.Int, 300)...); !bytes.Equal(dst, want) {
 		t.Fatalf("AppendEncode = %v, want %v", dst, want)
 	}

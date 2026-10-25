@@ -206,16 +206,21 @@ func (o *CollectAnonOp) processPtrType(typeInfo scanner.TypeInfo[typename.FullNa
 	return o.ProcessType(typeInfo, tpopts.Options{})
 }
 
+// FirstAnonType returns the first anonymous serializer the collector met.
 func (o *CollectAnonOp) FirstAnonType() *spec.AnonType {
 	return o.firstAnonType
 }
 
+// ProcessRightSquare closes a container in the scanned name.
 func (o *CollectAnonOp) ProcessRightSquare() {}
 
+// ProcessComma separates the key and element types of a map.
 func (o *CollectAnonOp) ProcessComma() {}
 
+// ProcessLeftSquare opens a container in the scanned name.
 func (o *CollectAnonOp) ProcessLeftSquare() {}
 
+// ProcessType records the anonymous serializer a type needs.
 func (o *CollectAnonOp) ProcessType(typeInfo scanner.TypeInfo[typename.FullName],
 	tops tpopts.Options) (err error) {
 	var (
@@ -261,10 +266,12 @@ type MakeAnonDataOp struct {
 	ok       bool
 }
 
+// AnonType returns the anonymous serializer the probe found.
 func (o *MakeAnonDataOp) AnonType() (anonType spec.AnonType, ok bool) {
 	return o.anonType, o.ok
 }
 
+// ProcessType stops the scan once the first anonymous serializer is known.
 func (o *MakeAnonDataOp) ProcessType(t scanner.TypeInfo[typename.FullName],
 	tops tpopts.Options) (err error) {
 	if err = o.CollectAnonOp.ProcessType(t, tops); err != nil {

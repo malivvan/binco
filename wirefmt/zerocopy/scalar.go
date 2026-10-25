@@ -1,4 +1,4 @@
-package zerocpy
+package zerocopy
 
 import (
 	"math"

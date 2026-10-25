@@ -158,6 +158,7 @@ func mapTypeCompleteName(stars string, t reflect.Type) (name CompleteName,
 // FullName is "pkg.Type" as the generator templates write it.
 type FullName string
 
+// TypeName returns the type part of the name, without its package.
 func (n FullName) TypeName() TypeName {
 	match := pkgTypeNameRe.FindStringSubmatch(string(n))
 	if len(match) != 3 {
@@ -166,6 +167,7 @@ func (n FullName) TypeName() TypeName {
 	return TypeName(match[2])
 }
 
+// Package returns the package part of the name, or an empty name.
 func (n FullName) Package() Package {
 	match := pkgTypeNameRe.FindStringSubmatch(string(n))
 	if len(match) != 3 {
@@ -185,6 +187,7 @@ func MakeFullName(pkg Package, name TypeName) FullName {
 // RelativeName is a full name that omits the package of the generated file.
 type RelativeName FullName
 
+// WithoutSquares drops the type parameters of a generic name.
 func (n RelativeName) WithoutSquares() (str string) {
 	str = string(n)
 	before, _, ok := strings.Cut(str, "[")

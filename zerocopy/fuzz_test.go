@@ -1,6 +1,6 @@
 //go:build fuzz
 
-package zerocpy_test
+package zerocopy_test
 
 import (
 	"os"
@@ -9,11 +9,11 @@ import (
 
 	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/scalar"
-	"github.com/malivvan/binco/zerocpy"
+	"github.com/malivvan/binco/zerocopy"
 )
 
 func TestMain(m *testing.M) {
-	// A decoded zerocpy string or slice aliases the input, so an unbounded read
+	// A decoded zerocopy string or slice aliases the input, so an unbounded read
 	// would be an out-of-bounds view; keep a hard memory ceiling as well.
 	debug.SetMemoryLimit(256 << 20)
 	os.Exit(m.Run())
@@ -29,17 +29,17 @@ func FuzzString(f *testing.F) {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, bs []byte) {
-		v, n, err := zerocpy.String.Unmarshal(bs)
+		v, n, err := zerocopy.String.Unmarshal(bs)
 		if n < 0 || n > len(bs) {
 			t.Fatalf("Unmarshal consumed %d of %d bytes", n, len(bs))
 		}
 		if err != nil {
 			return
 		}
-		if got := zerocpy.String.Size(v); got != n {
+		if got := zerocopy.String.Size(v); got != n {
 			t.Fatalf("Size = %d, Unmarshal consumed %d", got, n)
 		}
-		if skipN, skipErr := zerocpy.String.Skip(bs); skipErr != nil || skipN != n {
+		if skipN, skipErr := zerocopy.String.Skip(bs); skipErr != nil || skipN != n {
 			t.Fatalf("Skip = (%d, %v), Unmarshal consumed %d", skipN, skipErr, n)
 		}
 	})
@@ -53,14 +53,14 @@ func FuzzByteSlice(f *testing.F) {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, bs []byte) {
-		v, n, err := zerocpy.ByteSlice.Unmarshal(bs)
+		v, n, err := zerocopy.ByteSlice.Unmarshal(bs)
 		if n < 0 || n > len(bs) {
 			t.Fatalf("Unmarshal consumed %d of %d bytes", n, len(bs))
 		}
 		if err != nil {
 			return
 		}
-		if got := zerocpy.ByteSlice.Size(v); got != n {
+		if got := zerocopy.ByteSlice.Size(v); got != n {
 			t.Fatalf("Size = %d, Unmarshal consumed %d", got, n)
 		}
 	})
@@ -73,7 +73,7 @@ func FuzzArray(f *testing.F) {
 	} {
 		f.Add(seed)
 	}
-	serializer := zerocpy.NewArraySerializer[[2]int, int](scalar.Int)
+	serializer := zerocopy.NewArraySerializer[[2]int, int](scalar.Int)
 	f.Fuzz(func(t *testing.T, bs []byte) {
 		v, n, err := serializer.Unmarshal(bs)
 		if n < 0 || n > len(bs) {
@@ -100,13 +100,13 @@ func FuzzScalars(f *testing.F) {
 		buf := make([]byte, len(bs)+1)
 		copy(buf[1:], bs)
 		off := buf[1:]
-		if _, n, err := zerocpy.Int64.Unmarshal(off); err == nil && n != binco.Num64RawSize {
+		if _, n, err := zerocopy.Int64.Unmarshal(off); err == nil && n != binco.Num64RawSize {
 			t.Fatalf("Int64 consumed %d bytes", n)
 		}
-		if _, n, err := zerocpy.Float32.Unmarshal(off); err == nil && n != binco.Num32RawSize {
+		if _, n, err := zerocopy.Float32.Unmarshal(off); err == nil && n != binco.Num32RawSize {
 			t.Fatalf("Float32 consumed %d bytes", n)
 		}
-		if _, n, err := zerocpy.Uint16.Unmarshal(off); err == nil && n != binco.Num16RawSize {
+		if _, n, err := zerocopy.Uint16.Unmarshal(off); err == nil && n != binco.Num16RawSize {
 			t.Fatalf("Uint16 consumed %d bytes", n)
 		}
 	})

@@ -62,14 +62,14 @@ func TestBool(t *testing.T) {
 	if _, _, err := composite.Bool.Unmarshal([]byte{2}); err != binco.ErrWrongFormat {
 		t.Fatalf("Unmarshal(2) returned %v, want ErrWrongFormat", err)
 	}
-	if _, _, err := composite.Bool.Unmarshal(nil); err != binco.ErrTooSmallByteSlice {
-		t.Fatalf("Unmarshal(nil) returned %v, want ErrTooSmallByteSlice", err)
+	if _, _, err := composite.Bool.Unmarshal(nil); err != binco.ErrTruncated {
+		t.Fatalf("Unmarshal(nil) returned %v, want ErrTruncated", err)
 	}
 	if _, err := composite.Bool.Skip([]byte{2}); err != binco.ErrWrongFormat {
 		t.Fatalf("Skip(2) returned %v, want ErrWrongFormat", err)
 	}
-	if _, err := composite.Bool.Skip(nil); err != binco.ErrTooSmallByteSlice {
-		t.Fatalf("Skip(nil) returned %v, want ErrTooSmallByteSlice", err)
+	if _, err := composite.Bool.Skip(nil); err != binco.ErrTruncated {
+		t.Fatalf("Skip(nil) returned %v, want ErrTruncated", err)
 	}
 }
 
@@ -92,13 +92,13 @@ func TestString(t *testing.T) {
 		t.Fatalf("length prefix = %d, want 11", bs[0])
 	}
 
-	if _, _, err := composite.String.Unmarshal([]byte{5, 'a'}); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := composite.String.Unmarshal([]byte{5, 'a'}); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal of a truncated string returned %v", err)
 	}
-	if _, err := composite.String.Skip([]byte{5, 'a'}); err != binco.ErrTooSmallByteSlice {
+	if _, err := composite.String.Skip([]byte{5, 'a'}); err != binco.ErrTruncated {
 		t.Fatalf("Skip of a truncated string returned %v", err)
 	}
-	if _, _, err := composite.NewStringSerializer().Unmarshal(nil); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := composite.NewStringSerializer().Unmarshal(nil); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal(nil) returned %v", err)
 	}
 }
@@ -115,7 +115,7 @@ func TestStringOptions(t *testing.T) {
 	}
 
 	wantErr := errors.New("too long")
-	valid := composite.NewValidStringSerializer(stropts.WithLenValidator(binco.ValidatorFn[int](
+	valid := composite.NewStringSerializer(stropts.WithLenValidator(binco.ValidatorFn[int](
 		func(n int) error {
 			if n > 2 {
 				return wantErr
@@ -144,10 +144,10 @@ func TestByteSlice(t *testing.T) {
 			t.Fatalf("Skip(%v) = (%d, %v)", bs, n, err)
 		}
 	}
-	if _, _, err := composite.ByteSlice.Unmarshal([]byte{3, 1}); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := composite.ByteSlice.Unmarshal([]byte{3, 1}); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal of a truncated slice returned %v", err)
 	}
-	if _, err := composite.ByteSlice.Skip([]byte{3, 1}); err != binco.ErrTooSmallByteSlice {
+	if _, err := composite.ByteSlice.Skip([]byte{3, 1}); err != binco.ErrTruncated {
 		t.Fatalf("Skip of a truncated slice returned %v", err)
 	}
 
@@ -189,10 +189,10 @@ func TestPtr(t *testing.T) {
 	if _, _, err = serializer.Unmarshal([]byte{byte(binco.PtrMapping), 0}); err != binco.ErrWrongFormat {
 		t.Fatalf("Unmarshal of a mapping flag returned %v, want ErrWrongFormat", err)
 	}
-	if _, _, err = serializer.Unmarshal(nil); err != binco.ErrTooSmallByteSlice {
+	if _, _, err = serializer.Unmarshal(nil); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal(nil) returned %v", err)
 	}
-	if _, err = serializer.Skip(nil); err != binco.ErrTooSmallByteSlice {
+	if _, err = serializer.Skip(nil); err != binco.ErrTruncated {
 		t.Fatalf("Skip(nil) returned %v", err)
 	}
 	if _, err = serializer.Skip([]byte{byte(binco.PtrMapping)}); err != binco.ErrWrongFormat {
@@ -236,7 +236,7 @@ func TestSlice(t *testing.T) {
 	}
 
 	lenErr, elemErr := errors.New("len"), errors.New("elem")
-	valid := composite.NewValidSliceSerializer(varnum.Int,
+	valid := composite.NewSliceSerializer(varnum.Int,
 		slopts.WithLenValidator[int](binco.ValidatorFn[int](func(n int) error {
 			if n > 1 {
 				return lenErr
@@ -286,7 +286,7 @@ func TestMap(t *testing.T) {
 	}
 
 	lenErr, keyErr, valErr := errors.New("len"), errors.New("key"), errors.New("value")
-	valid := composite.NewValidMapSerializer(composite.String, varnum.Int,
+	valid := composite.NewMapSerializer(composite.String, varnum.Int,
 		mapopts.WithLenValidator[string, int](binco.ValidatorFn[int](func(n int) error {
 			if n > 1 {
 				return lenErr
@@ -352,7 +352,7 @@ func TestNegativeLength(t *testing.T) {
 
 func TestValidByteSlice(t *testing.T) {
 	wantErr := errors.New("too long")
-	serializer := composite.NewValidByteSliceSerializer(bslopts.WithLenValidator(
+	serializer := composite.NewByteSliceSerializer(bslopts.WithLenValidator(
 		binco.ValidatorFn[int](func(n int) error {
 			if n > 2 {
 				return wantErr
@@ -373,24 +373,24 @@ func TestValidByteSlice(t *testing.T) {
 		t.Fatalf("Unmarshal of an empty slice = (%v, %d, %v)", got, n, err)
 	}
 
-	if _, _, err := serializer.Unmarshal([]byte{3, 1}); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := serializer.Unmarshal([]byte{3, 1}); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal of a truncated slice returned %v", err)
 	}
 
-	neg := composite.NewValidByteSliceSerializer(bslopts.WithLenSerializer(negativeLenSerializer{}))
+	neg := composite.NewByteSliceSerializer(bslopts.WithLenSerializer(negativeLenSerializer{}))
 	if _, _, err := neg.Unmarshal([]byte{0}); err != binco.ErrNegativeLength {
 		t.Fatalf("Unmarshal returned %v, want ErrNegativeLength", err)
 	}
 }
 
 func TestValidStringErrorPaths(t *testing.T) {
-	valid := composite.NewValidStringSerializer()
+	valid := composite.NewStringSerializer()
 
-	if _, _, err := valid.Unmarshal(nil); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := valid.Unmarshal(nil); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal(nil) returned %v", err)
 	}
 
-	if _, _, err := valid.Unmarshal([]byte{5, 'a'}); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := valid.Unmarshal([]byte{5, 'a'}); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal of a truncated string returned %v", err)
 	}
 
@@ -398,7 +398,7 @@ func TestValidStringErrorPaths(t *testing.T) {
 		t.Fatalf("Unmarshal of an empty string = (%q, %d, %v)", got, n, err)
 	}
 
-	neg := composite.NewValidStringSerializer(stropts.WithLenSerializer(negativeLenSerializer{}))
+	neg := composite.NewStringSerializer(stropts.WithLenSerializer(negativeLenSerializer{}))
 	if _, _, err := neg.Unmarshal([]byte{0}); err != binco.ErrNegativeLength {
 		t.Fatalf("Unmarshal returned %v, want ErrNegativeLength", err)
 	}
@@ -409,15 +409,15 @@ func TestValidStringErrorPaths(t *testing.T) {
 
 func TestSliceErrorPaths(t *testing.T) {
 	serializer := composite.NewSliceSerializer(varnum.Int)
-	valid := composite.NewValidSliceSerializer(varnum.Int)
+	valid := composite.NewSliceSerializer(varnum.Int)
 
-	if _, _, err := serializer.Unmarshal(nil); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := serializer.Unmarshal(nil); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal(nil) returned %v", err)
 	}
-	if _, err := serializer.Skip(nil); err != binco.ErrTooSmallByteSlice {
+	if _, err := serializer.Skip(nil); err != binco.ErrTruncated {
 		t.Fatalf("Skip(nil) returned %v", err)
 	}
-	if _, _, err := valid.Unmarshal(nil); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := valid.Unmarshal(nil); err != binco.ErrTruncated {
 		t.Fatalf("valid Unmarshal(nil) returned %v", err)
 	}
 
@@ -428,13 +428,13 @@ func TestSliceErrorPaths(t *testing.T) {
 	if _, err := neg.Skip([]byte{0}); err != binco.ErrNegativeLength {
 		t.Fatalf("Skip returned %v", err)
 	}
-	negValid := composite.NewValidSliceSerializer(varnum.Int, slopts.WithLenSerializer[int](negativeLenSerializer{}))
+	negValid := composite.NewSliceSerializer(varnum.Int, slopts.WithLenSerializer[int](negativeLenSerializer{}))
 	if _, _, err := negValid.Unmarshal([]byte{0}); err != binco.ErrNegativeLength {
 		t.Fatalf("valid Unmarshal returned %v", err)
 	}
 
 	wantErr := errors.New("elem")
-	failing := composite.NewValidSliceSerializer(failingSerializer{err: wantErr})
+	failing := composite.NewSliceSerializer(failingSerializer{err: wantErr})
 	if _, err := failing.Skip([]byte{1, 0}); !errors.Is(err, wantErr) {
 		t.Fatalf("Skip returned %v, want %v", err, wantErr)
 	}
@@ -449,15 +449,15 @@ func TestSliceErrorPaths(t *testing.T) {
 
 func TestMapErrorPaths(t *testing.T) {
 	serializer := composite.NewMapSerializer(composite.String, varnum.Int)
-	valid := composite.NewValidMapSerializer(composite.String, varnum.Int)
+	valid := composite.NewMapSerializer(composite.String, varnum.Int)
 
-	if _, _, err := serializer.Unmarshal(nil); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := serializer.Unmarshal(nil); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal(nil) returned %v", err)
 	}
-	if _, err := serializer.Skip(nil); err != binco.ErrTooSmallByteSlice {
+	if _, err := serializer.Skip(nil); err != binco.ErrTruncated {
 		t.Fatalf("Skip(nil) returned %v", err)
 	}
-	if _, _, err := valid.Unmarshal(nil); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := valid.Unmarshal(nil); err != binco.ErrTruncated {
 		t.Fatalf("valid Unmarshal(nil) returned %v", err)
 	}
 
@@ -469,7 +469,7 @@ func TestMapErrorPaths(t *testing.T) {
 	if _, err := neg.Skip([]byte{0}); err != binco.ErrNegativeLength {
 		t.Fatalf("Skip returned %v", err)
 	}
-	negValid := composite.NewValidMapSerializer(composite.String, varnum.Int,
+	negValid := composite.NewMapSerializer(composite.String, varnum.Int,
 		mapopts.WithLenSerializer[string, int](negativeLenSerializer{}))
 	if _, _, err := negValid.Unmarshal([]byte{0}); err != binco.ErrNegativeLength {
 		t.Fatalf("valid Unmarshal returned %v", err)
@@ -490,7 +490,7 @@ func TestMapErrorPaths(t *testing.T) {
 		t.Fatalf("valid Unmarshal = (%v, %v)", got, err)
 	}
 
-	failingKeyValid := composite.NewValidMapSerializer(failingSerializer{err: wantErr}, varnum.Int)
+	failingKeyValid := composite.NewMapSerializer(failingSerializer{err: wantErr}, varnum.Int)
 	if _, _, err := failingKeyValid.Unmarshal(encoded); !errors.Is(err, wantErr) {
 		t.Fatalf("valid Unmarshal returned %v, want %v", err, wantErr)
 	}

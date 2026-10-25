@@ -23,10 +23,10 @@ import (
 const maxFuzzLength = 1 << 12
 
 var (
-	fuzzString    wirefmt.Serializer[string]      = composite.NewValidStringSerializer(stropts.WithLenValidator(lengthLimit()))
-	fuzzByteSlice wirefmt.Serializer[[]byte]      = composite.NewValidByteSliceSerializer(bslopts.WithLenValidator(lengthLimit()))
-	fuzzSlice     wirefmt.Serializer[[]int]       = composite.NewValidSliceSerializer(varnum.Int, slopts.WithLenValidator[int](lengthLimit()))
-	fuzzMap       wirefmt.Serializer[map[int]int] = composite.NewValidMapSerializer(varnum.Int, varnum.Int, mapopts.WithLenValidator[int, int](lengthLimit()))
+	fuzzString    wirefmt.Serializer[string]      = composite.NewStringSerializer(stropts.WithLenValidator(lengthLimit()))
+	fuzzByteSlice wirefmt.Serializer[[]byte]      = composite.NewByteSliceSerializer(bslopts.WithLenValidator(lengthLimit()))
+	fuzzSlice     wirefmt.Serializer[[]int]       = composite.NewSliceSerializer(varnum.Int, slopts.WithLenValidator[int](lengthLimit()))
+	fuzzMap       wirefmt.Serializer[map[int]int] = composite.NewMapSerializer(varnum.Int, varnum.Int, mapopts.WithLenValidator[int, int](lengthLimit()))
 )
 
 func lengthLimit() binco.Validator[int] {

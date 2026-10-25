@@ -143,19 +143,19 @@ func TestTime(t *testing.T) {
 }
 
 func TestErrors(t *testing.T) {
-	if _, _, err := scalar.Uint64.Unmarshal(make([]byte, 7)); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := scalar.Uint64.Unmarshal(make([]byte, 7)); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal of a short buffer returned %v", err)
 	}
-	if _, err := scalar.Uint64.Skip(make([]byte, 7)); err != binco.ErrTooSmallByteSlice {
+	if _, err := scalar.Uint64.Skip(make([]byte, 7)); err != binco.ErrTruncated {
 		t.Fatalf("Skip of a short buffer returned %v", err)
 	}
-	if _, _, err := scalar.Int32.Unmarshal(make([]byte, 3)); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := scalar.Int32.Unmarshal(make([]byte, 3)); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal of a short buffer returned %v", err)
 	}
-	if _, _, err := scalar.Int16.Unmarshal(make([]byte, 1)); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := scalar.Int16.Unmarshal(make([]byte, 1)); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal of a short buffer returned %v", err)
 	}
-	if _, _, err := scalar.Int8.Unmarshal(nil); err != binco.ErrTooSmallByteSlice {
+	if _, _, err := scalar.Int8.Unmarshal(nil); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal of an empty buffer returned %v", err)
 	}
 }

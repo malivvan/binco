@@ -1,4 +1,4 @@
-package zerocpy_test
+package zerocopy_test
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/scalar"
-	"github.com/malivvan/binco/zerocpy"
+	"github.com/malivvan/binco/zerocopy"
 )
 
 // TestArraySerializerRejectsMismatchedTypes covers S5: the constructor used to
@@ -18,8 +18,8 @@ func TestArraySerializerRejectsMismatchedTypes(t *testing.T) {
 		name string
 		fn   func()
 	}{
-		{"not an array", func() { zerocpy.NewArraySerializer[int32, int64](scalar.Int64) }},
-		{"wrong element type", func() { zerocpy.NewArraySerializer[[4]int32, int64](scalar.Int64) }},
+		{"not an array", func() { zerocopy.NewArraySerializer[int32, int64](scalar.Int64) }},
+		{"wrong element type", func() { zerocopy.NewArraySerializer[[4]int32, int64](scalar.Int64) }},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -45,7 +45,7 @@ func TestUnalignedAccess(t *testing.T) {
 	for offset := 1; offset <= 9; offset += 2 {
 		buf := make([]byte, offset+8)
 		scalar.Int64.Marshal(-123456789, buf[offset:])
-		got, n, err := zerocpy.Int64.Unmarshal(buf[offset:])
+		got, n, err := zerocopy.Int64.Unmarshal(buf[offset:])
 		if err != nil || n != 8 || got != -123456789 {
 			t.Fatalf("offset %d: Unmarshal = (%d, %d, %v)", offset, got, n, err)
 		}
@@ -57,9 +57,9 @@ func TestUnalignedAccess(t *testing.T) {
 func TestTimesDecodeToUTC(t *testing.T) {
 	v := time.Date(2024, 5, 6, 7, 8, 9, 0, time.FixedZone("custom", 3*60*60))
 	for name, s := range map[string]binco.Serializer[time.Time]{
-		"TimeUnix":      zerocpy.TimeUnix,
-		"TimeUnixMilli": zerocpy.TimeUnixMilli,
-		"TimeUnixMicro": zerocpy.TimeUnixMicro,
+		"TimeUnix":      zerocopy.TimeUnix,
+		"TimeUnixMilli": zerocopy.TimeUnixMilli,
+		"TimeUnixMicro": zerocopy.TimeUnixMicro,
 	} {
 		got, _, err := s.Unmarshal(binco.Encode(s, v))
 		if err != nil {

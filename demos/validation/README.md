@@ -6,10 +6,10 @@ Validating data while it is unmarshalled.
 - [slice](slice/): slice length and element validators.
 - [map](map/): map length, key and value validators.
 
-Validation is a property of the *reader*: `Marshal` never validates, and the
-plain serializers accept whatever the validating ones reject. Every `NewValid*`
-constructor takes the same options as its plain counterpart, so a validator can
-be added without touching the rest of the code.
+Validation is a property of the *reader*: `Marshal` never validates, and a
+serializer without validators accepts whatever one with validators rejects.
+Validators are options, so a codec gains one without changing its constructor or
+any other call site.
 
 Validators run as early as possible:
 

@@ -1,62 +1,31 @@
-{{/* {Map: map[data.AnonSerializerName]data.AnonData, Ops: genops.Options} */}}
+{{/* {Map: map[data.AnonSerializerName]data.AnonData, Ops: genopts.Options} */}}
 {{- if gt (len .Map)  0 }}
 	{{- $gops := .Ops }}
 	var (
-		{{- $constructorName := "" }}
 		{{- range $name, $ad := .Map }}
 {{- /* string type */}}
 			{{- if eq $ad.Kind.String "string" }}
-				{{- if ne $ad.LenVl "nil" }}
-					{{- $constructorName = "NewValidStringSerializer" }}
-				{{- else }}
-					{{- $constructorName = "NewStringSerializer" }}
-				{{- end }}
-				{{ $name }} = composite.{{ $constructorName }}({{ Serializer.StringOpts $ad }})
+				{{ $name }} = composite.NewStringSerializer({{ Serializer.StringOpts $ad }})
 			{{- end }}
 {{- /* array type */}}
 			{{- if eq $ad.Kind.String "array" }}
-				{{- $elemSerializer := Serializer.Elem $ad $gops }}
-				{{- if ne $ad.ElemVl "nil" }}
-					{{- $constructorName = "NewValidArraySerializer" }}
-				{{- else }}
-					{{- $constructorName = "NewArraySerializer" }}
-				{{- end }}
-				{{ $name }} = zerocpy.{{ $constructorName }}[{{ Serializer.RelName $ad.ArrType }}]({{ $elemSerializer }}{{ Tmpl.WithComma (Serializer.ArrayOpts $ad) }})
+				{{ $name }} = zerocopy.NewArraySerializer[{{ Serializer.RelName $ad.ArrType }}]({{ Serializer.Elem $ad $gops }}{{ Tmpl.WithComma (Serializer.ArrayOpts $ad) }})
 			{{- end }}
 {{- /* byte slice type */}}
 			{{- if eq $ad.Kind.String "byteSlice" }}
-				{{- if ne $ad.LenVl "nil" }}
-					{{- $constructorName = "NewValidByteSliceSerializer" }}
-				{{- else }}
-					{{- $constructorName = "NewByteSliceSerializer" }}
-				{{- end }}
-				{{ $name }} = composite.{{ $constructorName }}({{ Serializer.ByteSliceOpts $ad }})
+				{{ $name }} = composite.NewByteSliceSerializer({{ Serializer.ByteSliceOpts $ad }})
 			{{- end }}
 {{- /* slice type */}}
 			{{- if eq $ad.Kind.String "slice" }}
-				{{- $elemSerializer := Serializer.Elem $ad $gops }}
-				{{- if or (ne $ad.LenVl "nil") (ne $ad.ElemVl "nil") }}
-					{{- $constructorName = "NewValidSliceSerializer" }}
-				{{- else }}
-					{{- $constructorName = "NewSliceSerializer" }}
-				{{- end }}
-				{{ $name }} = composite.{{ $constructorName }}[{{ Serializer.RelName $ad.ElemType }}]({{ $elemSerializer }}{{ Tmpl.WithComma (Serializer.SliceOpts $ad) }})
+				{{ $name }} = composite.NewSliceSerializer[{{ Serializer.RelName $ad.ElemType }}]({{ Serializer.Elem $ad $gops }}{{ Tmpl.WithComma (Serializer.SliceOpts $ad) }})
 			{{- end }}
 {{- /* map type */}}
 			{{- if eq $ad.Kind.String "map" }}
-				{{- $keySerializer := Serializer.Key $ad $gops }}
-				{{- $elemSerializer := Serializer.Elem $ad $gops }}
-				{{- if or (ne $ad.LenVl "nil") (ne $ad.KeyVl "nil") (ne $ad.ElemVl "nil") }}
-					{{- $constructorName = "NewValidMapSerializer" }}
-				{{- else}}
-					{{- $constructorName = "NewMapSerializer" }}
-				{{- end }}
-				{{ $name }} = composite.{{ $constructorName }}[{{ Serializer.RelName $ad.KeyType }}, {{ Serializer.RelName $ad.ElemType }}]({{ $keySerializer}}, {{ $elemSerializer }}{{ Tmpl.WithComma (Serializer.MapOpts $ad) }})
+				{{ $name }} = composite.NewMapSerializer[{{ Serializer.RelName $ad.KeyType }}, {{ Serializer.RelName $ad.ElemType }}]({{ Serializer.Key $ad $gops }}, {{ Serializer.Elem $ad $gops }}{{ Tmpl.WithComma (Serializer.MapOpts $ad) }})
 			{{- end }}
 {{- /* ptr type */}}
 			{{- if eq $ad.Kind.String "ptr" }}
-				{{- $elemSerializer := Serializer.Elem $ad $gops }}
-				{{ $name }} = composite.NewPtrSerializer[{{ Serializer.RelName $ad.ElemType }}]({{ $elemSerializer }})
+				{{ $name }} = composite.NewPtrSerializer[{{ Serializer.RelName $ad.ElemType }}]({{ Serializer.Elem $ad $gops }})
 			{{- end }}
 		{{- end }}
 	)

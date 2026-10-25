@@ -61,8 +61,8 @@ func TestHugeLengthDoesNotPanic(t *testing.T) {
 			// the length codec reports ErrOverflow. Both are safe rejections;
 			// what matters is that nothing panics and nothing is allocated.
 			err := tc.fn()
-			if !errors.Is(err, binco.ErrTooSmallByteSlice) && !errors.Is(err, binco.ErrOverflow) {
-				t.Fatalf("got %v, want ErrTooSmallByteSlice or ErrOverflow", err)
+			if !errors.Is(err, binco.ErrTruncated) && !errors.Is(err, binco.ErrOverflow) {
+				t.Fatalf("got %v, want ErrTruncated or ErrOverflow", err)
 			}
 		})
 	}

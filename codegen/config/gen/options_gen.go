@@ -55,6 +55,7 @@ func New() Options {
 	}
 }
 
+// ImportAliases returns the alias of every configured import path.
 func (o Options) ImportAliases() map[ImportPath]Alias {
 	return o.importAliases
 }
@@ -173,6 +174,7 @@ func WithStream() SetOption {
 	}
 }
 
+// Validate reports options that cannot produce a working generator.
 func (o Options) Validate() (err error) {
 	if o.PkgPath == "" {
 		return ErrEmptyPkgPath
@@ -187,6 +189,7 @@ func (o Options) Validate() (err error) {
 	return
 }
 
+// Apply runs opts in order and validates the result.
 func Apply(ops []SetOption, o *Options) (err error) {
 	for i := range ops {
 		if ops[i] != nil {

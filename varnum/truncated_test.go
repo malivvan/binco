@@ -38,8 +38,8 @@ func TestTruncatedEncodings(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := tc.fn(); err != binco.ErrTooSmallByteSlice {
-				t.Fatalf("got %v, want ErrTooSmallByteSlice", err)
+			if err := tc.fn(); err != binco.ErrTruncated {
+				t.Fatalf("got %v, want ErrTruncated", err)
 			}
 		})
 	}

@@ -16,11 +16,11 @@
 //
 //   - A decoded length is checked without overflow and never drives an
 //     allocation larger than the bytes that could hold it (see CheckLength and
-//     AllocHint). Hostile input returns ErrTooSmallByteSlice instead of
+//     AllocHint). Hostile input returns ErrTruncated instead of
 //     exhausting memory or panicking.
 //   - Marshal reports a short output buffer by panicking with
-//     ErrTooSmallByteSlice, the same sentinel everywhere, so one recover can
-//     recognise it.
+//     ErrBufferTooSmall, the same sentinel everywhere, so one recover can
+//     recognise it. Input that ends inside a value is ErrTruncated instead.
 //   - Recursive codecs stop at MaxDepth (or MaxPointerDepth) with ErrTooDeep
 //     rather than exhausting the goroutine stack.
 package binco

@@ -43,7 +43,7 @@ func main() {
 		return nil
 	})
 
-	serializer := composite.NewValidMapSerializer(
+	serializer := composite.NewMapSerializer(
 		varnum.Int,
 		composite.String,
 		mapopts.WithLenValidator[int, string](lenVl),

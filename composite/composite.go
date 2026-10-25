@@ -4,8 +4,7 @@
 // Lengths are written with varnum.PositiveInt unless a serializer passes another
 // length codec through options. Containers can be validated while decoding: a
 // validator passed through options is run as soon as the length, key or element
-// it describes has been decoded, whether the serializer was built with a New*
-// constructor or with the matching NewValid* name.
+// it describes has been decoded.
 //
 // Decoding is bounded by the input: a container grows as its elements are read
 // instead of being allocated from the declared length, and a length whose

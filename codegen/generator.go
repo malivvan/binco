@@ -12,7 +12,7 @@ import (
 
 	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/codegen/classifier"
-	genops "github.com/malivvan/binco/codegen/config/gen"
+	genopts "github.com/malivvan/binco/codegen/config/gen"
 	intropts "github.com/malivvan/binco/codegen/config/interface"
 	stopts "github.com/malivvan/binco/codegen/config/struct"
 	tpopts "github.com/malivvan/binco/codegen/config/type"
@@ -38,7 +38,7 @@ type Generator struct {
 	dtmGroups    [][]dtmEntry
 	dtmIDs       map[string]binco.DTM
 	resolvedDTMs map[string]binco.DTM
-	opts         genops.Options
+	opts         genopts.Options
 }
 
 func (g *Generator) isForeign(t reflect.Type) bool {
@@ -142,7 +142,7 @@ func (g *Generator) renderAll(buf *bytes.Buffer) (err error) {
 	}
 	if err = g.rootTmpl.ExecuteTemplate(buf, anonDefinitionsTmpl, struct {
 		Map map[spec.AnonSerializerName]spec.AnonType
-		Ops genops.Options
+		Ops genopts.Options
 	}{
 		Map: g.anonTypes,
 		Ops: g.opts,
@@ -227,6 +227,13 @@ func (g *Generator) typeDTMEntry(t reflect.Type) (entry dtmEntry, err error) {
 	}, nil
 }
 
+// RegisterVersioned registers every version of t and generates the versioned
+// serializer: it adds the serializer for each version, gives each one a wire
+// identifier, adds the typed serializers and then builds the dispatcher.
+//
+// It is the convenient form of AddStruct/AddDefinedType, AddTyped and
+// AddVersioned together. Pin the identifiers with genopts.WithDTM when payloads
+// have to outlive a build.
 func (g *Generator) RegisterVersioned(t reflect.Type,
 	opts ...veropts.SetOption,
 ) (err error) {
@@ -260,6 +267,13 @@ func (g *Generator) RegisterVersioned(t reflect.Type,
 	return g.AddVersioned(t, opts...)
 }
 
+// RegisterInterface registers the implementations of an interface and generates
+// its serializer: it adds the serializer for every implementation, gives each
+// one a wire identifier, adds the typed serializers and then builds the
+// dispatcher.
+//
+// It is the convenient form of AddStruct/AddDefinedType, AddTyped and
+// AddInterface together.
 func (g *Generator) RegisterInterface(t reflect.Type,
 	opts ...intropts.SetRegisterOption,
 ) (err error) {
@@ -311,6 +325,11 @@ func (g *Generator) RegisterInterface(t reflect.Type,
 	return g.AddInterface(t, iops...)
 }
 
+// AddVersioned generates the versioned serializer for t without registering the
+// versions themselves.
+//
+// The versions must already have their serializers and identifiers; use
+// RegisterVersioned to do both in one call.
 func (g *Generator) AddVersioned(t reflect.Type, opts ...veropts.SetOption) (
 	err error,
 ) {
@@ -327,6 +346,11 @@ func (g *Generator) AddVersioned(t reflect.Type, opts ...veropts.SetOption) (
 	return nil
 }
 
+// AddInterface generates the serializer for the interface t without registering
+// its implementations.
+//
+// Every implementation must already have a typed serializer; use
+// RegisterInterface to do both in one call.
 func (g *Generator) AddInterface(t reflect.Type, opts ...intropts.SetOption) (
 	err error,
 ) {
@@ -341,6 +365,10 @@ func (g *Generator) AddInterface(t reflect.Type, opts ...intropts.SetOption) (
 	return
 }
 
+// AddTyped generates the typed serializer for t: the wire identifier followed by
+// the payload.
+//
+// The serializer for the type itself must already be registered.
 func (g *Generator) AddTyped(t reflect.Type, opts ...tpopts.SetOption) (
 	err error,
 ) {
@@ -354,6 +382,11 @@ func (g *Generator) AddTyped(t reflect.Type, opts ...tpopts.SetOption) (
 	return
 }
 
+// AddStruct generates the serializer for the struct t.
+//
+// Field options are positional: pass one stopts.WithField per field, including
+// the ignored ones. Use stopts.WithUnderlyingTime for a type that wraps
+// time.Time.
 func (g *Generator) AddStruct(t reflect.Type, opts ...stopts.SetOption) (
 	err error,
 ) {
@@ -380,6 +413,8 @@ func (g *Generator) AddStruct(t reflect.Type, opts ...stopts.SetOption) (
 	return
 }
 
+// AddDefinedType generates the serializer for a defined type whose underlying
+// type is a number, string, array, slice, map or pointer.
 func (g *Generator) AddDefinedType(t reflect.Type, opts ...tpopts.SetOption) (
 	err error,
 ) {
@@ -399,9 +434,9 @@ func (g *Generator) AddDefinedType(t reflect.Type, opts ...tpopts.SetOption) (
 }
 
 // NewGenerator returns a Generator configured by opts. Only WithPath is required.
-func NewGenerator(opts ...genops.SetOption) (g *Generator, err error) {
-	settings := genops.New()
-	if err = genops.Apply(opts, &settings); err != nil {
+func NewGenerator(opts ...genopts.SetOption) (g *Generator, err error) {
+	settings := genopts.New()
+	if err = genopts.Apply(opts, &settings); err != nil {
 		return
 	}
 	var (
@@ -468,7 +503,7 @@ var templatesFS embed.FS
 func registerFns(builder bldr.TypeBuilder, converter cnvtr.TypeNameConverter,
 	foreignTypes map[typename.FullName]struct{},
 	tmpl *template.Template,
-	gopts genops.Options,
+	gopts genopts.Options,
 ) error {
 	tmplFns := TmplFns{tmpl: tmpl}
 	serializerFns, err := NewSerializerFns(converter, builder, foreignTypes, tmplFns, gopts)

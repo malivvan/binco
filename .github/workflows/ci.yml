@@ -136,13 +136,13 @@ jobs:
             target: FuzzMap
           - package: ./composite
             target: FuzzPtr
-          - package: ./zerocpy
+          - package: ./zerocopy
             target: FuzzString
-          - package: ./zerocpy
+          - package: ./zerocopy
             target: FuzzByteSlice
-          - package: ./zerocpy
+          - package: ./zerocopy
             target: FuzzArray
-          - package: ./zerocpy
+          - package: ./zerocopy
             target: FuzzScalars
           - package: ./scalar
             target: FuzzFixedWidth

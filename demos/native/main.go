@@ -8,13 +8,13 @@ import (
 	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/composite"
 	"github.com/malivvan/binco/scalar"
-	"github.com/malivvan/binco/zerocpy"
+	"github.com/malivvan/binco/zerocopy"
 )
 
 func main() {
 
 	value := "hello"
-	fmt.Printf("zerocpy.String: %v\n", binco.Encode(zerocpy.String, value))
+	fmt.Printf("zerocopy.String: %v\n", binco.Encode(zerocopy.String, value))
 	fmt.Printf("composite.String:    %v\n\n", binco.Encode(composite.String, value))
 
 	messages := []string{"first", "second"}
@@ -26,9 +26,9 @@ func main() {
 	)
 	for _, msg := range messages {
 
-		n := copy(buf, binco.Encode(zerocpy.String, msg))
+		n := copy(buf, binco.Encode(zerocopy.String, msg))
 
-		str, _, err := zerocpy.String.Unmarshal(buf[:n])
+		str, _, err := zerocopy.String.Unmarshal(buf[:n])
 		if err != nil {
 			panic(err)
 		}
@@ -42,8 +42,8 @@ func main() {
 	fmt.Printf("\naliased strings after the loop: %q\n", aliased)
 	fmt.Printf("copied strings after the loop:  %q\n", copied)
 
-	payload := binco.Encode(zerocpy.ByteSlice, []byte{1, 2, 3})
-	data, _, err := zerocpy.ByteSlice.Unmarshal(payload)
+	payload := binco.Encode(zerocopy.ByteSlice, []byte{1, 2, 3})
+	data, _, err := zerocopy.ByteSlice.Unmarshal(payload)
 	if err != nil {
 		panic(err)
 	}
@@ -61,17 +61,17 @@ func main() {
 
 	parts := make([]string, 0, 4)
 	for _, v := range []uint64{0, 40, 1 << 40, ^uint64(0)} {
-		bs := binco.Encode(zerocpy.Uint64, v)
-		got, _, err := zerocpy.Uint64.Unmarshal(bs)
+		bs := binco.Encode(zerocopy.Uint64, v)
+		got, _, err := zerocopy.Uint64.Unmarshal(bs)
 		if err != nil {
 			panic(err)
 		}
 		parts = append(parts, fmt.Sprintf("%d (%d bytes)", got, len(bs)))
 	}
-	fmt.Printf("zerocpy.Uint64 round trips: %s\n", strings.Join(parts, ", "))
+	fmt.Printf("zerocopy.Uint64 round trips: %s\n", strings.Join(parts, ", "))
 
 	arr := [3]int32{7, 8, 9}
-	arrSerializer := zerocpy.NewArraySerializer[[3]int32, int32](scalar.Int32)
+	arrSerializer := zerocopy.NewArraySerializer[[3]int32, int32](scalar.Int32)
 	arrBS := binco.Encode(arrSerializer, arr)
 	gotArr, _, err := arrSerializer.Unmarshal(arrBS)
 	if err != nil {

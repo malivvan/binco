@@ -62,7 +62,7 @@ func TestWrongDTM(t *testing.T) {
 		t.Fatal("Skip of a foreign DTM returned no error")
 	}
 
-	if _, _, err = serializer.Unmarshal(nil); err != binco.ErrTooSmallByteSlice {
+	if _, _, err = serializer.Unmarshal(nil); err != binco.ErrTruncated {
 		t.Fatalf("Unmarshal(nil) returned %v", err)
 	}
 }

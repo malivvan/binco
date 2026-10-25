@@ -121,15 +121,15 @@ func (s i64Codec) Skip(bs []byte) (n int, err error) {
 // Int serializes an int. The wire width is always 64 bits, whatever the host
 // word size is, so a payload written on amd64 reads back on a 32-bit build.
 // Values that do not fit the host int are reported as ErrOverflow.
-var Int = IntSerializer{}
+var Int = intSerializer{}
 
-type IntSerializer struct{}
+type intSerializer struct{}
 
-func (s IntSerializer) Marshal(v int, bs []byte) (n int) {
+func (s intSerializer) Marshal(v int, bs []byte) (n int) {
 	return putUnsigned(uint64(EncodeZigZag(int64(v))), bs)
 }
 
-func (s IntSerializer) Unmarshal(bs []byte) (v int, n int, err error) {
+func (s intSerializer) Unmarshal(bs []byte) (v int, n int, err error) {
 	uv, n, err := Uint64.Unmarshal(bs)
 	if err != nil {
 		return
@@ -142,11 +142,11 @@ func (s IntSerializer) Unmarshal(bs []byte) (v int, n int, err error) {
 	return v, n, nil
 }
 
-func (s IntSerializer) Size(v int) (size int) {
+func (s intSerializer) Size(v int) (size int) {
 	return unsignedLen(uint64(EncodeZigZag(int64(v))))
 }
 
-func (s IntSerializer) Skip(bs []byte) (n int, err error) {
+func (s intSerializer) Skip(bs []byte) (n int, err error) {
 	// Decode so that a 32-bit host rejects a value it cannot hold here too.
 	_, n, err = s.Unmarshal(bs)
 	return
