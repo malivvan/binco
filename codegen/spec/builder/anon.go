@@ -197,10 +197,7 @@ func (o *CollectAnonOp) makePtrType(t scanner.TypeInfo[typename.FullName],
 
 func (o *CollectAnonOp) processPtrType(typeInfo scanner.TypeInfo[typename.FullName],
 	tops tpopts.Options) (err error) {
-	d, _, err := o.makePtrType(typeInfo, tops)
-	if err != nil {
-		return err
-	}
+	d, _, _ := o.makePtrType(typeInfo, tops)
 	o.putToMap(d)
 	typeInfo.Stars = stripStar(typeInfo.Stars)
 	return o.ProcessType(typeInfo, tpopts.Options{})
@@ -330,10 +327,7 @@ func hashedName(kind spec.AnonKind, t scanner.TypeInfo[typename.FullName],
 
 // stripStar removes one leading star.
 func stripStar(s string) string {
-	if strings.HasPrefix(s, "*") {
-		return s[1:]
-	}
-	return s
+	return strings.TrimPrefix(s, "*")
 }
 
 // ErrStop tells the scanner to stop: the probe already has its answer.

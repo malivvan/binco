@@ -14,6 +14,7 @@ func TestCheckPath(t *testing.T) {
 		"gopkg.in/yaml.v2",
 		"gopkg.in/yaml.v2-unstable",
 		"gopkg.in/check.v0",
+		"example.com/x~a", // a tilde followed by non-digits is not a short name
 	}
 	for _, path := range valid {
 		if err := modpath.CheckPath(path); err != nil {
@@ -35,6 +36,13 @@ func TestCheckPath(t *testing.T) {
 		"github.com/user/.hidden", // leading dot in an element
 		"github.com/user/con",     // reserved on Windows
 		"github.com/user/PROGRA~1",
+		"example.com/\xff",     // invalid UTF-8
+		"/leading-slash",       // empty first element
+		"example.com/bad name", // invalid character in a later element
+		"example.com/x./y",     // trailing dot in an element
+		"gopkg.in/yaml",        // gopkg.in requires .vN
+		"gopkg.in/yaml.v02",    // zero-padded major
+		"gopkg.in/yaml.v2-unstable-extra",
 	}
 	for _, path := range invalid {
 		if err := modpath.CheckPath(path); err == nil {

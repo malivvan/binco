@@ -43,8 +43,15 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # The demos are example programs, not library code: they are built, never
+      # measured. Every other package is in the coverage profile.
       - name: Test
-        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+        run: go test -race -covermode=atomic -coverprofile=coverage.out $(go list ./... | grep -v '/demos')
+
+      # 100% statement coverage of the library, with the exceptions recorded in
+      # NOCOVER.md. `make cover-check` runs the same check locally.
+      - name: Check coverage
+        run: sh scripts/covercheck.sh coverage.out NOCOVER.md
 
       # The demos contain generated files. Regenerating them here keeps the
       # generator and its output in sync: a template change that was not

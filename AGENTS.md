@@ -49,6 +49,7 @@ go vet ./...
 go test -race ./...
 GOARCH=386 go test ./...          # the 32-bit wire-width and overflow paths
 go generate ./... && git diff --exit-code   # generated code is current
+make cover-check                 # 100% statement coverage, demos excluded
 
 # Faster iteration.
 go test ./composite/ -run TestSorted -v
@@ -91,6 +92,9 @@ fast mode; it only skips the test that shells out to `go`.
 ├── internal/           shared implementation details (see §4.6)
 ├── demos/              runnable main packages, one per feature (see §10)
 ├── testdata/           fixture types used by the generator tests
+├── scripts/            covercheck.sh, the coverage gate
+├── Makefile            build/test/cover/lint entry points (demos excluded)
+├── NOCOVER.md          the few branches coverage cannot reach, with reasons
 └── .github/workflows/  CI
 ```
 
@@ -398,6 +402,23 @@ instead of killing the runner. Crashers
 are written to `<package>/testdata/fuzz/<target>`; commit them as seeds (one is
 already committed under `varnum/testdata/fuzz`).
 
+### Coverage
+
+Every library package must stay at **100% statement coverage**. The demos are
+example programs and are excluded from the profile by the package list in the
+Makefile (`go list ./... | grep -v /demos`).
+
+```bash
+make cover-check   # go test -coverprofile over the non-demo packages, then
+                   # scripts/covercheck.sh
+```
+
+`scripts/covercheck.sh` counts the statements listed in the `nocover` block of
+[`NOCOVER.md`](./NOCOVER.md) as covered and fails on anything else. An entry is
+only acceptable for a branch that cannot run at all — the file explains each one
+and rejects entries that no longer name an uncovered block. Prefer deleting an
+unreachable branch or making the dependency injectable over adding an entry.
+
 ### Platform coverage
 
 * `-race` on every run;
@@ -453,7 +474,7 @@ show, and should be added to this table.
 
 | Job | What it does |
 |-----|--------------|
-| `Test` | gofmt check, `go vet`, `go test -race -cover`, `go generate` + `git diff --exit-code`, `go build ./...`, Coveralls upload |
+| `Test` | gofmt check, `go vet`, `go test -race -cover` over the non-demo packages, the coverage gate (`scripts/covercheck.sh`), `go generate` + `git diff --exit-code`, `go build ./...`, Coveralls upload |
 | `Test (GOARCH=386)` | `go test ./...` on 32-bit |
 | `Lint` | `golangci-lint run --build-tags=fuzz` |
 | `Fuzz <target>` | one matrix entry per target: 15 s on a push, 5 min on the nightly schedule |
@@ -464,7 +485,7 @@ Release checklist:
 1. `go generate ./...` and commit any regenerated file.
 2. Update `CHANGELOG.md` (user-visible changes, in the `Unreleased` section).
 3. `gofmt -l .`, `go vet ./...`, `go test ./...`, `go test -race ./...`,
-   `GOARCH=386 go test ./...`.
+   `GOARCH=386 go test ./...`, `make cover-check`.
 4. Tag `vX.Y.Z` and push the tag; CI publishes the release.
 
 ## 13. Traps to know about

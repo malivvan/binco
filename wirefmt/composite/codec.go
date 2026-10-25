@@ -80,7 +80,14 @@ type ptrCodec[T any] struct {
 }
 
 func (s ptrCodec[T]) enter() bool {
-	return s.depth.Add(1) <= binco.MaxPointerDepth
+	// The failed increment is undone: without that, one ErrTooDeep would leave
+	// the counter above the limit and every later call on this serializer would
+	// fail too.
+	if s.depth.Add(1) > binco.MaxPointerDepth {
+		s.depth.Add(-1)
+		return false
+	}
+	return true
 }
 
 func (s ptrCodec[T]) leave() {

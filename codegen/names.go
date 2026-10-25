@@ -267,7 +267,6 @@ func (f SerializerFns) Of(fullName typename.FullName, tops tpopts.Options,
 	if !pst {
 		return f.Var(fullName)
 	}
-
 	switch fullName {
 	case "int", "int64", "int32", "int16", "int8":
 		serializerName = f.upperFirst(string(fullName))

@@ -12,7 +12,6 @@ package importfix
 
 import (
 	"bytes"
-	"fmt"
 	"go/ast"
 	"go/format"
 	"go/parser"
@@ -31,11 +30,7 @@ func Process(src []byte) ([]byte, error) {
 		return src, err
 	}
 	specs := prune(collectImports(file), usedQualifiers(file))
-	out, err := rewrite(fset, src, file, specs)
-	if err != nil {
-		return src, err
-	}
-	return format.Source(out)
+	return format.Source(rewrite(fset, src, file, specs))
 }
 
 // importSpec is one import of the generated file.
@@ -48,10 +43,9 @@ type importSpec struct {
 // collectImports returns the imports of file in source order.
 func collectImports(file *ast.File) (specs []importSpec) {
 	for _, spec := range file.Imports {
-		path, err := strconv.Unquote(spec.Path.Value)
-		if err != nil {
-			continue
-		}
+		// The parser rejected every literal it could not decode, so Unquote
+		// cannot fail here.
+		path, _ := strconv.Unquote(spec.Path.Value)
 		var alias string
 		if spec.Name != nil {
 			alias = spec.Name.Name
@@ -115,19 +109,15 @@ func prune(specs []importSpec, used map[string]struct{}) (kept []importSpec) {
 // rewrite replaces the import declaration of src with specs, or removes it when
 // nothing is left. It returns src unchanged when the file has no import
 // declaration and none is needed.
-func rewrite(fset *token.FileSet, src []byte, file *ast.File, specs []importSpec) ([]byte, error) {
+func rewrite(fset *token.FileSet, src []byte, file *ast.File, specs []importSpec) []byte {
 	decl := importDecl(file)
 	if decl == nil {
-		if len(specs) == 0 {
-			return src, nil
-		}
-		return insertAfterPackage(fset, src, file, render(specs)), nil
+		// Every spec comes from an import declaration, so there is nothing to
+		// rewrite and nothing to add.
+		return src
 	}
 	start := fset.Position(decl.Pos()).Offset
 	end := fset.Position(decl.End()).Offset
-	if start < 0 || end > len(src) || start > end {
-		return nil, fmt.Errorf("import declaration offsets out of range")
-	}
 	replacement := ""
 	if len(specs) > 0 {
 		replacement = render(specs)
@@ -143,7 +133,7 @@ func rewrite(fset *token.FileSet, src []byte, file *ast.File, specs []importSpec
 		out = append(out, '\n', '\n')
 	}
 	out = append(out, rest...)
-	return out, nil
+	return out
 }
 
 // importDecl returns the import declaration of file, if it has one.
@@ -154,23 +144,6 @@ func importDecl(file *ast.File) *ast.GenDecl {
 		}
 	}
 	return nil
-}
-
-// insertAfterPackage inserts an import block after the package clause.
-func insertAfterPackage(fset *token.FileSet, src []byte, file *ast.File, block string) []byte {
-	offset := fset.Position(file.Name.End()).Offset
-	out := make([]byte, 0, len(src)+len(block)+2)
-	if offset <= 0 || offset > len(src) {
-		// Fall back to the start of the file; the result is still valid source.
-		out = append(out, block...)
-		out = append(out, '\n')
-		return append(out, src...)
-	}
-	out = append(out, src[:offset]...)
-	out = append(out, '\n', '\n')
-	out = append(out, block...)
-	out = append(out, src[offset:]...)
-	return out
 }
 
 // render writes an import block with the standard library first and one entry

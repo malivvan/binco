@@ -187,3 +187,36 @@ func f() {}
 		}
 	}
 }
+
+// TestPrefersTheAliasWhenBothImportsAreUsed covers the deduplication branch where
+// the plain import comes first but only the aliased one can be referenced.
+func TestPrefersTheAliasWhenBothImportsAreUsed(t *testing.T) {
+	src := `package p
+
+import (
+	"github.com/example/serializers"
+	ser "github.com/example/serializers"
+)
+
+var _ = serializers.Foo
+var _ = ser.Bar
+`
+	got := process(t, src)
+	if strings.Count(got, "github.com/example/serializers") != 1 {
+		t.Fatalf("the duplicate import was kept:\n%s", got)
+	}
+	if !strings.Contains(got, `ser "github.com/example/serializers"`) {
+		t.Fatalf("the aliased import was not the one kept:\n%s", got)
+	}
+}
+
+// TestFileWithoutImports checks that source with no import declaration is
+// returned formatted and unchanged.
+func TestFileWithoutImports(t *testing.T) {
+	src := "package p\n\nfunc  f( )  {}\n"
+	got := process(t, src)
+	want := "package p\n\nfunc f() {}\n"
+	if got != want {
+		t.Fatalf("Process = %q, want %q", got, want)
+	}
+}

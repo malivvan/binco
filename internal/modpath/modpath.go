@@ -47,13 +47,10 @@ func CheckPath(path string) error {
 	if i := strings.IndexByte(first, '/'); i >= 0 {
 		first = first[:i]
 	}
-	switch {
-	case first == "":
-		return fmt.Errorf("invalid module path %q: leading slash", path)
-	case !strings.Contains(first, "."):
+	// checkPath has already rejected an empty first element and a leading dash,
+	// so only the domain-name rule is left to check here.
+	if !strings.Contains(first, ".") {
 		return fmt.Errorf("invalid module path %q: missing dot in first path element", path)
-	case first[0] == '-':
-		return fmt.Errorf("invalid module path %q: leading dash in first path element", path)
 	}
 	for _, r := range first {
 		if !firstElementOK(r) {

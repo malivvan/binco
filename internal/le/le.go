@@ -8,6 +8,7 @@ package le
 
 import (
 	"encoding/binary"
+	"strconv"
 
 	"github.com/malivvan/binco"
 )
@@ -103,11 +104,8 @@ func GetWord(bs []byte) (int, int, error) {
 	if err != nil {
 		return 0, n, err
 	}
-	v := int(raw)
-	if int64(v) != raw {
-		return 0, n, binco.ErrOverflow
-	}
-	return v, n, nil
+	v, err := binco.WordInt(raw, strconv.IntSize)
+	return v, n, err
 }
 
 // SkipWord advances over an int of the wire word width.
@@ -131,11 +129,8 @@ func GetWordUnsigned(bs []byte) (uint, int, error) {
 	if err != nil {
 		return 0, n, err
 	}
-	v := uint(raw)
-	if uint64(v) != raw {
-		return 0, n, binco.ErrOverflow
-	}
-	return v, n, nil
+	v, err := binco.WordUint(raw, strconv.IntSize)
+	return v, n, err
 }
 
 // SkipWordUnsigned advances over a uint of the wire word width.

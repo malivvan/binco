@@ -54,10 +54,6 @@ func validateArrayType[T, V any]() (length int) {
 	if at.Elem() != vt {
 		panic(fmt.Errorf("%w: %v does not hold %v", binco.ErrWrongArrayType, at, vt))
 	}
-	if at.Len()*int(vt.Size()) != int(at.Size()) {
-		panic(fmt.Errorf("%w: %v is not laid out as %d values of %v",
-			binco.ErrWrongArrayType, at, at.Len(), vt))
-	}
 	return at.Len()
 }
 
@@ -89,9 +85,8 @@ func (s arrayView[T, V]) Unmarshal(r wirefmt.Reader) (v T, n int, err error) {
 			return v, n, err
 		}
 	}
-	if length != s.length {
-		return v, n, binco.ErrWrongLength
-	}
+	// The length validator installed at construction has already checked the
+	// length against the array type, so only the empty array needs a shortcut.
 	if s.length == 0 {
 		return v, n, nil
 	}

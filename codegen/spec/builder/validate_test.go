@@ -67,3 +67,10 @@ func TestInvalidValidatorIsRejectedByTheBuilder(t *testing.T) {
 		t.Fatal("BuildStructType accepted a malformed validator")
 	}
 }
+
+// TestValidateIdentAllowsEmpty checks that an unset option is not an error.
+func TestValidateIdentAllowsEmpty(t *testing.T) {
+	if err := builder.ValidateIdent("validator", ""); err != nil {
+		t.Fatalf("ValidateIdent(%q) = %v, want nil", "", err)
+	}
+}

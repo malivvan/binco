@@ -42,4 +42,7 @@ func TestDiscardFixed(t *testing.T) {
 	if n, err = wireio.DiscardFixed(bytes.NewReader([]byte("hi")), 5); !errors.Is(err, io.ErrUnexpectedEOF) || n != 2 {
 		t.Fatalf("truncated DiscardFixed = (%d, %v)", n, err)
 	}
+	if n, err = wireio.DiscardFixed(bytes.NewReader(nil), 0); err != nil || n != 0 {
+		t.Fatalf("DiscardFixed(0) = (%d, %v)", n, err)
+	}
 }

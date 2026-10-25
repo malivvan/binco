@@ -1,5 +1,7 @@
 package binco
 
+import "math"
+
 // Num64RawSize is the width of a 64-bit value in bytes.
 const Num64RawSize = 8
 
@@ -86,3 +88,25 @@ const IntWordBits = 64
 
 // IntWordBytes is the wire width of int and uint in bytes.
 const IntWordBytes = IntWordBits / 8
+
+// WordInt narrows a 64-bit wire value to the host int, reporting ErrOverflow
+// when it does not fit.
+//
+// width is the bit size of the destination int; callers pass strconv.IntSize.
+// Making the width an argument keeps the 32-bit rule testable on a 64-bit
+// host, where it would otherwise be unreachable code.
+func WordInt(raw int64, width int) (int, error) {
+	if width <= 32 && (raw < math.MinInt32 || raw > math.MaxInt32) {
+		return 0, ErrOverflow
+	}
+	return int(raw), nil
+}
+
+// WordUint narrows a 64-bit wire value to the host uint, reporting ErrOverflow
+// when it does not fit. It is the unsigned counterpart of WordInt.
+func WordUint(raw uint64, width int) (uint, error) {
+	if width <= 32 && raw > math.MaxUint32 {
+		return 0, ErrOverflow
+	}
+	return uint(raw), nil
+}

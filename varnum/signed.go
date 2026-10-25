@@ -1,6 +1,10 @@
 package varnum
 
-import "github.com/malivvan/binco"
+import (
+	"strconv"
+
+	"github.com/malivvan/binco"
+)
 
 // EncodeZigZag maps a signed value onto the unsigned range, so that -1, 1, -2, 2 become 1, 2, 3, 4.
 func EncodeZigZag[T binco.Signed](t T) T {
@@ -135,11 +139,8 @@ func (s intSerializer) Unmarshal(bs []byte) (v int, n int, err error) {
 		return
 	}
 	iv := int64(DecodeZigZag(uv))
-	v = int(iv)
-	if int64(v) != iv {
-		return 0, n, binco.ErrOverflow
-	}
-	return v, n, nil
+	v, err = binco.WordInt(iv, strconv.IntSize)
+	return v, n, err
 }
 
 func (s intSerializer) Size(v int) (size int) {

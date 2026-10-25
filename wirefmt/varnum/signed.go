@@ -1,6 +1,8 @@
 package varnum
 
 import (
+	"strconv"
+
 	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/wirefmt"
 )
@@ -139,11 +141,8 @@ func (wordIntCodec) Unmarshal(r wirefmt.Reader) (v int, n int, err error) {
 		return
 	}
 	iv := int64(DecodeZigZag(uv))
-	v = int(iv)
-	if int64(v) != iv {
-		return 0, n, binco.ErrOverflow
-	}
-	return v, n, nil
+	v, err = binco.WordInt(iv, strconv.IntSize)
+	return v, n, err
 }
 
 func (wordIntCodec) Size(v int) (size int) {

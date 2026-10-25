@@ -190,14 +190,11 @@ type relativeNameOp struct {
 	gops genopts.Options
 }
 
-func (o *relativeNameOp) choosePkg(t scanner.TypeInfo[typename.FullName]) (
-	pkg typename.Package, err error) {
+func (o *relativeNameOp) choosePkg(t scanner.TypeInfo[typename.FullName]) typename.Package {
 	if t.Package == o.gops.Package {
-		pkg = ""
-	} else {
-		pkg = t.Package
+		return ""
 	}
-	return
+	return t.Package
 }
 
 func (o *relativeNameOp) RelativeName() typename.RelativeName {
@@ -223,9 +220,7 @@ func (o *relativeNameOp) ProcessType(t scanner.TypeInfo[typename.FullName],
 	o.b.WriteString(t.Stars)
 	switch t.Kind {
 	case scanner.KindDefined:
-		if pkg, err = o.choosePkg(t); err != nil {
-			return
-		}
+		pkg = o.choosePkg(t)
 		if pkg != "" {
 			o.b.WriteString(string(pkg))
 			o.b.WriteString(".")

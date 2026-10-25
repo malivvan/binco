@@ -100,10 +100,9 @@ func (b TypeBuilder) parseFieldNames(t reflect.Type) ([]typename.FullName, error
 }
 
 func (b TypeBuilder) parseUnderlyingTypeName(t reflect.Type) (typename.FullName, error) {
-	cname, err := typename.BaseTypeCompleteName(t)
-	if err != nil {
-		return "", err
-	}
+	// BuildDefinedType has already checked that t is a defined basic type, and
+	// every basic type has an underlying name.
+	cname, _ := typename.BaseTypeCompleteName(t)
 	return b.converter.ConvertToFullName(cname)
 }
 

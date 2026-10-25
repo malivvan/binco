@@ -27,3 +27,12 @@ func TestDecodeExact(t *testing.T) {
 		t.Fatalf("DecodeExact of an exact payload = (%d, %v)", v, err)
 	}
 }
+
+// TestDecodeExactReportsDecodeErrors checks that a decode failure wins over the
+// trailing-bytes check: the caller needs the real cause.
+func TestDecodeExactReportsDecodeErrors(t *testing.T) {
+	// A string that declares five bytes and carries one.
+	if _, err := binco.DecodeExact(composite.String, []byte{5, 'a'}); !errors.Is(err, binco.ErrTruncated) {
+		t.Fatalf("DecodeExact of a truncated value = %v, want ErrTruncated", err)
+	}
+}

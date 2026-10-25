@@ -3,6 +3,7 @@ package varnum
 import (
 	"io"
 	"math/bits"
+	"strconv"
 
 	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/wirefmt"
@@ -230,10 +231,7 @@ func (wordCodec) Unmarshal(r wirefmt.Reader) (v uint, n int, err error) {
 	if err != nil {
 		return
 	}
-	v = uint(uv)
-	if uint64(v) != uv {
-		return 0, n, binco.ErrOverflow
-	}
+	v, err = binco.WordUint(uv, strconv.IntSize)
 	return
 }
 

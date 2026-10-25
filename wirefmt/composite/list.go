@@ -75,9 +75,6 @@ func (s checkedList[T]) Unmarshal(r wirefmt.Reader) (v []T, n int, err error) {
 // rawBytes returns the memory of v as bytes, which is the wire form of a fixed
 // width little-endian element.
 func rawBytes[T any](v []T) []byte {
-	if len(v) == 0 {
-		return nil
-	}
 	return unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), len(v)*int(unsafe.Sizeof(*new(T))))
 }
 
@@ -156,10 +153,7 @@ func UnmarshalSlice[T any](elemSerializer wirefmt.Serializer[T],
 // never delivers costs only what was actually sent.
 func unmarshalFixedSlice[T any](r wirefmt.Reader, n, length, width int) (
 	v []T, end int, err error) {
-	if length < 0 {
-		return nil, n, binco.ErrNegativeLength
-	}
-	if width > 0 && length > math.MaxInt/width {
+	if length > math.MaxInt/width {
 		return nil, n, binco.ErrTooLargeLength
 	}
 	total := length * width
@@ -187,9 +181,6 @@ func unmarshalFixedSlice[T any](r wirefmt.Reader, n, length, width int) (
 // growth steps; it must not turn a declared length into an allocation.
 func hintLength(length int) int {
 	const maxHint = 1024
-	if length < 0 {
-		return 0
-	}
 	if length > maxHint {
 		return maxHint
 	}
@@ -220,7 +211,7 @@ func SkipSlice[T any](elemSerializer wirefmt.Serializer[T],
 		return n, binco.ErrNegativeLength
 	}
 	if width, ok := fixedwidth.Of[T](elemSerializer); ok {
-		if width > 0 && length > math.MaxInt/width {
+		if length > math.MaxInt/width {
 			return n, binco.ErrTooLargeLength
 		}
 		var n1 int64

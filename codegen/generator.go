@@ -443,18 +443,10 @@ func NewGenerator(opts ...genopts.SetOption) (g *Generator, err error) {
 		foreignTypes = map[typename.FullName]struct{}{}
 		converter    = cnvtr.NewTypeNameConverter(settings)
 		builder      = bldr.NewTypeBuilder(converter, settings)
-		dtmIDs       = make(map[string]binco.DTM, len(settings.DTMs))
 	)
-	for t, id := range settings.DTMs {
-		cname, cerr := typename.TypeCompleteName(t)
-		if cerr != nil {
-			return nil, cerr
-		}
-		fullName, ferr := converter.ConvertToFullName(cname)
-		if ferr != nil {
-			return nil, ferr
-		}
-		dtmIDs[string(fullName)] = id
+	dtmIDs, err := dtmIDsFor(settings, converter)
+	if err != nil {
+		return nil, err
 	}
 	rootTmpl := template.New("base")
 	if err = registerFns(builder, converter, foreignTypes, rootTmpl, settings); err != nil {
@@ -474,6 +466,25 @@ func NewGenerator(opts ...genopts.SetOption) (g *Generator, err error) {
 		opts:         settings,
 	}
 	return
+}
+
+// dtmIDsFor resolves the pinned identifiers to the full names the templates use.
+func dtmIDsFor(settings genopts.Options, converter cnvtr.TypeNameConverter) (
+	dtmIDs map[string]binco.DTM, err error,
+) {
+	dtmIDs = make(map[string]binco.DTM, len(settings.DTMs))
+	for t, id := range settings.DTMs {
+		cname, cerr := typename.TypeCompleteName(t)
+		if cerr != nil {
+			return nil, cerr
+		}
+		fullName, ferr := converter.ConvertToFullName(cname)
+		if ferr != nil {
+			return nil, ferr
+		}
+		dtmIDs[string(fullName)] = id
+	}
+	return dtmIDs, nil
 }
 
 // queued is one planned template execution: a template name and its data.
