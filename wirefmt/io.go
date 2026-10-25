@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"io"
 	"sync"
+
+	"github.com/malivvan/binco/internal/wireio"
 )
 
 // writerPool recycles the bufio.Writer that Encode needs when the destination
@@ -65,7 +67,9 @@ type readerAdapter struct {
 }
 
 func (r *readerAdapter) ReadByte() (b byte, err error) {
-	if _, err = io.ReadFull(r.r, r.buf[:]); err != nil {
+	// wireio.ReadFull, not io.ReadFull: a reader that keeps returning (0, nil)
+	// must fail with io.ErrNoProgress instead of spinning.
+	if _, err = wireio.ReadFull(r.r, r.buf[:]); err != nil {
 		return
 	}
 	return r.buf[0], nil

@@ -99,6 +99,29 @@ jobs:
       - name: Test
         run: go test ./...
 
+  # Every target Go supports must build. The wire format is little-endian and no
+  # codec assumes a host word size, but only a cross-build proves it: this job
+  # compiles every entry of `go tool dist list` and then compiles the test files
+  # on a representative cross-section, including big-endian hosts (ppc64, s390x,
+  # mips), 32-bit hosts, Windows and both wasm environments.
+  portability:
+    name: Portability
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.mod
+
+      - name: Build and test-compile every target
+        run: sh scripts/portable.sh
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

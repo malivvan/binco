@@ -3,7 +3,7 @@
 // It is the streaming counterpart of internal/le: the streaming codecs of
 // package scalar and package zerocopy share this one implementation. Each value
 // is assembled in a local buffer and written with a single Write, or read with a
-// single io.ReadFull, instead of one call per byte.
+// single guarded read, instead of one call per byte.
 package lew
 
 import (
@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/internal/wireio"
 )
 
 // Write64 writes t as eight little-endian bytes.
@@ -45,7 +46,7 @@ func Write8[T binco.Integer8](w io.Writer, t T) (int, error) {
 // Read64 reads eight little-endian bytes.
 func Read64[T binco.Integer64](r io.Reader) (t T, n int, err error) {
 	var buf [binco.Num64RawSize]byte
-	n, err = io.ReadFull(r, buf[:])
+	n, err = wireio.ReadFull(r, buf[:])
 	if err != nil {
 		return
 	}
@@ -55,7 +56,7 @@ func Read64[T binco.Integer64](r io.Reader) (t T, n int, err error) {
 // Read32 reads four little-endian bytes.
 func Read32[T binco.Integer32](r io.Reader) (t T, n int, err error) {
 	var buf [binco.Num32RawSize]byte
-	n, err = io.ReadFull(r, buf[:])
+	n, err = wireio.ReadFull(r, buf[:])
 	if err != nil {
 		return
 	}
@@ -65,7 +66,7 @@ func Read32[T binco.Integer32](r io.Reader) (t T, n int, err error) {
 // Read16 reads two little-endian bytes.
 func Read16[T binco.Integer16](r io.Reader) (t T, n int, err error) {
 	var buf [binco.Num16RawSize]byte
-	n, err = io.ReadFull(r, buf[:])
+	n, err = wireio.ReadFull(r, buf[:])
 	if err != nil {
 		return
 	}
@@ -75,7 +76,7 @@ func Read16[T binco.Integer16](r io.Reader) (t T, n int, err error) {
 // Read8 reads one byte.
 func Read8[T binco.Integer8](r io.Reader) (t T, n int, err error) {
 	var buf [binco.Num8RawSize]byte
-	n, err = io.ReadFull(r, buf[:])
+	n, err = wireio.ReadFull(r, buf[:])
 	if err != nil {
 		return
 	}
@@ -95,8 +96,8 @@ func Skip16(r io.Reader) (int, error) { return skip(r, binco.Num16RawSize) }
 func Skip8(r io.Reader) (int, error) { return skip(r, binco.Num8RawSize) }
 
 func skip(r io.Reader, size int) (int, error) {
-	var buf [binco.Num64RawSize]byte
-	return io.ReadFull(r, buf[:size])
+	n, err := wireio.CopyN(io.Discard, r, int64(size))
+	return int(n), err
 }
 
 // WriteWord writes an int in the wire word width, which is always 64 bits.

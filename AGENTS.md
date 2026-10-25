@@ -19,21 +19,32 @@ when its documentation, tests and generated files are updated with it.
 2. **Two codec trees, one format.** Every codec exists for a `[]byte` and for an
    `io.Reader`/`io.Writer`. Both must emit and accept the same bytes; a change to
    one is a change to the other.
-3. **Every exported identifier has a doc comment**, and every exported behaviour
+3. **Every target Go supports must build.** The wire format is little-endian on
+   every host and no codec may depend on the host's byte order or word size.
+   `make portable` compiles every target in `go tool dist list` and compiles the
+   test files on a representative cross-section; a change that only builds on
+   amd64 is not done. Android and iOS link main packages through cgo only, so
+   there the script builds the library packages and says so.
+4. **Stream decoding is bounded by the bytes that arrive.** A length read from a
+   stream never becomes an upfront allocation, a codec never reads past the value
+   it decodes, and a reader that stops making progress fails with
+   `io.ErrNoProgress` instead of blocking. `wirefmt/safety_test.go` enforces this
+   for every codec family.
+5. **Every exported identifier has a doc comment**, and every exported behaviour
    has a section in the README or this file. Documentation is part of the change,
    not a follow-up.
-4. **Errors instead of panics, except in `Marshal`.** Encoding has no error return,
+6. **Errors instead of panics, except in `Marshal`.** Encoding has no error return,
    so a short output buffer panics with `binco.ErrBufferTooSmall`. Nothing else
    panics on data: malformed input returns an error. The only other panics are
    programming errors in constructors (see §5).
-5. **Tests must be deterministic.** No sleeps, no wall-clock assumptions, no
+7. **Tests must be deterministic.** No sleeps, no wall-clock assumptions, no
    network, no ordering that depends on Go's map iteration. The generated-code
    test runs the real `go` tool in a temporary module and is skipped by
    `go test -short`.
-6. **Generated files are committed.** `demos/gen/pkg/binco.gen.go` and
+8. **Generated files are committed.** `demos/gen/pkg/binco.gen.go` and
    `demos/gen_options/pkg/binco.gen.go` are regenerated with `go generate ./...`;
    CI fails when the committed output differs from a fresh run.
-7. **Do not edit a generated file by hand.** Change the generator or the source
+9. **Do not edit a generated file by hand.** Change the generator or the source
    type, then regenerate.
 
 ## 2. Commands
@@ -50,6 +61,8 @@ go test -race ./...
 GOARCH=386 go test ./...          # the 32-bit wire-width and overflow paths
 go generate ./... && git diff --exit-code   # generated code is current
 make cover-check                 # 100% statement coverage, demos excluded
+make portable                    # builds every target Go supports (slow)
+make portable-quick              # the cross-section only, for iteration
 
 # Faster iteration.
 go test ./composite/ -run TestSorted -v
@@ -92,7 +105,7 @@ fast mode; it only skips the test that shells out to `go`.
 ├── internal/           shared implementation details (see §4.6)
 ├── demos/              runnable main packages, one per feature (see §10)
 ├── testdata/           fixture types used by the generator tests
-├── scripts/            covercheck.sh, the coverage gate
+├── scripts/            covercheck.sh (coverage gate), portable.sh (every target)
 ├── Makefile            build/test/cover/lint entry points (demos excluded)
 ├── NOCOVER.md          the few branches coverage cannot reach, with reasons
 └── .github/workflows/  CI
@@ -272,6 +285,14 @@ The format is specified in README §5. Repository-side rules:
   the CHANGELOG together.
 * **`int`/`uint` are 64-bit on every host.** A 32-bit build reports
   `ErrOverflow` for values it cannot hold; tests must not assume the host width.
+* **The wire bytes are little-endian on every host.** Every multi-byte value goes
+  through `encoding/binary`'s explicit `LittleEndian` (or shifts); no codec
+  reinterprets host memory. The only raw-memory path is the fixed-width slice
+  copy, gated by `internal/fixedwidth.Of` on `binco.HostLittleEndian`, which
+  comes from `binary.NativeEndian` — never from a pointer probe.
+  `endianness_test.go` pins the golden bytes on any host;
+  `endianness_bigendian_test.go` (build tag `ppc64 || s390x || mips || mips64`)
+  asserts that the fast path is disabled there.
 * **Times decode to UTC.** Nothing in the codebase may return `time.Local`.
 * **Lengths default to `varnum.PositiveInt`.** Changing a length codec changes the
   format.
@@ -402,6 +423,39 @@ instead of killing the runner. Crashers
 are written to `<package>/testdata/fuzz/<target>`; commit them as seeds (one is
 already committed under `varnum/testdata/fuzz`).
 
+### Portability
+
+* `scripts/portable.sh` cross-compiles every target in `go tool dist list`
+  (`go build ./...`), then compiles the test files on a representative
+  cross-section with `go test -exec=/bin/true`: both byte orders (ppc64, s390x,
+  mips, mips64), 32-bit hosts, Windows, the BSDs and both wasm environments.
+  `make portable` runs it; the `Portability` CI job runs it on every push.
+* `endianness_test.go` and `endianness_bigendian_test.go` pin the byte order and
+  the fast-path guard (see §6). `TestSliceBulkPathMatchesTheElementLoop` checks
+  that the bulk copy and the per-element loop produce identical bytes on any
+  host.
+* A test that only works on one platform belongs behind a build tag and must
+  still compile in the matrix.
+
+### Stream safety
+
+`wirefmt/safety_test.go` is the contract for decoding untrusted streams. For one
+representative value of every codec family it checks that:
+
+* a nine-byte payload declaring a `MaxInt64` length fails immediately and
+  allocates less than 8 MiB;
+* a reader that keeps returning `(0, nil)` fails with `io.ErrNoProgress` instead
+  of blocking (`internal/wireio.CopyN` bounds the empty reads, and
+  `internal/lew`'s fixed-width reads go through it);
+* an I/O error in the middle of a value reaches the caller unchanged;
+* every truncation of every value fails cleanly and never reads past the input;
+* `Skip` reports the same outcome as `Unmarshal` for every prefix;
+* decoding leaves the next byte intact, through the one-byte adapter and through
+  `bufio` alike.
+
+`FuzzStreamDecode` (build tag `fuzz`) fuzzes the same properties. Add a table
+row when you add a codec family.
+
 ### Coverage
 
 Every library package must stay at **100% statement coverage**. The demos are
@@ -476,6 +530,7 @@ show, and should be added to this table.
 |-----|--------------|
 | `Test` | gofmt check, `go vet`, `go test -race -cover` over the non-demo packages, the coverage gate (`scripts/covercheck.sh`), `go generate` + `git diff --exit-code`, `go build ./...`, Coveralls upload |
 | `Test (GOARCH=386)` | `go test ./...` on 32-bit |
+| `Portability` | `scripts/portable.sh`: build every Go target, test-compile the cross-section |
 | `Lint` | `golangci-lint run --build-tags=fuzz` |
 | `Fuzz <target>` | one matrix entry per target: 15 s on a push, 5 min on the nightly schedule |
 | `Publish release` | on a `v*` tag: creates the GitHub release |
@@ -502,6 +557,11 @@ Release checklist:
   buffer; never reuse or modify it while the value is alive.
 * **32-bit builds.** `int` is still 64-bit on the wire; tests must use explicit
   `int64`/`uint64` values where the host cannot hold them.
+* **Host byte order.** Never reinterpret a `[]byte` as a multi-byte type: encode
+  with `encoding/binary` and leave raw-memory copies to the guarded bulk path.
+* **Stalled readers.** `io.ReadFull`/`io.CopyN` spin forever on a reader that
+  returns `(0, nil)`. The streaming tree uses `internal/wireio` for anything that
+  reads a known number of bytes.
 * **Fuzz seeds.** A failing input is written next to the package; commit it, do
   not delete it.
 * **`/tmp` size.** Some sandboxes have a small `/tmp`; if `go test -race` fails

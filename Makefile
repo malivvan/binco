@@ -46,5 +46,14 @@ cover:
 cover-check: cover
 	@sh scripts/covercheck.sh $(COVEROUT) NOCOVER.md
 
+# Prove that every target Go supports builds, and that the test files compile on
+# a representative cross-section (both byte orders, 32-bit, wasm). Slow: CI runs
+# it on every push, locally run it before a release.
+portable:
+	sh scripts/portable.sh
+
+portable-quick:
+	sh scripts/portable.sh --quick
+
 demos:
 	$(GO) build ./demos/...

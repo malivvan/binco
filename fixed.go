@@ -1,6 +1,6 @@
 package binco
 
-import "unsafe"
+import "encoding/binary"
 
 // FixedWidth is implemented by serializers whose encoded form of one value is
 // exactly its little-endian memory representation.
@@ -19,7 +19,7 @@ type FixedWidth interface {
 //
 // The bulk slice path copies memory directly, which is only the wire format on a
 // little-endian host; elsewhere the codecs fall back to the element serializer.
-var HostLittleEndian = func() bool {
-	var probe uint16 = 1
-	return *(*byte)(unsafe.Pointer(&probe)) == 1
-}()
+//
+// The value comes from encoding/binary's build-tag-based NativeEndian, not from
+// a pointer probe, so it is correct on every target Go supports.
+var HostLittleEndian = binary.NativeEndian.Uint16([]byte{1, 0}) == 1

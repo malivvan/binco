@@ -1,13 +1,12 @@
 package composite
 
 import (
-	"bytes"
-	"io"
 	"math"
 	"unsafe"
 
 	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/internal/fixedwidth"
+	"github.com/malivvan/binco/internal/wireio"
 	"github.com/malivvan/binco/wirefmt"
 	slopts "github.com/malivvan/binco/wirefmt/config/slice"
 	"github.com/malivvan/binco/wirefmt/varnum"
@@ -160,18 +159,13 @@ func unmarshalFixedSlice[T any](r wirefmt.Reader, n, length, width int) (
 	if total == 0 {
 		return []T{}, n, nil
 	}
-	var buf bytes.Buffer
-	var n1 int64
-	n1, err = io.CopyN(&buf, r, int64(total))
-	n += int(n1)
+	body, n1, err := wireio.ReadFixed(r, total)
+	n += n1
 	if err != nil {
-		if err == io.EOF {
-			err = io.ErrUnexpectedEOF
-		}
 		return nil, n, err
 	}
 	v = make([]T, length)
-	copy(rawBytes(v), buf.Bytes())
+	copy(rawBytes(v), body)
 	return v, n, nil
 }
 
@@ -214,12 +208,9 @@ func SkipSlice[T any](elemSerializer wirefmt.Serializer[T],
 		if length > math.MaxInt/width {
 			return n, binco.ErrTooLargeLength
 		}
-		var n1 int64
-		n1, err = io.CopyN(io.Discard, r, int64(length*width))
-		n += int(n1)
-		if err == io.EOF {
-			err = io.ErrUnexpectedEOF
-		}
+		var n1 int
+		n1, err = wireio.DiscardFixed(r, length*width)
+		n += n1
 		return n, err
 	}
 	var n1 int
