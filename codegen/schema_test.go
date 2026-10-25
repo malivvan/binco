@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
-	genopts "github.com/malivvan/binco/codegen/config/gen"
 	"github.com/malivvan/binco/testdata"
 )
 
@@ -74,18 +74,12 @@ func fingerprintOf(t *testing.T, typ reflect.Type) string {
 
 // TestForeignUnexportedFieldIsRejected covers the second half of D4: generated
 // code cannot reach an unexported field of another package, so the failure has
-// to be reported during generation.
+// to be reported during generation. time.Time is a struct from another package
+// whose fields are all unexported, which is the case a local fixture would have
+// to imitate.
 func TestForeignUnexportedFieldIsRejected(t *testing.T) {
 	g := newGenerator(t)
-	// hiddenForeign lives in package codegen_test, which is not the package the
-	// generator writes into.
-	if err := g.AddStruct(reflect.TypeFor[hiddenForeign]()); err == nil {
+	if err := g.AddStruct(reflect.TypeFor[time.Time]()); err == nil {
 		t.Fatal("AddStruct accepted a foreign struct with an unexported field")
 	}
-	_ = genopts.New
-}
-
-type hiddenForeign struct {
-	Exported int
-	hidden   int
 }

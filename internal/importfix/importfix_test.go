@@ -136,7 +136,7 @@ func f(bs []byte) int {
 	if fmtIndex < 0 || timeIndex < 0 || bincoIndex < 0 {
 		t.Fatalf("an import is missing:\n%s", got)
 	}
-	if !(fmtIndex < bincoIndex && timeIndex < bincoIndex) {
+	if fmtIndex >= bincoIndex || timeIndex >= bincoIndex {
 		t.Fatalf("the standard library is not grouped first:\n%s", got)
 	}
 	if !strings.Contains(got, "\"time\"\n\n\t\"github.com") {
