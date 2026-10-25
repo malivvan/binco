@@ -35,21 +35,21 @@ func TestPointerMapping(t *testing.T) {
 
 	var revPtrMap = binco.NewReversePtrMap()
 
-	var ptrCodec = wptrmap.NewPtrSer(ptrMap, revPtrMap, wvarnum.Int)
+	var ptrCodec = wptrmap.NewPtrSerializer(ptrMap, revPtrMap, wvarnum.Int)
 
-	var listSer = wptrmap.Wrap(ptrMap, revPtrMap, composite.NewSliceSer(ptrCodec))
+	var listSerializer = wptrmap.Wrap(ptrMap, revPtrMap, composite.NewSliceSerializer(ptrCodec))
 
 	a, b := 10, 20
 	v := []*int{&a, &a, &b}
 
-	bs := encode(t, listSer, v)
+	bs := encode(t, listSerializer, v)
 
 	want := []byte{3, byte(binco.PtrMapping), 0, 20, byte(binco.PtrMapping), 0,
 		byte(binco.PtrMapping), 1, 40}
 	if !bytes.Equal(bs, want) {
 		t.Fatalf("Marshal = %v, want %v", bs, want)
 	}
-	got, n, err := listSer.Unmarshal(reader(bs...))
+	got, n, err := listSerializer.Unmarshal(reader(bs...))
 	if err != nil || n != len(bs) {
 		t.Fatalf("Unmarshal = (_, %d, %v)", n, err)
 	}
@@ -67,11 +67,11 @@ func TestPointerMapping(t *testing.T) {
 		t.Fatalf("maps were not reset: %d, %d", ptrMap.Len(), revPtrMap.Len())
 	}
 
-	nilBS := encode(t, listSer, []*int{nil})
+	nilBS := encode(t, listSerializer, []*int{nil})
 	if !bytes.Equal(nilBS, []byte{1, byte(binco.PtrNil)}) {
 		t.Fatalf("Marshal of [nil] = %v", nilBS)
 	}
-	got, _, err = listSer.Unmarshal(reader(nilBS...))
+	got, _, err = listSerializer.Unmarshal(reader(nilBS...))
 	if err != nil || got[0] != nil {
 		t.Fatalf("Unmarshal of [nil] = (%v, %v)", got, err)
 	}
@@ -82,11 +82,11 @@ type node struct {
 	Next  *node
 }
 
-type nodeSer struct {
+type nodeSerializer struct {
 	next wirefmt.Serializer[*node]
 }
 
-func (s *nodeSer) Marshal(v node, w wirefmt.Writer) (n int, err error) {
+func (s *nodeSerializer) Marshal(v node, w wirefmt.Writer) (n int, err error) {
 	n, err = wvarnum.Int.Marshal(v.Value, w)
 	if err != nil {
 		return
@@ -96,7 +96,7 @@ func (s *nodeSer) Marshal(v node, w wirefmt.Writer) (n int, err error) {
 	return n + n1, err
 }
 
-func (s *nodeSer) Unmarshal(r wirefmt.Reader) (v node, n int, err error) {
+func (s *nodeSerializer) Unmarshal(r wirefmt.Reader) (v node, n int, err error) {
 	v.Value, n, err = wvarnum.Int.Unmarshal(r)
 	if err != nil {
 		return
@@ -107,11 +107,11 @@ func (s *nodeSer) Unmarshal(r wirefmt.Reader) (v node, n int, err error) {
 	return
 }
 
-func (s *nodeSer) Size(v node) (size int) {
+func (s *nodeSerializer) Size(v node) (size int) {
 	return wvarnum.Int.Size(v.Value) + s.next.Size(v.Next)
 }
 
-func (s *nodeSer) Skip(r wirefmt.Reader) (n int, err error) {
+func (s *nodeSerializer) Skip(r wirefmt.Reader) (n int, err error) {
 	n, err = wvarnum.Int.Skip(r)
 	if err != nil {
 		return
@@ -126,17 +126,17 @@ func TestCyclicGraph(t *testing.T) {
 
 	var revPtrMap = binco.NewReversePtrMap()
 
-	var ns = &nodeSer{}
+	var ns = &nodeSerializer{}
 
-	ns.next = wptrmap.NewPtrSer(ptrMap, revPtrMap, ns)
-	ser := wptrmap.Wrap(ptrMap, revPtrMap, ns.next)
+	ns.next = wptrmap.NewPtrSerializer(ptrMap, revPtrMap, ns)
+	serializer := wptrmap.Wrap(ptrMap, revPtrMap, ns.next)
 
 	a := &node{Value: 1}
 	b := &node{Value: 2, Next: a}
 	a.Next = b
 
-	bs := encode(t, ser, a)
-	got, n, err := ser.Unmarshal(reader(bs...))
+	bs := encode(t, serializer, a)
+	got, n, err := serializer.Unmarshal(reader(bs...))
 	if err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
@@ -149,39 +149,39 @@ func TestCyclicGraph(t *testing.T) {
 	if got.Next.Next != got {
 		t.Fatal("the cycle was not restored")
 	}
-	if _, err = ser.Skip(reader(bs...)); err != nil {
+	if _, err = serializer.Skip(reader(bs...)); err != nil {
 		t.Fatalf("Skip: %v", err)
 	}
 }
 
 func TestPtrErrors(t *testing.T) {
-	ser := wptrmap.NewPtrSer(binco.NewPtrMap(), binco.NewReversePtrMap(), wvarnum.Int)
-	if _, _, err := ser.Unmarshal(reader()); !errors.Is(err, io.EOF) {
+	serializer := wptrmap.NewPtrSerializer(binco.NewPtrMap(), binco.NewReversePtrMap(), wvarnum.Int)
+	if _, _, err := serializer.Unmarshal(reader()); !errors.Is(err, io.EOF) {
 		t.Fatalf("Unmarshal of an empty stream returned %v", err)
 	}
-	if _, err := ser.Skip(reader()); !errors.Is(err, io.EOF) {
+	if _, err := serializer.Skip(reader()); !errors.Is(err, io.EOF) {
 		t.Fatalf("Skip of an empty stream returned %v", err)
 	}
 	for _, bs := range [][]byte{{byte(binco.PtrNotNil), 0}, {3, 0}} {
-		if _, _, err := ser.Unmarshal(reader(bs...)); err != binco.ErrWrongFormat {
+		if _, _, err := serializer.Unmarshal(reader(bs...)); err != binco.ErrWrongFormat {
 			t.Fatalf("Unmarshal(%v) returned %v, want ErrWrongFormat", bs, err)
 		}
-		if _, err := ser.Skip(reader(bs...)); err != binco.ErrWrongFormat {
+		if _, err := serializer.Skip(reader(bs...)); err != binco.ErrWrongFormat {
 			t.Fatalf("Skip(%v) returned %v, want ErrWrongFormat", bs, err)
 		}
 	}
 
-	if _, _, err := ser.Unmarshal(reader(byte(binco.PtrMapping), 0x80)); !errors.Is(err, io.EOF) {
+	if _, _, err := serializer.Unmarshal(reader(byte(binco.PtrMapping), 0x80)); !errors.Is(err, io.EOF) {
 		t.Fatalf("Unmarshal of a truncated id returned %v", err)
 	}
 }
 
 func TestWriterErrors(t *testing.T) {
 	want := errors.New("write failed")
-	ser := wptrmap.Wrap(binco.NewPtrMap(), binco.NewReversePtrMap(),
-		wptrmap.NewPtrSer(binco.NewPtrMap(), binco.NewReversePtrMap(), wvarnum.Int))
+	serializer := wptrmap.Wrap(binco.NewPtrMap(), binco.NewReversePtrMap(),
+		wptrmap.NewPtrSerializer(binco.NewPtrMap(), binco.NewReversePtrMap(), wvarnum.Int))
 	v := 1
-	if _, err := ser.Marshal(&v, failingWriter{err: want}); !errors.Is(err, want) {
+	if _, err := serializer.Marshal(&v, failingWriter{err: want}); !errors.Is(err, want) {
 		t.Fatalf("Marshal returned %v, want %v", err, want)
 	}
 }

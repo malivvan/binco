@@ -17,11 +17,11 @@ func (c Copy) Do() {
 }
 
 func (c Copy) MarshalTypedBinco(bs []byte) (n int) {
-	return CopyTypedSer.Marshal(c, bs)
+	return CopyTypedSerializer.Marshal(c, bs)
 }
 
 func (c Copy) SizeTypedBinco() (size int) {
-	return CopyTypedSer.Size(c)
+	return CopyTypedSerializer.Size(c)
 }
 
 type Insert struct {
@@ -33,9 +33,9 @@ func (i Insert) Do() {
 }
 
 func (i Insert) MarshalTypedBinco(bs []byte) (n int) {
-	return InsertTypedSer.Marshal(i, bs)
+	return InsertTypedSerializer.Marshal(i, bs)
 }
 
 func (i Insert) SizeTypedBinco() (size int) {
-	return InsertTypedSer.Size(i)
+	return InsertTypedSerializer.Size(i)
 }

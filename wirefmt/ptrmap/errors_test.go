@@ -12,8 +12,8 @@ import (
 )
 
 func TestPointerCodecStreamErrors(t *testing.T) {
-	newSer := func() wirefmt.Serializer[*int] {
-		return ptrmap.NewPtrSer(binco.NewPtrMap(), binco.NewReversePtrMap(), varnum.Int)
+	newSerializer := func() wirefmt.Serializer[*int] {
+		return ptrmap.NewPtrSerializer(binco.NewPtrMap(), binco.NewReversePtrMap(), varnum.Int)
 	}
 
 	tests := []struct {
@@ -22,35 +22,35 @@ func TestPointerCodecStreamErrors(t *testing.T) {
 		want error
 	}{
 		{"unmarshal empty", func() error {
-			_, _, err := newSer().Unmarshal(reader())
+			_, _, err := newSerializer().Unmarshal(reader())
 			return err
 		}, io.EOF},
 		{"unmarshal unknown flag", func() error {
-			_, _, err := newSer().Unmarshal(reader(0xFF))
+			_, _, err := newSerializer().Unmarshal(reader(0xFF))
 			return err
 		}, binco.ErrWrongFormat},
 		{"unmarshal truncated id", func() error {
-			_, _, err := newSer().Unmarshal(reader(byte(binco.PtrMapping)))
+			_, _, err := newSerializer().Unmarshal(reader(byte(binco.PtrMapping)))
 			return err
 		}, io.EOF},
 		{"unmarshal truncated data", func() error {
-			_, _, err := newSer().Unmarshal(reader(byte(binco.PtrMapping), 0))
+			_, _, err := newSerializer().Unmarshal(reader(byte(binco.PtrMapping), 0))
 			return err
 		}, io.EOF},
 		{"skip empty", func() error {
-			_, err := newSer().Skip(reader())
+			_, err := newSerializer().Skip(reader())
 			return err
 		}, io.EOF},
 		{"skip unknown flag", func() error {
-			_, err := newSer().Skip(reader(0xFF))
+			_, err := newSerializer().Skip(reader(0xFF))
 			return err
 		}, binco.ErrWrongFormat},
 		{"skip truncated id", func() error {
-			_, err := newSer().Skip(reader(byte(binco.PtrMapping)))
+			_, err := newSerializer().Skip(reader(byte(binco.PtrMapping)))
 			return err
 		}, io.EOF},
 		{"skip truncated data", func() error {
-			_, err := newSer().Skip(reader(byte(binco.PtrMapping), 0))
+			_, err := newSerializer().Skip(reader(byte(binco.PtrMapping), 0))
 			return err
 		}, io.EOF},
 	}
@@ -66,13 +66,13 @@ func TestPointerCodecStreamErrors(t *testing.T) {
 
 func TestPointerCodecWriterErrors(t *testing.T) {
 	want := errors.New("write failed")
-	ser := ptrmap.NewPtrSer(binco.NewPtrMap(), binco.NewReversePtrMap(), varnum.Int)
+	serializer := ptrmap.NewPtrSerializer(binco.NewPtrMap(), binco.NewReversePtrMap(), varnum.Int)
 	v := 5
 
-	if _, err := ser.Marshal(nil, failingWriter{err: want}); !errors.Is(err, want) {
+	if _, err := serializer.Marshal(nil, failingWriter{err: want}); !errors.Is(err, want) {
 		t.Fatalf("Marshal(nil) returned %v, want %v", err, want)
 	}
-	if _, err := ser.Marshal(&v, failingWriter{err: want}); !errors.Is(err, want) {
+	if _, err := serializer.Marshal(&v, failingWriter{err: want}); !errors.Is(err, want) {
 		t.Fatalf("Marshal(&v) returned %v, want %v", err, want)
 	}
 }

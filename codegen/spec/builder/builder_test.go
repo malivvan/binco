@@ -25,7 +25,7 @@ func typenameFullName(s string) typename.FullName { return typename.FullName(s) 
 func newBuilder(t *testing.T) bldr.TypeBuilder {
 	t.Helper()
 	gops := genopts.New()
-	if err := genopts.Apply([]genopts.SetOption{genopts.WithPkgPath(pkgPath)}, &gops); err != nil {
+	if err := genopts.Apply([]genopts.SetOption{genopts.WithPath(pkgPath)}, &gops); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 	return bldr.NewTypeBuilder(cnvtr.NewTypeNameConverter(gops), gops)
@@ -241,7 +241,7 @@ func TestBuildAnonType(t *testing.T) {
 
 func TestCollectAnonTypes(t *testing.T) {
 	b := newBuilder(t)
-	m := map[spec.AnonSerName]spec.AnonType{}
+	m := map[spec.AnonSerializerName]spec.AnonType{}
 	if err := b.CollectAnonTypes("map[string][]int", m, tpopts.Options{}); err != nil {
 		t.Fatalf("CollectAnonTypes: %v", err)
 	}
@@ -256,7 +256,7 @@ func TestCollectAnonTypes(t *testing.T) {
 		t.Fatalf("unexpected kinds %v", kinds)
 	}
 
-	if err := b.CollectAnonTypes("chan int", map[spec.AnonSerName]spec.AnonType{},
+	if err := b.CollectAnonTypes("chan int", map[spec.AnonSerializerName]spec.AnonType{},
 		tpopts.Options{}); err == nil {
 		t.Fatal("an unsupported type was accepted")
 	}
@@ -311,7 +311,7 @@ func TestCollectContainerAnonTypes(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			m := map[spec.AnonSerName]spec.AnonType{}
+			m := map[spec.AnonSerializerName]spec.AnonType{}
 			if err := b.CollectAnonTypes(typenameFullName(tc.scan), m, tc.tops); err != nil {
 				t.Fatalf("CollectAnonTypes: %v", err)
 			}

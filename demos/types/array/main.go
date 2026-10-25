@@ -12,32 +12,32 @@ import (
 
 func main() {
 	var (
-		value = [3]int{1, 2, 3}
-		ser   = zerocpy.NewArraySer[[3]int, int](varnum.Int)
+		value      = [3]int{1, 2, 3}
+		serializer = zerocpy.NewArraySerializer[[3]int, int](varnum.Int)
 	)
 
-	size := ser.Size(value)
+	size := serializer.Size(value)
 	bs := make([]byte, size)
-	n := ser.Marshal(value, bs)
+	n := serializer.Marshal(value, bs)
 
 	fmt.Printf("value:   %v\n", value)
 	fmt.Printf("size:    %d bytes\n", size)
 	fmt.Printf("encoded: %v (wrote %d)\n", bs, n)
 
-	back, n, err := ser.Unmarshal(bs)
+	back, n, err := serializer.Unmarshal(bs)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("decoded: %v (read %d)\n", back, n)
 
-	n, err = ser.Skip(bs)
+	n, err = serializer.Skip(bs)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("skipped: %d bytes\n", n)
 
-	shorter := binco.Encode(composite.NewSliceSer(varnum.Int), []int{1, 2})
-	if _, _, err = ser.Unmarshal(shorter); err != nil {
+	shorter := binco.Encode(composite.NewSliceSerializer(varnum.Int), []int{1, 2})
+	if _, _, err = serializer.Unmarshal(shorter); err != nil {
 		fmt.Printf("shorter payload: %v\n", err)
 	}
 }

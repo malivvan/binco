@@ -8,41 +8,41 @@ import (
 )
 
 // String serializes a string as a length-prefixed byte sequence.
-var String = NewStringSer()
+var String = NewStringSerializer()
 
-// NewStringSer returns a string serializer whose length codec can be replaced through opts.
-func NewStringSer(opts ...stropts.SetOption) textCodec {
+// NewStringSerializer returns a string serializer whose length codec can be replaced through opts.
+func NewStringSerializer(opts ...stropts.SetOption) textCodec {
 	o := stropts.Options{}
 	stropts.Apply(opts, &o)
 
 	return newTextCodec(o)
 }
 
-// NewValidStringSer returns a string serializer that runs its length validator while decoding.
-func NewValidStringSer(opts ...stropts.SetOption) checkedText {
+// NewValidStringSerializer returns a string serializer that runs its length validator while decoding.
+func NewValidStringSerializer(opts ...stropts.SetOption) checkedText {
 	o := stropts.Options{}
 	stropts.Apply(opts, &o)
 	return checkedText{newTextCodec(o), o.LenVl}
 }
 
 func newTextCodec(o stropts.Options) textCodec {
-	var lenSer binco.Serializer[int] = varnum.PositiveInt
-	if o.LenSer != nil {
-		lenSer = o.LenSer
+	var lenSerializer binco.Serializer[int] = varnum.PositiveInt
+	if o.LenSerializer != nil {
+		lenSerializer = o.LenSerializer
 	}
-	return textCodec{lenSer}
+	return textCodec{lenSerializer}
 }
 
 type textCodec struct {
-	lenSer binco.Serializer[int]
+	lenSerializer binco.Serializer[int]
 }
 
 func (s textCodec) Marshal(v string, bs []byte) (n int) {
-	return MarshalString(v, s.lenSer, bs)
+	return MarshalString(v, s.lenSerializer, bs)
 }
 
 func (s textCodec) Unmarshal(bs []byte) (v string, n int, err error) {
-	length, n, err := s.lenSer.Unmarshal(bs)
+	length, n, err := s.lenSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
@@ -62,11 +62,11 @@ func (s textCodec) Unmarshal(bs []byte) (v string, n int, err error) {
 }
 
 func (s textCodec) Size(v string) (size int) {
-	return SizeString(v, s.lenSer)
+	return SizeString(v, s.lenSerializer)
 }
 
 func (s textCodec) Skip(bs []byte) (n int, err error) {
-	return SkipString(s.lenSer, bs)
+	return SkipString(s.lenSerializer, bs)
 }
 
 type checkedText struct {
@@ -75,7 +75,7 @@ type checkedText struct {
 }
 
 func (s checkedText) Unmarshal(bs []byte) (v string, n int, err error) {
-	length, n, err := s.lenSer.Unmarshal(bs)
+	length, n, err := s.lenSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
@@ -100,9 +100,9 @@ func (s checkedText) Unmarshal(bs []byte) (v string, n int, err error) {
 }
 
 // MarshalString writes v, prefixed by its length, into bs.
-func MarshalString(v string, lenSer binco.Serializer[int], bs []byte) (n int) {
+func MarshalString(v string, lenSerializer binco.Serializer[int], bs []byte) (n int) {
 	length := len(v)
-	n = lenSer.Marshal(length, bs)
+	n = lenSerializer.Marshal(length, bs)
 	if len(bs) < n+length {
 		panic(binco.ErrTooSmallByteSlice)
 	}
@@ -110,14 +110,14 @@ func MarshalString(v string, lenSer binco.Serializer[int], bs []byte) (n int) {
 }
 
 // SizeString reports the encoded size of v.
-func SizeString(v string, lenSer binco.Serializer[int]) (size int) {
+func SizeString(v string, lenSerializer binco.Serializer[int]) (size int) {
 	length := len(v)
-	return lenSer.Size(length) + length
+	return lenSerializer.Size(length) + length
 }
 
 // SkipString advances over an encoded string.
-func SkipString(lenSer binco.Serializer[int], bs []byte) (n int, err error) {
-	length, n, err := lenSer.Unmarshal(bs)
+func SkipString(lenSerializer binco.Serializer[int], bs []byte) (n int, err error) {
+	length, n, err := lenSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
@@ -133,18 +133,18 @@ func SkipString(lenSer binco.Serializer[int], bs []byte) (n int, err error) {
 }
 
 // ByteSlice serializes a byte slice as a length-prefixed byte sequence.
-var ByteSlice = NewByteSliceSer()
+var ByteSlice = NewByteSliceSerializer()
 
-// NewByteSliceSer returns a byte slice serializer whose length codec can be replaced.
-func NewByteSliceSer(opts ...bslopts.SetOption) blobCodec {
+// NewByteSliceSerializer returns a byte slice serializer whose length codec can be replaced.
+func NewByteSliceSerializer(opts ...bslopts.SetOption) blobCodec {
 	o := bslopts.Options{}
 	bslopts.Apply(opts, &o)
 
 	return newBlobCodec(o)
 }
 
-// NewValidByteSliceSer returns a byte slice serializer that runs its length validator while decoding.
-func NewValidByteSliceSer(opts ...bslopts.SetOption) checkedBlob {
+// NewValidByteSliceSerializer returns a byte slice serializer that runs its length validator while decoding.
+func NewValidByteSliceSerializer(opts ...bslopts.SetOption) checkedBlob {
 	o := bslopts.Options{}
 	bslopts.Apply(opts, &o)
 
@@ -156,23 +156,23 @@ func NewValidByteSliceSer(opts ...bslopts.SetOption) checkedBlob {
 }
 
 func newBlobCodec(o bslopts.Options) blobCodec {
-	var lenSer binco.Serializer[int] = varnum.PositiveInt
-	if o.LenSer != nil {
-		lenSer = o.LenSer
+	var lenSerializer binco.Serializer[int] = varnum.PositiveInt
+	if o.LenSerializer != nil {
+		lenSerializer = o.LenSerializer
 	}
-	return blobCodec{lenSer}
+	return blobCodec{lenSerializer}
 }
 
 type blobCodec struct {
-	lenSer binco.Serializer[int]
+	lenSerializer binco.Serializer[int]
 }
 
 func (s blobCodec) Marshal(v []byte, bs []byte) (n int) {
-	return MarshalByteSlice(v, s.lenSer, bs)
+	return MarshalByteSlice(v, s.lenSerializer, bs)
 }
 
 func (s blobCodec) Unmarshal(bs []byte) (v []byte, n int, err error) {
-	length, n, err := s.lenSer.Unmarshal(bs)
+	length, n, err := s.lenSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
@@ -190,11 +190,11 @@ func (s blobCodec) Unmarshal(bs []byte) (v []byte, n int, err error) {
 }
 
 func (s blobCodec) Size(v []byte) (size int) {
-	return SizeByteSlice(v, s.lenSer)
+	return SizeByteSlice(v, s.lenSerializer)
 }
 
 func (s blobCodec) Skip(bs []byte) (n int, err error) {
-	return SkipByteSlice(s.lenSer, bs)
+	return SkipByteSlice(s.lenSerializer, bs)
 }
 
 type checkedBlob struct {
@@ -203,7 +203,7 @@ type checkedBlob struct {
 }
 
 func (s checkedBlob) Unmarshal(bs []byte) (v []byte, n int, err error) {
-	length, n, err := s.lenSer.Unmarshal(bs)
+	length, n, err := s.lenSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
@@ -229,9 +229,9 @@ func (s checkedBlob) Unmarshal(bs []byte) (v []byte, n int, err error) {
 }
 
 // MarshalByteSlice writes v, prefixed by its length, into bs.
-func MarshalByteSlice(v []byte, lenSer binco.Serializer[int], bs []byte) (n int) {
+func MarshalByteSlice(v []byte, lenSerializer binco.Serializer[int], bs []byte) (n int) {
 	length := len(v)
-	n = lenSer.Marshal(length, bs)
+	n = lenSerializer.Marshal(length, bs)
 	if len(bs) < n+length {
 		panic(binco.ErrTooSmallByteSlice)
 	}
@@ -239,14 +239,14 @@ func MarshalByteSlice(v []byte, lenSer binco.Serializer[int], bs []byte) (n int)
 }
 
 // SizeByteSlice reports the encoded size of v.
-func SizeByteSlice(v []byte, lenSer binco.Serializer[int]) (size int) {
+func SizeByteSlice(v []byte, lenSerializer binco.Serializer[int]) (size int) {
 	length := len(v)
-	return lenSer.Size(length) + length
+	return lenSerializer.Size(length) + length
 }
 
 // SkipByteSlice advances over an encoded byte slice.
-func SkipByteSlice(lenSer binco.Serializer[int], bs []byte) (n int, err error) {
-	length, n, err := lenSer.Unmarshal(bs)
+func SkipByteSlice(lenSerializer binco.Serializer[int], bs []byte) (n int, err error) {
+	length, n, err := lenSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}

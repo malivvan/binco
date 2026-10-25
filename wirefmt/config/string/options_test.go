@@ -19,13 +19,13 @@ func TestApply(t *testing.T) {
 	)
 	o := stropts.Options{}
 	stropts.Apply([]stropts.SetOption{
-		stropts.WithLenSer(wscalar.Int),
+		stropts.WithLenSerializer(wscalar.Int),
 		stropts.WithLenValidator(vl),
 		nil,
 	}, &o)
 
-	if o.LenSer != wscalar.Int {
-		t.Fatal("WithLenSer was not applied")
+	if o.LenSerializer != wscalar.Int {
+		t.Fatal("WithLenSerializer was not applied")
 	}
 	if o.LenVl == nil {
 		t.Fatal("WithLenValidator was not applied")
@@ -41,7 +41,7 @@ func TestApply(t *testing.T) {
 func TestApplyEmpty(t *testing.T) {
 	o := stropts.Options{}
 	stropts.Apply(nil, &o)
-	if o.LenSer != nil || o.LenVl != nil {
+	if o.LenSerializer != nil || o.LenVl != nil {
 		t.Fatalf("empty Apply changed the options: %+v", o)
 	}
 }

@@ -72,14 +72,14 @@ type FieldType struct {
 
 // AnonType describes an anonymous serializer that the generator has to declare for a container or pointer type.
 type AnonType struct {
-	SerName AnonSerName
-	Kind    AnonKind
+	SerializerName AnonSerializerName
+	Kind           AnonKind
 
 	ArrType   typename.FullName
 	ArrLength string
 
-	LenSer string
-	LenVl  string
+	LenSerializer string
+	LenVl         string
 
 	KeyType typename.FullName
 	KeyVl   string
@@ -88,8 +88,8 @@ type AnonType struct {
 	ElemVl   string
 }
 
-// AnonSerName is the generated name of an anonymous serializer.
-type AnonSerName string
+// AnonSerializerName is the generated name of an anonymous serializer.
+type AnonSerializerName string
 
 // AnonKind says which container an anonymous serializer belongs to.
 type AnonKind int
@@ -109,7 +109,7 @@ func (k AnonKind) String() string {
 	case AnonKindPtr:
 		return "ptr"
 	default:
-		panic(fmt.Sprintf("unexpected %v AnonSerKind", int(k)))
+		panic(fmt.Sprintf("unexpected %v AnonSerializerKind", int(k)))
 	}
 }
 

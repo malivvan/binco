@@ -13,7 +13,7 @@ import (
 
 // CollectAnonOp walks a type name and records every anonymous serializer the generator must declare.
 type CollectAnonOp struct {
-	m             map[spec.AnonSerName]spec.AnonType
+	m             map[spec.AnonSerializerName]spec.AnonType
 	firstAnonType *spec.AnonType
 	converter     TypeNameConverter
 }
@@ -27,20 +27,20 @@ func (o *CollectAnonOp) putToMap(anonType spec.AnonType) {
 	if o.firstAnonType == nil {
 		o.firstAnonType = &anonType
 	}
-	o.m[anonType.SerName] = anonType
+	o.m[anonType.SerializerName] = anonType
 }
 
 func (o *CollectAnonOp) makeMapType(t scanner.TypeInfo[typename.FullName],
 	tops tpopts.Options,
 ) (d spec.AnonType, ok bool) {
 	var (
-		lenSer = "nil"
-		lenVl  = "nil"
-		keyVl  = "nil"
-		elemVl = "nil"
+		lenSerializer = "nil"
+		lenVl         = "nil"
+		keyVl         = "nil"
+		elemVl        = "nil"
 	)
 	if tops.LenEnc != tpopts.NumEncodingUndefined {
-		lenSer = tops.LenEnc.LenSer()
+		lenSerializer = tops.LenEnc.LenSerializer()
 	}
 	if tops.LenValidator != "" {
 		lenVl = o.validatorExpr("int", tops.LenValidator)
@@ -52,26 +52,26 @@ func (o *CollectAnonOp) makeMapType(t scanner.TypeInfo[typename.FullName],
 		elemVl = o.validatorExpr(t.ElemType, tops.ElemValidator)
 	}
 	return spec.AnonType{
-		SerName:  hashedName(spec.AnonKindMap, t, tops),
-		Kind:     spec.AnonKindMap,
-		LenSer:   lenSer,
-		LenVl:    lenVl,
-		KeyType:  t.KeyType,
-		KeyVl:    keyVl,
-		ElemType: t.ElemType,
-		ElemVl:   elemVl,
+		SerializerName: hashedName(spec.AnonKindMap, t, tops),
+		Kind:           spec.AnonKindMap,
+		LenSerializer:  lenSerializer,
+		LenVl:          lenVl,
+		KeyType:        t.KeyType,
+		KeyVl:          keyVl,
+		ElemType:       t.ElemType,
+		ElemVl:         elemVl,
 	}, true
 }
 
 func (o *CollectAnonOp) makeSliceType(t scanner.TypeInfo[typename.FullName],
 	tops tpopts.Options) (d spec.AnonType, ok bool) {
 	var (
-		lenSer = "nil"
-		lenVl  = "nil"
-		elemVl = "nil"
+		lenSerializer = "nil"
+		lenVl         = "nil"
+		elemVl        = "nil"
 	)
 	if tops.LenEnc != tpopts.NumEncodingUndefined {
-		lenSer = tops.LenEnc.LenSer()
+		lenSerializer = tops.LenEnc.LenSerializer()
 	}
 	if tops.LenValidator != "" {
 		lenVl = o.validatorExpr("int", tops.LenValidator)
@@ -80,12 +80,12 @@ func (o *CollectAnonOp) makeSliceType(t scanner.TypeInfo[typename.FullName],
 		elemVl = o.validatorExpr(t.ElemType, tops.ElemValidator)
 	}
 	return spec.AnonType{
-		SerName:  hashedName(spec.AnonKindSlice, t, tops),
-		Kind:     spec.AnonKindSlice,
-		LenSer:   lenSer,
-		LenVl:    lenVl,
-		ElemType: t.ElemType,
-		ElemVl:   elemVl,
+		SerializerName: hashedName(spec.AnonKindSlice, t, tops),
+		Kind:           spec.AnonKindSlice,
+		LenSerializer:  lenSerializer,
+		LenVl:          lenVl,
+		ElemType:       t.ElemType,
+		ElemVl:         elemVl,
 	}, true
 }
 
@@ -95,20 +95,20 @@ func (o *CollectAnonOp) makeByteSliceType(t scanner.TypeInfo[typename.FullName],
 	if tops.LenEnc != tpopts.NumEncodingUndefined ||
 		tops.LenValidator != "" {
 		var (
-			lenSer = "nil"
-			lenVl  = "nil"
+			lenSerializer = "nil"
+			lenVl         = "nil"
 		)
 		if tops.LenEnc != tpopts.NumEncodingUndefined {
-			lenSer = tops.LenEnc.LenSer()
+			lenSerializer = tops.LenEnc.LenSerializer()
 		}
 		if tops.LenValidator != "" {
 			lenVl = o.validatorExpr("int", tops.LenValidator)
 		}
 		return spec.AnonType{
-			SerName: hashedName(spec.AnonKindByteSlice, t, tops),
-			Kind:    spec.AnonKindByteSlice,
-			LenSer:  lenSer,
-			LenVl:   lenVl,
+			SerializerName: hashedName(spec.AnonKindByteSlice, t, tops),
+			Kind:           spec.AnonKindByteSlice,
+			LenSerializer:  lenSerializer,
+			LenVl:          lenVl,
 		}, true
 	}
 	return
@@ -118,23 +118,23 @@ func (o *CollectAnonOp) makeArrayType(t scanner.TypeInfo[typename.FullName],
 	tops tpopts.Options,
 ) (d spec.AnonType, ok bool) {
 	var (
-		lenSer = "nil"
-		elemVl = "nil"
+		lenSerializer = "nil"
+		elemVl        = "nil"
 	)
 	if tops.LenEnc != tpopts.NumEncodingUndefined {
-		lenSer = tops.LenEnc.LenSer()
+		lenSerializer = tops.LenEnc.LenSerializer()
 	}
 	if tops.ElemValidator != "" {
 		elemVl = o.validatorExpr(t.ElemType, tops.ElemValidator)
 	}
 	return spec.AnonType{
-		SerName:   hashedName(spec.AnonKindArray, t, tops),
-		Kind:      spec.AnonKindArray,
-		ArrType:   typename.MakeFullName(t.Package, t.Name),
-		ArrLength: t.ArrLength,
-		LenSer:    lenSer,
-		ElemType:  t.ElemType,
-		ElemVl:    elemVl,
+		SerializerName: hashedName(spec.AnonKindArray, t, tops),
+		Kind:           spec.AnonKindArray,
+		ArrType:        typename.MakeFullName(t.Package, t.Name),
+		ArrLength:      t.ArrLength,
+		LenSerializer:  lenSerializer,
+		ElemType:       t.ElemType,
+		ElemVl:         elemVl,
 	}, true
 }
 
@@ -142,10 +142,10 @@ func (o *CollectAnonOp) makePrimType(t scanner.TypeInfo[typename.FullName],
 	tops tpopts.Options,
 ) (d spec.AnonType, ok bool) {
 	if string(t.Name) == "string" {
-		lenSer := "nil"
+		lenSerializer := "nil"
 		if tops.LenEnc != tpopts.NumEncodingUndefined &&
 			tops.LenEnc != tpopts.NumEncodingVarintPositive {
-			lenSer = tops.LenEnc.LenSer()
+			lenSerializer = tops.LenEnc.LenSerializer()
 			ok = true
 		}
 		lenVl := "nil"
@@ -155,10 +155,10 @@ func (o *CollectAnonOp) makePrimType(t scanner.TypeInfo[typename.FullName],
 		}
 		if ok {
 			return spec.AnonType{
-				SerName: hashedName(spec.AnonKindString, t, tops),
-				Kind:    spec.AnonKindString,
-				LenSer:  lenSer,
-				LenVl:   lenVl,
+				SerializerName: hashedName(spec.AnonKindString, t, tops),
+				Kind:           spec.AnonKindString,
+				LenSerializer:  lenSerializer,
+				LenVl:          lenVl,
 			}, ok
 		}
 	}
@@ -170,9 +170,9 @@ func (o *CollectAnonOp) makePtrType(t scanner.TypeInfo[typename.FullName],
 ) (d spec.AnonType, ok bool) {
 	str := t.Stars + string(typename.MakeFullName(t.Package, t.Name))
 	return spec.AnonType{
-		SerName:  hashedName(spec.AnonKindPtr, t, tops),
-		ElemType: typename.FullName(stripStar(str)),
-		Kind:     spec.AnonKindPtr,
+		SerializerName: hashedName(spec.AnonKindPtr, t, tops),
+		ElemType:       typename.FullName(stripStar(str)),
+		Kind:           spec.AnonKindPtr,
 	}, true
 }
 
@@ -224,7 +224,7 @@ func (o *CollectAnonOp) ProcessType(typeInfo scanner.TypeInfo[typename.FullName]
 }
 
 // NewCollectAnonOp returns a collector that writes into m.
-func NewCollectAnonOp(m map[spec.AnonSerName]spec.AnonType,
+func NewCollectAnonOp(m map[spec.AnonSerializerName]spec.AnonType,
 	converter TypeNameConverter) *CollectAnonOp {
 	return &CollectAnonOp{m: m, converter: converter}
 }
@@ -254,13 +254,13 @@ func (o *MakeAnonDataOp) ProcessType(t scanner.TypeInfo[typename.FullName],
 
 // NewMakeAnonOp returns a probe that reports the first anonymous type of a name.
 func NewMakeAnonOp(converter TypeNameConverter) *MakeAnonDataOp {
-	m := map[spec.AnonSerName]spec.AnonType{}
+	m := map[spec.AnonSerializerName]spec.AnonType{}
 	return &MakeAnonDataOp{CollectAnonOp: NewCollectAnonOp(m, converter)}
 }
 
 // hashedName derives a stable, unique name from the kind of the anonymous type and its options.
 func hashedName(kind spec.AnonKind, t scanner.TypeInfo[typename.FullName],
-	tops tpopts.Options) spec.AnonSerName {
+	tops tpopts.Options) spec.AnonSerializerName {
 	bs := []byte(kind.String())
 	switch kind {
 	case spec.AnonKindString:
@@ -291,7 +291,7 @@ func hashedName(kind spec.AnonKind, t scanner.TypeInfo[typename.FullName],
 		bs = append(bs, []byte(t.Name)...)
 	}
 	h := md5.Sum(bs)
-	return spec.AnonSerName(kind.String() + Base64KeywordEncoding.EncodeToString(h[:]))
+	return spec.AnonSerializerName(kind.String() + Base64KeywordEncoding.EncodeToString(h[:]))
 }
 
 // stripStar removes one leading star.

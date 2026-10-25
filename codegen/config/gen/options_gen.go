@@ -1,6 +1,6 @@
 // Package genopts configures the code generator.
 //
-// WithPkgPath is the only required option; the rest tune the generated file:
+// WithPath is the only required option; the rest tune the generated file:
 package genopts
 
 import (
@@ -22,8 +22,8 @@ type Options struct {
 	PkgPath typename.PkgPath
 	Package typename.Package
 
-	Imports  []string
-	SerNames map[reflect.Type]string
+	Imports         []string
+	SerializerNames map[reflect.Type]string
 
 	Mode   Mode
 	Stream bool
@@ -34,8 +34,8 @@ type Options struct {
 // New returns Options with their maps initialized.
 func New() Options {
 	return Options{
-		SerNames:      make(map[reflect.Type]string),
-		importAliases: make(map[ImportPath]Alias),
+		SerializerNames: make(map[reflect.Type]string),
+		importAliases:   make(map[ImportPath]Alias),
 	}
 }
 
@@ -46,8 +46,8 @@ func (o Options) ImportAliases() map[ImportPath]Alias {
 // SetOption changes one field of Options and may fail validation.
 type SetOption func(o *Options) error
 
-// WithPkgPath sets the import path of the package the generated file belongs to, and derives its name.
-func WithPkgPath(str string) SetOption {
+// WithPath sets the import path of the package the generated file belongs to, and derives its name.
+func WithPath(str string) SetOption {
 	return func(o *Options) (err error) {
 		o.PkgPath, err = typename.StrToPkgPath(str)
 		if err != nil {
@@ -97,10 +97,10 @@ func WithImportAlias(importPath, alias string) SetOption {
 	}
 }
 
-// WithSerName overrides the name of the serializer generated for a type.
-func WithSerName(t reflect.Type, serName string) SetOption {
+// WithSerializer overrides the name of the serializer generated for a type.
+func WithSerializer(t reflect.Type, serializerName string) SetOption {
 	return func(o *Options) (err error) {
-		o.SerNames[t] = serName
+		o.SerializerNames[t] = serializerName
 		return
 	}
 }

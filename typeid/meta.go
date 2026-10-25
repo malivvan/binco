@@ -5,8 +5,8 @@ import (
 	"github.com/malivvan/binco/varnum"
 )
 
-// DTMSer encodes and decodes type identifiers.
-var DTMSer = metaCodec{}
+// DTMSerializer encodes and decodes type identifiers.
+var DTMSerializer = metaCodec{}
 
 type metaCodec struct{}
 

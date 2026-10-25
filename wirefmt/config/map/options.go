@@ -9,18 +9,18 @@ import (
 // Options for the map serializer.
 // Options collects the codecs and validators a serializer accepts.
 type Options[T, V any] struct {
-	LenSer  wirefmt.Serializer[int]
-	LenVl   binco.Validator[int]
-	KeyVl   binco.Validator[T]
-	ValueVl binco.Validator[V]
+	LenSerializer wirefmt.Serializer[int]
+	LenVl         binco.Validator[int]
+	KeyVl         binco.Validator[T]
+	ValueVl       binco.Validator[V]
 }
 
 // SetOption changes one field of Options.
 type SetOption[T, V any] func(o *Options[T, V])
 
-// WithLenSer replaces the codec used for the length.
-func WithLenSer[T, V any](lenSer wirefmt.Serializer[int]) SetOption[T, V] {
-	return func(o *Options[T, V]) { o.LenSer = lenSer }
+// WithLenSerializer replaces the codec used for the length.
+func WithLenSerializer[T, V any](lenSerializer wirefmt.Serializer[int]) SetOption[T, V] {
+	return func(o *Options[T, V]) { o.LenSerializer = lenSerializer }
 }
 
 // WithLenValidator sets the validator called with the decoded length.

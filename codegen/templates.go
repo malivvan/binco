@@ -80,8 +80,8 @@ func (f TmplFns) Include(name string, pipeline any) (str string, err error) {
 	return
 }
 
-func (f TmplFns) TimeSer(topts tpopts.Options) string {
-	return topts.TimeUnit.Ser()
+func (f TmplFns) TimeSerializer(topts tpopts.Options) string {
+	return topts.TimeUnit.Serializer()
 }
 
 func (f TmplFns) ByteSliceStream(name typename.FullName,
@@ -132,13 +132,13 @@ var (
 
 // The names of the embedded templates.
 const (
-	definedTypeSerTmpl  = "ser_defined_type.tmpl"
-	structSerTmpl       = "ser_struct.tmpl"
-	typedSerTmpl        = "ser_typed.tmpl"
-	interfaceSerTmpl    = "ser_interface.tmpl"
-	versionedSerTmpl    = "ser_versioned.tmpl"
-	packageTmpl         = "package.tmpl"
-	importsTmpl         = "imports.tmpl"
-	anonDefinitionsTmpl = "anon_definitions.tmpl"
-	dtmsDefinitionTmpl  = "dtm_definition.tmpl"
+	definedTypeSerializerTmpl = "serializer_defined_type.tmpl"
+	structSerializerTmpl      = "serializer_struct.tmpl"
+	typedSerializerTmpl       = "serializer_typed.tmpl"
+	interfaceSerializerTmpl   = "serializer_interface.tmpl"
+	versionedSerializerTmpl   = "serializer_versioned.tmpl"
+	packageTmpl               = "package.tmpl"
+	importsTmpl               = "imports.tmpl"
+	anonDefinitionsTmpl       = "anon_definitions.tmpl"
+	dtmsDefinitionTmpl        = "dtm_definition.tmpl"
 )

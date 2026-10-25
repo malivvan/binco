@@ -10,8 +10,8 @@ import (
 func main() {
 
 	foo := Foo{Num: 10}
-	bs := make([]byte, FooSer.Size(foo))
-	n := FooSer.Marshal(foo, bs)
+	bs := make([]byte, FooSerializer.Size(foo))
+	n := FooSerializer.Marshal(foo, bs)
 	fmt.Printf("explicit:      %v (wrote %d of %d bytes)\n", bs, n, len(bs))
 
 	fmt.Printf("binco.Marshal:  %v\n", binco.Marshal(foo))
@@ -25,14 +25,14 @@ func main() {
 	fmt.Printf("\nbinco.Marshal:      %v\n", binco.Marshal(foo))
 	fmt.Printf("binco.MarshalTyped: %v\n", binco.MarshalTyped(foo))
 
-	back, err := binco.Decode(FooSer, bs)
+	back, err := binco.Decode(FooSerializer, bs)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("\ndecoded Foo: %+v\n", back)
 
 	typedBS := binco.MarshalTyped(foo)
-	back, err = binco.Decode(FooTypedSer, typedBS)
+	back, err = binco.Decode(FooTypedSerializer, typedBS)
 	if err != nil {
 		panic(err)
 	}

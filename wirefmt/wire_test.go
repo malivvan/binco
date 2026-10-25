@@ -83,17 +83,17 @@ func TestParityWithBuffer(t *testing.T) {
 	checkParity(t, "time", encode(t, wscalar.TimeUnixUTC, ts), binco.Encode(scalar.TimeUnixUTC, ts))
 
 	ptr := 7
-	checkParity(t, "ptr", encode(t, wcomposite.NewPtrSer(wvarnum.Int), &ptr),
-		binco.Encode(composite.NewPtrSer(varnum.Int), &ptr))
+	checkParity(t, "ptr", encode(t, wcomposite.NewPtrSerializer(wvarnum.Int), &ptr),
+		binco.Encode(composite.NewPtrSerializer(varnum.Int), &ptr))
 
-	checkParity(t, "slice", encode(t, wcomposite.NewSliceSer(wvarnum.Int), []int{1, -1, 300}),
-		binco.Encode(composite.NewSliceSer(varnum.Int), []int{1, -1, 300}))
+	checkParity(t, "slice", encode(t, wcomposite.NewSliceSerializer(wvarnum.Int), []int{1, -1, 300}),
+		binco.Encode(composite.NewSliceSerializer(varnum.Int), []int{1, -1, 300}))
 
-	checkParity(t, "map", encode(t, wcomposite.NewMapSer(wcomposite.String, wvarnum.Int), map[string]int{"a": 1}),
-		binco.Encode(composite.NewMapSer(composite.String, varnum.Int), map[string]int{"a": 1}))
+	checkParity(t, "map", encode(t, wcomposite.NewMapSerializer(wcomposite.String, wvarnum.Int), map[string]int{"a": 1}),
+		binco.Encode(composite.NewMapSerializer(composite.String, varnum.Int), map[string]int{"a": 1}))
 
-	checkParity(t, "typed", encode(t, wtypeid.NewSer(7, wvarnum.Int), 300),
-		binco.Encode(typeid.NewSer(7, varnum.Int), 300))
+	checkParity(t, "typed", encode(t, wtypeid.NewSerializer(7, wvarnum.Int), 300),
+		binco.Encode(typeid.NewSerializer(7, varnum.Int), 300))
 }
 
 func TestRoundTrip(t *testing.T) {
@@ -112,10 +112,10 @@ func TestRoundTrip(t *testing.T) {
 	if got := roundTrip(t, wvarnum.Float32, 1.5); got != 1.5 {
 		t.Fatalf("float32 round trip returned %v", got)
 	}
-	if got := roundTrip(t, wcomposite.NewSliceSer(wvarnum.Int), []int{1, 2}); !reflect.DeepEqual(got, []int{1, 2}) {
+	if got := roundTrip(t, wcomposite.NewSliceSerializer(wvarnum.Int), []int{1, 2}); !reflect.DeepEqual(got, []int{1, 2}) {
 		t.Fatalf("slice round trip returned %v", got)
 	}
-	if got := roundTrip(t, wcomposite.NewMapSer(wcomposite.String, wvarnum.Int), map[string]int{"a": 1}); !reflect.DeepEqual(got, map[string]int{"a": 1}) {
+	if got := roundTrip(t, wcomposite.NewMapSerializer(wcomposite.String, wvarnum.Int), map[string]int{"a": 1}); !reflect.DeepEqual(got, map[string]int{"a": 1}) {
 		t.Fatalf("map round trip returned %v", got)
 	}
 }
@@ -131,7 +131,7 @@ func (r onlyReader) Read(p []byte) (int, error) { return r.r.Read(p) }
 func TestAdapters(t *testing.T) {
 	var buf bytes.Buffer
 	w := wirefmt.NewWriter(onlyWriter{w: &buf})
-	s := wcomposite.NewStringSer()
+	s := wcomposite.NewStringSerializer()
 	if _, err := s.Marshal("abc", w); err != nil {
 		t.Fatalf("Marshal: %v", err)
 	}
@@ -175,13 +175,13 @@ func TestPointerMapping(t *testing.T) {
 
 	var revPtrMap = binco.NewReversePtrMap()
 
-	var ptrSer = wptrmap.NewPtrSer(ptrMap, revPtrMap, wvarnum.Int)
+	var ptrSerializer = wptrmap.NewPtrSerializer(ptrMap, revPtrMap, wvarnum.Int)
 
-	var listSer = wptrmap.Wrap(ptrMap, revPtrMap, wcomposite.NewSliceSer(ptrSer))
+	var listSerializer = wptrmap.Wrap(ptrMap, revPtrMap, wcomposite.NewSliceSerializer(ptrSerializer))
 
 	a, b := 10, 20
-	bs := encode(t, listSer, []*int{&a, &a, &b})
-	got, n, err := listSer.Unmarshal(wirefmt.NewReader(bytes.NewReader(bs)))
+	bs := encode(t, listSerializer, []*int{&a, &a, &b})
+	got, n, err := listSerializer.Unmarshal(wirefmt.NewReader(bytes.NewReader(bs)))
 	if err != nil || n != len(bs) {
 		t.Fatalf("Unmarshal = (_, %d, %v)", n, err)
 	}
@@ -189,7 +189,7 @@ func TestPointerMapping(t *testing.T) {
 		t.Fatalf("unexpected result %v", got)
 	}
 	var buf bytes.Buffer
-	if _, err = listSer.Marshal([]*int{&a, &a, &b}, wirefmt.NewWriter(&buf)); err != nil {
+	if _, err = listSerializer.Marshal([]*int{&a, &a, &b}, wirefmt.NewWriter(&buf)); err != nil {
 		t.Fatalf("Marshal: %v", err)
 	}
 	if !bytes.Equal(buf.Bytes(), []byte{3, byte(binco.PtrMapping), 0, 20,
@@ -199,18 +199,18 @@ func TestPointerMapping(t *testing.T) {
 }
 
 func TestTyped(t *testing.T) {
-	ser := wtypeid.NewSer(7, wvarnum.Int)
-	bs := encode(t, ser, 300)
+	serializer := wtypeid.NewSerializer(7, wvarnum.Int)
+	bs := encode(t, serializer, 300)
 	if len(bs) != 3 || bs[0] != 7 {
 		t.Fatalf("Marshal = %v", bs)
 	}
-	got, _, err := ser.Unmarshal(wirefmt.NewReader(bytes.NewReader(bs)))
+	got, _, err := serializer.Unmarshal(wirefmt.NewReader(bytes.NewReader(bs)))
 	if err != nil || got != 300 {
 		t.Fatalf("Unmarshal = (%d, %v)", got, err)
 	}
 
-	foreign := encode(t, wtypeid.NewSer(8, wvarnum.Int), 1)
-	_, _, err = ser.Unmarshal(wirefmt.NewReader(bytes.NewReader(foreign)))
+	foreign := encode(t, wtypeid.NewSerializer(8, wvarnum.Int), 1)
+	_, _, err = serializer.Unmarshal(wirefmt.NewReader(bytes.NewReader(foreign)))
 	wrong, ok := errors.AsType[binco.WrongDTMError](err)
 	if !ok {
 		t.Fatalf("Unmarshal returned %v, want WrongDTMError", err)
@@ -262,18 +262,18 @@ func TestReaderErrors(t *testing.T) {
 		t.Fatalf("Unmarshal of a truncated string returned %v", err)
 	}
 
-	if _, _, err := wcomposite.NewStringSer(sstropts.WithLenSer(streamStringLenSer{})).Unmarshal(
+	if _, _, err := wcomposite.NewStringSerializer(sstropts.WithLenSerializer(streamStringLenSerializer{})).Unmarshal(
 		wirefmt.NewReader(bytes.NewReader([]byte{0}))); err != binco.ErrNegativeLength {
 		t.Fatalf("Unmarshal returned %v, want ErrNegativeLength", err)
 	}
 }
 
-type streamStringLenSer struct{}
+type streamStringLenSerializer struct{}
 
-func (s streamStringLenSer) Marshal(v int, w wirefmt.Writer) (n int, err error) { return 0, nil }
-func (s streamStringLenSer) Unmarshal(r wirefmt.Reader) (int, int, error)       { return -1, 1, nil }
-func (s streamStringLenSer) Size(v int) (size int)                              { return 1 }
-func (s streamStringLenSer) Skip(r wirefmt.Reader) (n int, err error)           { return 1, nil }
+func (s streamStringLenSerializer) Marshal(v int, w wirefmt.Writer) (n int, err error) { return 0, nil }
+func (s streamStringLenSerializer) Unmarshal(r wirefmt.Reader) (int, int, error)       { return -1, 1, nil }
+func (s streamStringLenSerializer) Size(v int) (size int)                              { return 1 }
+func (s streamStringLenSerializer) Skip(r wirefmt.Reader) (n int, err error)           { return 1, nil }
 
 type onlyFailingWriter struct{ err error }
 

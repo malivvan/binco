@@ -38,8 +38,8 @@ bs = binco.MarshalTyped(foo)   // the same, with the DTM prefix
 `binco.Marshal(bar)` works while `binco.MarshalTyped(bar)` would not compile.
 
 Decoding has no shorthand, on purpose: the payload does not carry its type, so
-the caller must name the serializer (`binco.Decode(FooSer, bs)`) or read the DTM
-first (`typeid.DTMSer.Unmarshal` plus dispatch, see
+the caller must name the serializer (`binco.Decode(FooSerializer, bs)`) or read the DTM
+first (`typeid.DTMSerializer.Unmarshal` plus dispatch, see
 [typed/different](../typed/different)).
 
 The methods are named `*Binco` rather than `Marshal`/`Size` so that a type can

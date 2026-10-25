@@ -133,30 +133,30 @@ func TestTime(t *testing.T) {
 		{"unix micro utc", scalar.TimeUnixMicroUTC, braw.TimeUnixMicroUTC},
 		{"unix nano utc", scalar.TimeUnixNanoUTC, braw.TimeUnixNanoUTC},
 	}
-	for _, ser := range serializers {
+	for _, serializer := range serializers {
 		for _, v := range values {
-			streamBS := encode(t, ser.stream, v)
-			if bufferBS := binco.Encode(ser.buffer, v); !bytes.Equal(streamBS, bufferBS) {
-				t.Fatalf("%v: stream %v != buffer %v", ser.name, streamBS, bufferBS)
+			streamBS := encode(t, serializer.stream, v)
+			if bufferBS := binco.Encode(serializer.buffer, v); !bytes.Equal(streamBS, bufferBS) {
+				t.Fatalf("%v: stream %v != buffer %v", serializer.name, streamBS, bufferBS)
 			}
 
-			got, n, err := ser.stream.Unmarshal(wirefmt.NewReader(bytes.NewReader(streamBS)))
+			got, n, err := serializer.stream.Unmarshal(wirefmt.NewReader(bytes.NewReader(streamBS)))
 			if err != nil {
-				t.Fatalf("%v: Unmarshal: %v", ser.name, err)
+				t.Fatalf("%v: Unmarshal: %v", serializer.name, err)
 			}
 			if n != len(streamBS) {
-				t.Fatalf("%v: Unmarshal read %d bytes, want %d", ser.name, n, len(streamBS))
+				t.Fatalf("%v: Unmarshal read %d bytes, want %d", serializer.name, n, len(streamBS))
 			}
-			if n, err = ser.stream.Skip(wirefmt.NewReader(bytes.NewReader(streamBS))); err != nil || n != len(streamBS) {
-				t.Fatalf("%v: Skip returned (%d, %v), want (%d, nil)", ser.name, n, err, len(streamBS))
+			if n, err = serializer.stream.Skip(wirefmt.NewReader(bytes.NewReader(streamBS))); err != nil || n != len(streamBS) {
+				t.Fatalf("%v: Skip returned (%d, %v), want (%d, nil)", serializer.name, n, err, len(streamBS))
 			}
 
-			if ser.name == "unix nano" || ser.name == "unix nano utc" {
+			if serializer.name == "unix nano" || serializer.name == "unix nano utc" {
 				if !got.Equal(v) {
-					t.Fatalf("%v: round trip returned %v, want %v", ser.name, got, v)
+					t.Fatalf("%v: round trip returned %v, want %v", serializer.name, got, v)
 				}
 			} else if got.Unix() != v.Unix() {
-				t.Fatalf("%v: round trip returned %v, want %v", ser.name, got, v)
+				t.Fatalf("%v: round trip returned %v, want %v", serializer.name, got, v)
 			}
 		}
 	}

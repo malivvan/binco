@@ -20,7 +20,7 @@ func newConverter(t *testing.T, opts ...genopts.SetOption) converter.TypeNameCon
 
 func TestConvertToFullName(t *testing.T) {
 	c := newConverter(t,
-		genopts.WithPkgPath("github.com/user/project"),
+		genopts.WithPath("github.com/user/project"),
 		genopts.WithPackage("project"),
 	)
 	tests := []struct {
@@ -46,7 +46,7 @@ func TestConvertToFullName(t *testing.T) {
 
 func TestConvertToFullNameWithAlias(t *testing.T) {
 	c := newConverter(t,
-		genopts.WithPkgPath("github.com/user/project"),
+		genopts.WithPath("github.com/user/project"),
 		genopts.WithImportAlias("github.com/other/pkg", "other"),
 	)
 
@@ -56,7 +56,7 @@ func TestConvertToFullNameWithAlias(t *testing.T) {
 }
 
 func TestConvertToFullNameTwoPathsSameAlias(t *testing.T) {
-	c := newConverter(t, genopts.WithPkgPath("github.com/user/project"))
+	c := newConverter(t, genopts.WithPath("github.com/user/project"))
 	defer func() {
 		r := recover()
 		if r == nil {
@@ -73,7 +73,7 @@ func TestConvertToFullNameTwoPathsSameAlias(t *testing.T) {
 
 func TestConvertToRelativeName(t *testing.T) {
 	c := newConverter(t,
-		genopts.WithPkgPath("github.com/user/project"),
+		genopts.WithPath("github.com/user/project"),
 		genopts.WithPackage("project"),
 	)
 	tests := []struct {
@@ -95,7 +95,7 @@ func TestConvertToRelativeName(t *testing.T) {
 
 func TestConvertGenericsAndContainers(t *testing.T) {
 	c := newConverter(t,
-		genopts.WithPkgPath("github.com/user/project"),
+		genopts.WithPath("github.com/user/project"),
 		genopts.WithPackage("project"),
 	)
 
@@ -131,7 +131,7 @@ func TestConvertGenericsAndContainers(t *testing.T) {
 }
 
 func TestConvertToRelativeNamePanics(t *testing.T) {
-	c := newConverter(t, genopts.WithPkgPath("github.com/user/project"))
+	c := newConverter(t, genopts.WithPath("github.com/user/project"))
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatal("conversion of an invalid name did not panic")

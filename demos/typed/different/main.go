@@ -11,8 +11,8 @@ import (
 
 func main() {
 
-	fooBS := binco.Encode(FooTypedSer, Foo{Num: 5})
-	barBS := binco.Encode(BarTypedSer, Bar{Str: "hello world"})
+	fooBS := binco.Encode(FooTypedSerializer, Foo{Num: 5})
+	barBS := binco.Encode(BarTypedSerializer, Bar{Str: "hello world"})
 	fmt.Printf("Foo: %v (DTM %d)\n", fooBS, FooDTM)
 	fmt.Printf("Bar: %v (DTM %d)\n\n", barBS, BarDTM)
 
@@ -22,13 +22,13 @@ func main() {
 		}
 	}
 
-	_, _, err := BarTypedSer.Unmarshal(fooBS)
+	_, _, err := BarTypedSerializer.Unmarshal(fooBS)
 	if wrong, ok := errors.AsType[binco.WrongDTMError](err); ok {
 		fmt.Printf("Bar reader got a Foo payload: expected %d, actual %d\n",
 			wrong.Expected(), wrong.Actual())
 	}
 
-	dtm, n, err := typeid.DTMSer.Unmarshal(fooBS)
+	dtm, n, err := typeid.DTMSerializer.Unmarshal(fooBS)
 	if err != nil {
 		panic(err)
 	}
@@ -37,20 +37,20 @@ func main() {
 
 func receive(bs []byte) (err error) {
 
-	dtm, n, err := typeid.DTMSer.Unmarshal(bs)
+	dtm, n, err := typeid.DTMSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
 
 	switch dtm {
 	case FooDTM:
-		foo, _, err := FooTypedSer.UnmarshalData(bs[n:])
+		foo, _, err := FooTypedSerializer.UnmarshalData(bs[n:])
 		if err != nil {
 			return err
 		}
 		fmt.Printf("received Foo %+v\n", foo)
 	case BarDTM:
-		bar, _, err := BarTypedSer.UnmarshalData(bs[n:])
+		bar, _, err := BarTypedSerializer.UnmarshalData(bs[n:])
 		if err != nil {
 			return err
 		}

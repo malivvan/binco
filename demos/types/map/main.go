@@ -15,28 +15,28 @@ func main() {
 	var (
 		value = map[int]string{1: "one", 2: "two", 3: "three"}
 
-		ser = composite.NewMapSer(varnum.Int, composite.String)
+		serializer = composite.NewMapSerializer(varnum.Int, composite.String)
 	)
 
-	bs := make([]byte, ser.Size(value))
-	n := ser.Marshal(value, bs)
+	bs := make([]byte, serializer.Size(value))
+	n := serializer.Marshal(value, bs)
 	fmt.Printf("value:    %v\n", sorted(value))
 	fmt.Printf("size:     %d bytes\n", len(bs))
 	fmt.Printf("encoded:  %v (wrote %d)\n", bs, n)
 
-	back, n, err := ser.Unmarshal(bs)
+	back, n, err := serializer.Unmarshal(bs)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("decoded:  %v (read %d)\n", sorted(back), n)
 
-	n, err = ser.Skip(bs)
+	n, err = serializer.Skip(bs)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("skipped:  %d bytes\n", n)
 
-	empty, err := binco.Decode(ser, binco.Encode(ser, map[int]string(nil)))
+	empty, err := binco.Decode(serializer, binco.Encode(serializer, map[int]string(nil)))
 	if err != nil {
 		panic(err)
 	}

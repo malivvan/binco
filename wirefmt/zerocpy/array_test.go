@@ -17,7 +17,7 @@ import (
 
 func TestArrayEdgeCases(t *testing.T) {
 	// A custom length codec replaces the default positive varint.
-	rawLen := snative.NewArraySer[[2]int, int](wvarnum.Int, sarropts.WithLenSer[int](wscalar.Int))
+	rawLen := snative.NewArraySerializer[[2]int, int](wvarnum.Int, sarropts.WithLenSerializer[int](wscalar.Int))
 	bs := encodeStream(t, rawLen, [2]int{1, 2})
 	if len(bs) != wscalar.Int.Size(0)+2 || bs[0] != 2 {
 		t.Fatalf("Marshal with a length codec = %v", bs)
@@ -28,7 +28,7 @@ func TestArrayEdgeCases(t *testing.T) {
 	}
 
 	// A zero-length array has no elements to decode.
-	zero := snative.NewArraySer[[0]int, int](wvarnum.Int)
+	zero := snative.NewArraySerializer[[0]int, int](wvarnum.Int)
 	zbs := encodeStream(t, zero, [0]int{})
 	if len(zbs) != 1 || zbs[0] != 0 {
 		t.Fatalf("Marshal of a zero-length array = %v", zbs)
@@ -39,7 +39,7 @@ func TestArrayEdgeCases(t *testing.T) {
 	}
 
 	// Skip advances over the whole array.
-	arr := snative.NewArraySer[[3]int, int](wvarnum.Int)
+	arr := snative.NewArraySerializer[[3]int, int](wvarnum.Int)
 	abs := encodeStream(t, arr, [3]int{1, 2, 3})
 	if n, err := arr.Skip(wirefmt.NewReader(bytes.NewReader(abs))); err != nil || n != len(abs) {
 		t.Fatalf("Skip = (%d, %v), want %d bytes", n, err, len(abs))
@@ -52,7 +52,7 @@ func TestEmptyWireText(t *testing.T) {
 	}
 
 	noop := binco.ValidatorFn[int](func(int) error { return nil })
-	valid := snative.NewValidStringSer(sstropts.WithLenValidator(noop))
+	valid := snative.NewValidStringSerializer(sstropts.WithLenValidator(noop))
 	if v, n, err := valid.Unmarshal(wirefmt.NewReader(bytes.NewReader([]byte{0}))); err != nil || v != "" || n != 1 {
 		t.Fatalf("validated String.Unmarshal = (%q, %d, %v)", v, n, err)
 	}

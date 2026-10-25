@@ -10,8 +10,8 @@ import (
 	"github.com/malivvan/binco/varnum"
 )
 
-// NewArraySer returns a serializer for the array type T, whose elements are encoded with elemSer.
-func NewArraySer[T, V any](elemSer binco.Serializer[V],
+// NewArraySerializer returns a serializer for the array type T, whose elements are encoded with the element serializer.
+func NewArraySerializer[T, V any](elemSerializer binco.Serializer[V],
 	opts ...arropts.SetOption[V],
 ) (s arrayView[T, V]) {
 	var o = arropts.Options[V]{}
@@ -21,21 +21,21 @@ func NewArraySer[T, V any](elemSer binco.Serializer[V],
 	var length = t.Len()
 
 	arropts.Apply(opts, &o)
-	var lenSer binco.Serializer[int] = varnum.PositiveInt
+	var lenSerializer binco.Serializer[int] = varnum.PositiveInt
 
-	if o.LenSer != nil {
-		lenSer = o.LenSer
+	if o.LenSerializer != nil {
+		lenSerializer = o.LenSerializer
 	}
 	return arrayView[T, V]{
-		length:  length,
-		elemSer: elemSer,
-		lenSer:  lenSer,
-		lenVl:   lengthLimit(length),
+		length:         length,
+		elemSerializer: elemSerializer,
+		lenSerializer:  lenSerializer,
+		lenVl:          lengthLimit(length),
 	}
 }
 
-// NewValidArraySer is NewArraySer with element validation.
-func NewValidArraySer[T, V any](elemSer binco.Serializer[V],
+// NewValidArraySerializer is NewArraySerializer with element validation.
+func NewValidArraySerializer[T, V any](elemSerializer binco.Serializer[V],
 	opts ...arropts.SetOption[V],
 ) arrayView[T, V] {
 	var o = arropts.Options[V]{}
@@ -45,35 +45,35 @@ func NewValidArraySer[T, V any](elemSer binco.Serializer[V],
 	var length = t.Len()
 
 	arropts.Apply(opts, &o)
-	var lenSer binco.Serializer[int] = varnum.PositiveInt
+	var lenSerializer binco.Serializer[int] = varnum.PositiveInt
 
-	if o.LenSer != nil {
-		lenSer = o.LenSer
+	if o.LenSerializer != nil {
+		lenSerializer = o.LenSerializer
 	}
 	return arrayView[T, V]{
-		length:  length,
-		elemSer: elemSer,
-		lenSer:  lenSer,
-		lenVl:   lengthLimit(length),
-		elemVl:  o.ElemVl,
+		length:         length,
+		elemSerializer: elemSerializer,
+		lenSerializer:  lenSerializer,
+		lenVl:          lengthLimit(length),
+		elemVl:         o.ElemVl,
 	}
 }
 
 type arrayView[T, V any] struct {
-	length  int
-	elemSer binco.Serializer[V]
-	lenSer  binco.Serializer[int]
-	lenVl   binco.Validator[int]
-	elemVl  binco.Validator[V]
+	length         int
+	elemSerializer binco.Serializer[V]
+	lenSerializer  binco.Serializer[int]
+	lenVl          binco.Validator[int]
+	elemVl         binco.Validator[V]
 }
 
 func (s arrayView[T, V]) Marshal(v T, bs []byte) (n int) {
 	sl := unsafe_mod.Slice((*V)(unsafe_mod.Pointer(&v)), s.length)
-	return composite.MarshalSlice(sl, s.elemSer, s.lenSer, bs)
+	return composite.MarshalSlice(sl, s.elemSerializer, s.lenSerializer, bs)
 }
 
 func (s arrayView[T, V]) Unmarshal(bs []byte) (v T, n int, err error) {
-	sl, n, err := composite.UnmarshalValidSlice(bs, s.elemSer, s.lenSer, s.lenVl, s.elemVl)
+	sl, n, err := composite.UnmarshalValidSlice(bs, s.elemSerializer, s.lenSerializer, s.lenVl, s.elemVl)
 	if err != nil {
 		return
 	}
@@ -91,11 +91,11 @@ func (s arrayView[T, V]) Unmarshal(bs []byte) (v T, n int, err error) {
 
 func (s arrayView[T, V]) Size(v T) (size int) {
 	sl := unsafe_mod.Slice((*V)(unsafe_mod.Pointer(&v)), s.length)
-	return composite.SizeSlice(sl, s.elemSer, s.lenSer)
+	return composite.SizeSlice(sl, s.elemSerializer, s.lenSerializer)
 }
 
 func (s arrayView[T, V]) Skip(bs []byte) (n int, err error) {
-	return composite.SkipSlice(bs, s.elemSer, s.lenSer)
+	return composite.SkipSlice(bs, s.elemSerializer, s.lenSerializer)
 }
 
 func lengthLimit(length int) binco.ValidatorFn[int] {

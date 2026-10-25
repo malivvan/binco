@@ -18,20 +18,20 @@ import (
 
 const targetPkg = "example.com/target"
 
-func newTestSerFns(t *testing.T, opts ...genopts.SetOption) SerFns {
+func newTestSerializerFns(t *testing.T, opts ...genopts.SetOption) SerializerFns {
 	t.Helper()
-	opts = append([]genopts.SetOption{genopts.WithPkgPath(targetPkg)}, opts...)
+	opts = append([]genopts.SetOption{genopts.WithPath(targetPkg)}, opts...)
 	gops := genopts.New()
 	if err := genopts.Apply(opts, &gops); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 	conv := cnvtr.NewTypeNameConverter(gops)
-	return NewSerFns(conv, bldr.NewTypeBuilder(conv, gops),
+	return NewSerializerFns(conv, bldr.NewTypeBuilder(conv, gops),
 		map[typename.FullName]struct{}{}, TmplFns{}, gops)
 }
 
-func TestSerFnsNames(t *testing.T) {
-	f := newTestSerFns(t)
+func TestSerializerFnsNames(t *testing.T) {
+	f := newTestSerializerFns(t)
 	name := typename.FullName("target.Foo")
 
 	if got := f.Var(name); got != "FooBinco" {
@@ -51,8 +51,8 @@ func TestSerFnsNames(t *testing.T) {
 	}
 }
 
-func TestSerFnsOf(t *testing.T) {
-	safe := newTestSerFns(t)
+func TestSerializerFnsOf(t *testing.T) {
+	safe := newTestSerializerFns(t)
 	tests := []struct {
 		name string
 		tops tpopts.Options
@@ -85,7 +85,7 @@ func TestSerFnsOf(t *testing.T) {
 		}
 	}
 
-	unsafeFns := newTestSerFns(t, genopts.WithUnsafe())
+	unsafeFns := newTestSerializerFns(t, genopts.WithUnsafe())
 	for _, tc := range []struct{ name, want string }{
 		{"int", "zerocpy.Int"},
 		{"int8", "zerocpy.Int8"},
@@ -103,7 +103,7 @@ func TestSerFnsOf(t *testing.T) {
 		}
 	}
 
-	notUnsafe := newTestSerFns(t, genopts.WithNotUnsafe())
+	notUnsafe := newTestSerializerFns(t, genopts.WithNotUnsafe())
 	if got := notUnsafe.Of("int", tpopts.Options{}, notUnsafe.gopts); got != "zerocpy.Int" {
 		t.Fatalf("not-unsafe Of(int) = %q", got)
 	}
@@ -112,8 +112,8 @@ func TestSerFnsOf(t *testing.T) {
 	}
 }
 
-func TestSerFnsOfPanics(t *testing.T) {
-	f := newTestSerFns(t)
+func TestSerializerFnsOfPanics(t *testing.T) {
+	f := newTestSerializerFns(t)
 	defer func() {
 		if recover() == nil {
 			t.Fatal("Of did not panic for an unsupported type")
@@ -122,8 +122,8 @@ func TestSerFnsOfPanics(t *testing.T) {
 	f.Of("struct{}", tpopts.Options{}, f.gopts)
 }
 
-func TestSerFnsKeyElem(t *testing.T) {
-	f := newTestSerFns(t)
+func TestSerializerFnsKeyElem(t *testing.T) {
+	f := newTestSerializerFns(t)
 	anon := spec.AnonType{KeyType: "string", ElemType: "int"}
 	if got := f.Key(anon, f.gopts); got != "composite.String" {
 		t.Fatalf("Key = %q", got)
@@ -133,8 +133,8 @@ func TestSerFnsKeyElem(t *testing.T) {
 	}
 }
 
-func TestSerFnsRelName(t *testing.T) {
-	f := newTestSerFns(t)
+func TestSerializerFnsRelName(t *testing.T) {
+	f := newTestSerializerFns(t)
 	if got := f.RelName("target.Foo"); got != "Foo" {
 		t.Fatalf("RelName = %q", got)
 	}
@@ -143,31 +143,31 @@ func TestSerFnsRelName(t *testing.T) {
 	}
 }
 
-func TestSerFnsOpts(t *testing.T) {
-	f := newTestSerFns(t)
+func TestSerializerFnsOpts(t *testing.T) {
+	f := newTestSerializerFns(t)
 	tests := []struct {
 		name string
 		got  string
 		want string
 	}{
 		{"string empty", f.StringOpts(spec.AnonType{}), ""},
-		{"string len ser", f.StringOpts(spec.AnonType{LenSer: "scalar.Int"}),
-			"stropts.WithLenSer(scalar.Int)"},
-		{"string all", f.StringOpts(spec.AnonType{LenSer: "scalar.Int", LenVl: "vl"}),
-			"stropts.WithLenSer(scalar.Int), stropts.WithLenValidator(vl)"},
-		{"string nil", f.StringOpts(spec.AnonType{LenSer: "nil", LenVl: "nil"}), ""},
-		{"byte slice all", f.ByteSliceOpts(spec.AnonType{LenSer: "scalar.Int", LenVl: "vl"}),
-			"bslopts.WithLenSer(scalar.Int), bslopts.WithLenValidator(vl)"},
+		{"string len serializer", f.StringOpts(spec.AnonType{LenSerializer: "scalar.Int"}),
+			"stropts.WithLenSerializer(scalar.Int)"},
+		{"string all", f.StringOpts(spec.AnonType{LenSerializer: "scalar.Int", LenVl: "vl"}),
+			"stropts.WithLenSerializer(scalar.Int), stropts.WithLenValidator(vl)"},
+		{"string nil", f.StringOpts(spec.AnonType{LenSerializer: "nil", LenVl: "nil"}), ""},
+		{"byte slice all", f.ByteSliceOpts(spec.AnonType{LenSerializer: "scalar.Int", LenVl: "vl"}),
+			"bslopts.WithLenSerializer(scalar.Int), bslopts.WithLenValidator(vl)"},
 		{"array all",
-			f.ArrayOpts(spec.AnonType{ElemType: "int", LenSer: "scalar.Int", ElemVl: "ev"}),
-			"arropts.WithLenSer[int](scalar.Int), arropts.WithElemValidator[int](ev)"},
-		{"slice all", f.SliceOpts(spec.AnonType{ElemType: "int", LenSer: "scalar.Int",
+			f.ArrayOpts(spec.AnonType{ElemType: "int", LenSerializer: "scalar.Int", ElemVl: "ev"}),
+			"arropts.WithLenSerializer[int](scalar.Int), arropts.WithElemValidator[int](ev)"},
+		{"slice all", f.SliceOpts(spec.AnonType{ElemType: "int", LenSerializer: "scalar.Int",
 			LenVl: "lv", ElemVl: "ev"}),
-			"slopts.WithLenSer[int](scalar.Int), slopts.WithLenValidator[int](lv), " +
+			"slopts.WithLenSerializer[int](scalar.Int), slopts.WithLenValidator[int](lv), " +
 				"slopts.WithElemValidator[int](ev)"},
 		{"map all", f.MapOpts(spec.AnonType{KeyType: "int", ElemType: "string",
-			LenSer: "scalar.Int", LenVl: "lv", KeyVl: "kv", ElemVl: "ev"}),
-			"mapopts.WithLenSer[int, string](scalar.Int), " +
+			LenSerializer: "scalar.Int", LenVl: "lv", KeyVl: "kv", ElemVl: "ev"}),
+			"mapopts.WithLenSerializer[int, string](scalar.Int), " +
 				"mapopts.WithLenValidator[int, string](lv), " +
 				"mapopts.WithKeyValidator[int, string](kv), " +
 				"mapopts.WithValueValidator[int, string](ev)"},
@@ -179,8 +179,8 @@ func TestSerFnsOpts(t *testing.T) {
 	}
 }
 
-func TestSerFnsFieldTmplPipe(t *testing.T) {
-	f := newTestSerFns(t)
+func TestSerializerFnsFieldTmplPipe(t *testing.T) {
+	f := newTestSerializerFns(t)
 	structType := spec.StructType{
 		FullName: "target.Foo",
 		Fields: []spec.FieldType{
@@ -212,8 +212,8 @@ func TestSerFnsFieldTmplPipe(t *testing.T) {
 	}
 }
 
-func TestSerFnsTypeName(t *testing.T) {
-	f := newTestSerFns(t)
+func TestSerializerFnsTypeName(t *testing.T) {
+	f := newTestSerializerFns(t)
 	if got := f.codecName("target.Foo"); got != "Foo" {
 		t.Fatalf("codecName = %q", got)
 	}
@@ -236,9 +236,9 @@ func TestSerFnsTypeName(t *testing.T) {
 	}
 }
 
-func TestSerFnsCustomNames(t *testing.T) {
-	f := newTestSerFns(t,
-		genopts.WithSerName(reflect.TypeFor[testdata.Int](), "CustomInt"))
+func TestSerializerFnsCustomNames(t *testing.T) {
+	f := newTestSerializerFns(t,
+		genopts.WithSerializer(reflect.TypeFor[testdata.Int](), "CustomInt"))
 	if got := f.Var("testdata.Int"); got != "CustomIntBinco" {
 		t.Fatalf("Var = %q", got)
 	}
@@ -266,8 +266,8 @@ func TestTmplFns(t *testing.T) {
 	if f.ByteSliceStream("[]int", stream) || f.ByteSliceStream("[]byte", genopts.Options{}) {
 		t.Fatal("ByteSliceStream should be false otherwise")
 	}
-	if got := f.TimeSer(tpopts.Options{TimeUnit: tpopts.TimeUnitNano}); got != "TimeUnixNano" {
-		t.Fatalf("TimeSer = %q", got)
+	if got := f.TimeSerializer(tpopts.Options{TimeUnit: tpopts.TimeUnitNano}); got != "TimeUnixNano" {
+		t.Fatalf("TimeSerializer = %q", got)
 	}
 
 	if got := f.MarshalSignatureLastParam(genopts.Options{}); got != "bs []byte" {
@@ -333,7 +333,7 @@ func TestTmplFnsInclude(t *testing.T) {
 func TestFillCrossgen(t *testing.T) {
 	newGen := func(t *testing.T, pkgPath string) *Generator {
 		t.Helper()
-		g, err := NewGenerator(genopts.WithPkgPath(pkgPath))
+		g, err := NewGenerator(genopts.WithPath(pkgPath))
 		if err != nil {
 			t.Fatalf("NewGenerator: %v", err)
 		}

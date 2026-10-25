@@ -27,15 +27,15 @@ func TestApply(t *testing.T) {
 	)
 	o := mapopts.Options[string, int]{}
 	mapopts.Apply([]mapopts.SetOption[string, int]{
-		mapopts.WithLenSer[string, int](scalar.Int),
+		mapopts.WithLenSerializer[string, int](scalar.Int),
 		mapopts.WithLenValidator[string, int](lenVl),
 		mapopts.WithKeyValidator[string, int](keyVl),
 		mapopts.WithValueValidator[string, int](valVl),
 		nil,
 	}, &o)
 
-	if o.LenSer != scalar.Int {
-		t.Fatal("WithLenSer was not applied")
+	if o.LenSerializer != scalar.Int {
+		t.Fatal("WithLenSerializer was not applied")
 	}
 	if o.LenVl == nil || o.KeyVl == nil || o.ValueVl == nil {
 		t.Fatalf("validators were not applied: %+v", o)
@@ -51,7 +51,7 @@ func TestApply(t *testing.T) {
 func TestApplyEmpty(t *testing.T) {
 	o := mapopts.Options[int, int]{}
 	mapopts.Apply(nil, &o)
-	if o.LenSer != nil || o.LenVl != nil || o.KeyVl != nil || o.ValueVl != nil {
+	if o.LenSerializer != nil || o.LenVl != nil || o.KeyVl != nil || o.ValueVl != nil {
 		t.Fatalf("empty Apply changed the options: %+v", o)
 	}
 }

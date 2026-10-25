@@ -7,26 +7,26 @@ import (
 
 // The package names the generated code refers to.
 const (
-	VarnumPkg    = "varnum"
-	ScalarPkg    = "scalar"
-	CompositePkg = "composite"
-	ZerocpyPkg   = "zerocpy"
-	DefTimeSer   = "TimeUnixUTC"
-	TimeSerRule  = "time_ser"
+	VarnumPkg          = "varnum"
+	ScalarPkg          = "scalar"
+	CompositePkg       = "composite"
+	ZerocpyPkg         = "zerocpy"
+	DefTimeSerializer  = "TimeUnixUTC"
+	TimeSerializerRule = "time_serializer"
 )
 
 // portableRules maps a Go type to the package that encodes it in safe mode.
 func portableRules(tops tpopts.Options) map[string]string {
 	var (
-		m       = make(map[string]string)
-		numPkg  = VarnumPkg
-		timeSer = DefTimeSer
+		m              = make(map[string]string)
+		numPkg         = VarnumPkg
+		timeSerializer = DefTimeSerializer
 	)
 	if tops.NumEncoding != tpopts.NumEncodingUndefined {
 		numPkg = tops.NumEncoding.Package()
 	}
 	if tops.TimeUnit != tpopts.TimeUnitUndefined {
-		timeSer = tops.TimeUnit.Ser()
+		timeSerializer = tops.TimeUnit.Serializer()
 	}
 	m["int"] = numPkg
 	m["int64"] = numPkg
@@ -49,23 +49,23 @@ func portableRules(tops tpopts.Options) map[string]string {
 	m["[]byte"] = CompositePkg
 	m["[]uint8"] = CompositePkg
 
-	m[TimeSerRule] = timeSer
+	m[TimeSerializerRule] = timeSerializer
 	return m
 }
 
 // nativeRules maps a Go type to the package that encodes it in unsafe mode.
 func nativeRules(tops tpopts.Options, opts genopts.Options) map[string]string {
 	var (
-		m            = make(map[string]string)
-		numPkg       = ZerocpyPkg
-		byteSlicePkg = ZerocpyPkg
-		timeSer      = DefTimeSer
+		m              = make(map[string]string)
+		numPkg         = ZerocpyPkg
+		byteSlicePkg   = ZerocpyPkg
+		timeSerializer = DefTimeSerializer
 	)
 	if tops.NumEncoding != tpopts.NumEncodingUndefined {
 		numPkg = tops.NumEncoding.Package()
 	}
 	if tops.TimeUnit != tpopts.TimeUnitUndefined {
-		timeSer = tops.TimeUnit.Ser()
+		timeSerializer = tops.TimeUnit.Serializer()
 	}
 	if opts.Stream {
 		byteSlicePkg = CompositePkg
@@ -91,7 +91,7 @@ func nativeRules(tops tpopts.Options, opts genopts.Options) map[string]string {
 	m["[]byte"] = byteSlicePkg
 	m["[]uint8"] = byteSlicePkg
 
-	m[TimeSerRule] = timeSer
+	m[TimeSerializerRule] = timeSerializer
 	return m
 }
 

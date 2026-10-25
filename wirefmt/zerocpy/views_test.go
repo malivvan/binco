@@ -94,24 +94,24 @@ func TestRoundTrip(t *testing.T) {
 }
 
 func TestArray(t *testing.T) {
-	ser := snative.NewArraySer[[3]int, int](wvarnum.Int)
+	serializer := snative.NewArraySerializer[[3]int, int](wvarnum.Int)
 	v := [3]int{1, 2, 3}
-	bs := encodeStream(t, ser, v)
+	bs := encodeStream(t, serializer, v)
 	if want := []byte{3, 2, 4, 6}; !bytes.Equal(bs, want) {
 		t.Fatalf("Marshal = %v, want %v", bs, want)
 	}
-	got, n, err := ser.Unmarshal(wirefmt.NewReader(bytes.NewReader(bs)))
+	got, n, err := serializer.Unmarshal(wirefmt.NewReader(bytes.NewReader(bs)))
 	if err != nil || n != len(bs) || got != v {
 		t.Fatalf("Unmarshal = (%v, %d, %v)", got, n, err)
 	}
 
-	sliceSer := wcomposite.NewSliceSer(wvarnum.Int)
-	short := encodeStream(t, sliceSer, []int{1, 2})
-	if _, _, err = ser.Unmarshal(wirefmt.NewReader(bytes.NewReader(short))); err != binco.ErrWrongLength {
+	sliceSerializer := wcomposite.NewSliceSerializer(wvarnum.Int)
+	short := encodeStream(t, sliceSerializer, []int{1, 2})
+	if _, _, err = serializer.Unmarshal(wirefmt.NewReader(bytes.NewReader(short))); err != binco.ErrWrongLength {
 		t.Fatalf("Unmarshal of a shorter array returned %v, want ErrWrongLength", err)
 	}
-	long := encodeStream(t, sliceSer, []int{1, 2, 3, 4})
-	if _, _, err = ser.Unmarshal(wirefmt.NewReader(bytes.NewReader(long))); err != binco.ErrTooLargeLength {
+	long := encodeStream(t, sliceSerializer, []int{1, 2, 3, 4})
+	if _, _, err = serializer.Unmarshal(wirefmt.NewReader(bytes.NewReader(long))); err != binco.ErrTooLargeLength {
 		t.Fatalf("Unmarshal of a longer array returned %v, want ErrTooLargeLength", err)
 	}
 }
@@ -184,14 +184,14 @@ func TestStringSerializers(t *testing.T) {
 		}
 	}
 
-	rawLen := snative.NewStringSer(sstropts.WithLenSer(wscalar.Int))
+	rawLen := snative.NewStringSerializer(sstropts.WithLenSerializer(wscalar.Int))
 	bs := encodeStream(t, rawLen, "abc")
 	if len(bs) != 11 || bs[0] != 3 {
 		t.Fatalf("Marshal with a scalar.Int length = %v", bs)
 	}
 
 	wantErr := errors.New("too long")
-	valid := snative.NewValidStringSer(
+	valid := snative.NewValidStringSerializer(
 		sstropts.WithLenValidator(binco.ValidatorFn[int](func(n int) error {
 			if n > 2 {
 				return wantErr
@@ -217,12 +217,12 @@ func TestStringSerializers(t *testing.T) {
 	}
 }
 
-type negativeLenSer struct{}
+type negativeLenSerializer struct{}
 
-func (negativeLenSer) Marshal(v int, w wirefmt.Writer) (n int, err error) { return 0, nil }
-func (negativeLenSer) Unmarshal(r wirefmt.Reader) (int, int, error)       { return -1, 1, nil }
-func (negativeLenSer) Size(v int) (size int)                              { return 1 }
-func (negativeLenSer) Skip(r wirefmt.Reader) (n int, err error)           { return 1, nil }
+func (negativeLenSerializer) Marshal(v int, w wirefmt.Writer) (n int, err error) { return 0, nil }
+func (negativeLenSerializer) Unmarshal(r wirefmt.Reader) (int, int, error)       { return -1, 1, nil }
+func (negativeLenSerializer) Size(v int) (size int)                              { return 1 }
+func (negativeLenSerializer) Skip(r wirefmt.Reader) (n int, err error)           { return 1, nil }
 
 func TestTimeAllUnits(t *testing.T) {
 	sec := time.Date(2024, 5, 6, 7, 8, 9, 0, time.UTC)
@@ -246,25 +246,25 @@ func TestTimeAllUnits(t *testing.T) {
 		sec.Add(456789 * time.Microsecond),
 		sec.Add(456789123 * time.Nanosecond),
 	}
-	for _, ser := range serializers {
+	for _, serializer := range serializers {
 		for _, v := range values {
-			bs := encodeStream(t, ser.stream, v)
-			if want := binco.Encode(ser.buffer, v); !bytes.Equal(bs, want) {
-				t.Fatalf("%v: stream %v != buffer %v", ser.name, bs, want)
+			bs := encodeStream(t, serializer.stream, v)
+			if want := binco.Encode(serializer.buffer, v); !bytes.Equal(bs, want) {
+				t.Fatalf("%v: stream %v != buffer %v", serializer.name, bs, want)
 			}
-			got, n, err := ser.stream.Unmarshal(wirefmt.NewReader(bytes.NewReader(bs)))
+			got, n, err := serializer.stream.Unmarshal(wirefmt.NewReader(bytes.NewReader(bs)))
 			if err != nil || n != len(bs) {
-				t.Fatalf("%v: Unmarshal = (%v, %d, %v)", ser.name, got, n, err)
+				t.Fatalf("%v: Unmarshal = (%v, %d, %v)", serializer.name, got, n, err)
 			}
-			if ser.name == "unix nano" || ser.name == "unix nano utc" {
+			if serializer.name == "unix nano" || serializer.name == "unix nano utc" {
 				if !got.Equal(v) {
-					t.Fatalf("%v: round trip returned %v, want %v", ser.name, got, v)
+					t.Fatalf("%v: round trip returned %v, want %v", serializer.name, got, v)
 				}
 			} else if got.Unix() != v.Unix() {
-				t.Fatalf("%v: round trip returned %v, want %v", ser.name, got, v)
+				t.Fatalf("%v: round trip returned %v, want %v", serializer.name, got, v)
 			}
-			if n, err = ser.stream.Skip(wirefmt.NewReader(bytes.NewReader(bs))); err != nil || n != len(bs) {
-				t.Fatalf("%v: Skip = (%d, %v)", ser.name, n, err)
+			if n, err = serializer.stream.Skip(wirefmt.NewReader(bytes.NewReader(bs))); err != nil || n != len(bs) {
+				t.Fatalf("%v: Skip = (%d, %v)", serializer.name, n, err)
 			}
 		}
 	}
@@ -282,24 +282,24 @@ func TestTimeAllUnits(t *testing.T) {
 
 func TestValidArray(t *testing.T) {
 	wantErr := errors.New("elem")
-	ser := snative.NewValidArraySer[[2]int, int](wvarnum.Int,
+	serializer := snative.NewValidArraySerializer[[2]int, int](wvarnum.Int,
 		sarropts.WithElemValidator[int](binco.ValidatorFn[int](func(v int) error {
 			if v < 0 {
 				return wantErr
 			}
 			return nil
 		})))
-	if _, _, err := ser.Unmarshal(wirefmt.NewReader(bytes.NewReader(
-		encodeStream(t, ser, [2]int{-1, 1})))); !errors.Is(err, wantErr) {
+	if _, _, err := serializer.Unmarshal(wirefmt.NewReader(bytes.NewReader(
+		encodeStream(t, serializer, [2]int{-1, 1})))); !errors.Is(err, wantErr) {
 		t.Fatalf("element validator returned %v, want %v", err, wantErr)
 	}
-	if got, _, err := ser.Unmarshal(wirefmt.NewReader(bytes.NewReader(
-		encodeStream(t, ser, [2]int{1, 2})))); err != nil || got != [2]int{1, 2} {
+	if got, _, err := serializer.Unmarshal(wirefmt.NewReader(bytes.NewReader(
+		encodeStream(t, serializer, [2]int{1, 2})))); err != nil || got != [2]int{1, 2} {
 		t.Fatalf("Unmarshal = (%v, %v)", got, err)
 	}
 
-	rawLen := snative.NewValidArraySer[[2]int, int](wvarnum.Int,
-		sarropts.WithLenSer[int](wscalar.Int))
+	rawLen := snative.NewValidArraySerializer[[2]int, int](wvarnum.Int,
+		sarropts.WithLenSerializer[int](wscalar.Int))
 	bs := encodeStream(t, rawLen, [2]int{1, 2})
 	if len(bs) != 10 || bs[0] != 2 {
 		t.Fatalf("Marshal with a scalar.Int length = %v", bs)
@@ -385,8 +385,8 @@ func TestScalarErrors(t *testing.T) {
 			return err
 		}},
 		{"negative length", binco.ErrNegativeLength, func() error {
-			_, _, err := snative.NewStringSer(
-				sstropts.WithLenSer(negativeLenSer{})).Unmarshal(bytesReader(0))
+			_, _, err := snative.NewStringSerializer(
+				sstropts.WithLenSerializer(negativeLenSerializer{})).Unmarshal(bytesReader(0))
 			return err
 		}},
 	}
@@ -428,7 +428,7 @@ func TestWriterErrors(t *testing.T) {
 }
 
 func TestValidStringErrors(t *testing.T) {
-	valid := snative.NewValidStringSer()
+	valid := snative.NewValidStringSerializer()
 	reader := func(bs ...byte) wirefmt.Reader {
 		return wirefmt.NewReader(bytes.NewReader(bs))
 	}
@@ -442,8 +442,8 @@ func TestValidStringErrors(t *testing.T) {
 		t.Fatalf("Unmarshal of a truncated string returned %v", err)
 	}
 
-	if _, _, err = snative.NewValidStringSer(
-		sstropts.WithLenSer(negativeLenSer{})).Unmarshal(reader(0)); err != binco.ErrNegativeLength {
+	if _, _, err = snative.NewValidStringSerializer(
+		sstropts.WithLenSerializer(negativeLenSerializer{})).Unmarshal(reader(0)); err != binco.ErrNegativeLength {
 		t.Fatalf("Unmarshal returned %v, want ErrNegativeLength", err)
 	}
 }

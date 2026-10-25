@@ -20,11 +20,11 @@ func TestEmptyText(t *testing.T) {
 
 	// The validating codecs take the same path after the validator ran.
 	noop := binco.ValidatorFn[int](func(int) error { return nil })
-	validText := zerocpy.NewValidStringSer(stropts.WithLenValidator(noop))
+	validText := zerocpy.NewValidStringSerializer(stropts.WithLenValidator(noop))
 	if v, n, err := validText.Unmarshal([]byte{0}); err != nil || v != "" || n != 1 {
 		t.Fatalf("validated String.Unmarshal = (%q, %d, %v)", v, n, err)
 	}
-	validBlob := zerocpy.NewValidByteSliceSer(bsopts.WithLenValidator(noop))
+	validBlob := zerocpy.NewValidByteSliceSerializer(bsopts.WithLenValidator(noop))
 	if v, n, err := validBlob.Unmarshal([]byte{0}); err != nil || len(v) != 0 || n != 1 {
 		t.Fatalf("validated ByteSlice.Unmarshal = (%v, %d, %v)", v, n, err)
 	}
@@ -40,13 +40,13 @@ func TestTruncatedText(t *testing.T) {
 		{"byte slice data", func() error { _, _, err := zerocpy.ByteSlice.Unmarshal([]byte{2, 1}); return err }},
 		{"validated string data", func() error {
 			noop := binco.ValidatorFn[int](func(int) error { return nil })
-			_, _, err := zerocpy.NewValidStringSer(stropts.WithLenValidator(noop)).
+			_, _, err := zerocpy.NewValidStringSerializer(stropts.WithLenValidator(noop)).
 				Unmarshal([]byte{3, 'a'})
 			return err
 		}},
 		{"validated byte slice data", func() error {
 			noop := binco.ValidatorFn[int](func(int) error { return nil })
-			_, _, err := zerocpy.NewValidByteSliceSer(bsopts.WithLenValidator(noop)).
+			_, _, err := zerocpy.NewValidByteSliceSerializer(bsopts.WithLenValidator(noop)).
 				Unmarshal([]byte{2, 1})
 			return err
 		}},
@@ -55,11 +55,11 @@ func TestTruncatedText(t *testing.T) {
 			return err
 		}},
 		{"validated string length", func() error {
-			_, _, err := zerocpy.NewValidStringSer().Unmarshal(nil)
+			_, _, err := zerocpy.NewValidStringSerializer().Unmarshal(nil)
 			return err
 		}},
 		{"validated byte slice length", func() error {
-			_, _, err := zerocpy.NewValidByteSliceSer().Unmarshal(nil)
+			_, _, err := zerocpy.NewValidByteSliceSerializer().Unmarshal(nil)
 			return err
 		}},
 	}

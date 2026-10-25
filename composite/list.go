@@ -6,18 +6,18 @@ import (
 	"github.com/malivvan/binco/varnum"
 )
 
-// NewSliceSer returns a slice serializer for elemSer.
-func NewSliceSer[T any](elemSer binco.Serializer[T], opts ...slopts.SetOption[T]) (
+// NewSliceSerializer returns a slice serializer that encodes elements with elemSerializer.
+func NewSliceSerializer[T any](elemSerializer binco.Serializer[T], opts ...slopts.SetOption[T]) (
 	s listCodec[T],
 ) {
 	o := slopts.Options[T]{}
 	slopts.Apply(opts, &o)
 
-	return newListCodec(elemSer, o)
+	return newListCodec(elemSerializer, o)
 }
 
-// NewValidSliceSer returns a slice serializer that runs its length and element validators while decoding.
-func NewValidSliceSer[T any](elemSer binco.Serializer[T],
+// NewValidSliceSerializer returns a slice serializer that runs its length and element validators while decoding.
+func NewValidSliceSerializer[T any](elemSerializer binco.Serializer[T],
 	opts ...slopts.SetOption[T],
 ) checkedList[T] {
 	o := slopts.Options[T]{}
@@ -34,44 +34,44 @@ func NewValidSliceSer[T any](elemSer binco.Serializer[T],
 		elemVl = o.ElemVl
 	}
 	return checkedList[T]{
-		listCodec: newListCodec(elemSer, o),
+		listCodec: newListCodec(elemSerializer, o),
 		lenVl:     lenVl,
 		elemVl:    elemVl,
 	}
 }
 
-func newListCodec[T any](elemSer binco.Serializer[T], o slopts.Options[T]) (
+func newListCodec[T any](elemSerializer binco.Serializer[T], o slopts.Options[T]) (
 	s listCodec[T],
 ) {
-	var lenSer binco.Serializer[int] = varnum.PositiveInt
-	if o.LenSer != nil {
-		lenSer = o.LenSer
+	var lenSerializer binco.Serializer[int] = varnum.PositiveInt
+	if o.LenSerializer != nil {
+		lenSerializer = o.LenSerializer
 	}
 	return listCodec[T]{
-		ElemSer: elemSer,
-		LenSer:  lenSer,
+		ElemSerializer: elemSerializer,
+		LenSerializer:  lenSerializer,
 	}
 }
 
 type listCodec[T any] struct {
-	LenSer  binco.Serializer[int]
-	ElemSer binco.Serializer[T]
+	LenSerializer  binco.Serializer[int]
+	ElemSerializer binco.Serializer[T]
 }
 
 func (s listCodec[T]) Marshal(v []T, bs []byte) (n int) {
-	return MarshalSlice(v, s.ElemSer, s.LenSer, bs)
+	return MarshalSlice(v, s.ElemSerializer, s.LenSerializer, bs)
 }
 
 func (s listCodec[T]) Unmarshal(bs []byte) (v []T, n int, err error) {
-	return UnmarshalSlice(bs, s.ElemSer, s.LenSer)
+	return UnmarshalSlice(bs, s.ElemSerializer, s.LenSerializer)
 }
 
 func (s listCodec[T]) Size(v []T) (size int) {
-	return SizeSlice(v, s.ElemSer, s.LenSer)
+	return SizeSlice(v, s.ElemSerializer, s.LenSerializer)
 }
 
 func (s listCodec[T]) Skip(bs []byte) (n int, err error) {
-	return SkipSlice(bs, s.ElemSer, s.LenSer)
+	return SkipSlice(bs, s.ElemSerializer, s.LenSerializer)
 }
 
 type checkedList[T any] struct {
@@ -81,25 +81,25 @@ type checkedList[T any] struct {
 }
 
 func (s checkedList[T]) Unmarshal(bs []byte) (v []T, n int, err error) {
-	return UnmarshalValidSlice(bs, s.ElemSer, s.LenSer, s.lenVl, s.elemVl)
+	return UnmarshalValidSlice(bs, s.ElemSerializer, s.LenSerializer, s.lenVl, s.elemVl)
 }
 
 // MarshalSlice writes v, prefixed by its length, into bs.
-func MarshalSlice[T any](v []T, elemSer binco.Serializer[T],
-	lenSer binco.Serializer[int], bs []byte,
+func MarshalSlice[T any](v []T, elemSerializer binco.Serializer[T],
+	lenSerializer binco.Serializer[int], bs []byte,
 ) (n int) {
-	n = lenSer.Marshal(len(v), bs)
+	n = lenSerializer.Marshal(len(v), bs)
 	for _, e := range v {
-		n += elemSer.Marshal(e, bs[n:])
+		n += elemSerializer.Marshal(e, bs[n:])
 	}
 	return
 }
 
 // UnmarshalSlice decodes a slice from bs.
-func UnmarshalSlice[T any](bs []byte, elemSer binco.Serializer[T],
-	lenSer binco.Serializer[int],
+func UnmarshalSlice[T any](bs []byte, elemSerializer binco.Serializer[T],
+	lenSerializer binco.Serializer[int],
 ) (v []T, n int, err error) {
-	length, n, err := lenSer.Unmarshal(bs)
+	length, n, err := lenSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
@@ -113,7 +113,7 @@ func UnmarshalSlice[T any](bs []byte, elemSer binco.Serializer[T],
 
 	v = make([]T, length)
 	for i := range length {
-		e, n1, err = elemSer.Unmarshal(bs[n:])
+		e, n1, err = elemSerializer.Unmarshal(bs[n:])
 		n += n1
 		if err != nil {
 			return
@@ -124,22 +124,22 @@ func UnmarshalSlice[T any](bs []byte, elemSer binco.Serializer[T],
 }
 
 // SizeSlice reports the encoded size of v.
-func SizeSlice[T any](v []T, elemSer binco.Serializer[T],
-	lenSer binco.Serializer[int],
+func SizeSlice[T any](v []T, elemSerializer binco.Serializer[T],
+	lenSerializer binco.Serializer[int],
 ) (size int) {
 	length := len(v)
-	size = lenSer.Size(length)
+	size = lenSerializer.Size(length)
 	for i := range length {
-		size += elemSer.Size(v[i])
+		size += elemSerializer.Size(v[i])
 	}
 	return
 }
 
 // SkipSlice advances over an encoded slice.
-func SkipSlice[T any](bs []byte, elemSer binco.Serializer[T],
-	lenSer binco.Serializer[int],
+func SkipSlice[T any](bs []byte, elemSerializer binco.Serializer[T],
+	lenSerializer binco.Serializer[int],
 ) (n int, err error) {
-	length, n, err := lenSer.Unmarshal(bs)
+	length, n, err := lenSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
@@ -149,7 +149,7 @@ func SkipSlice[T any](bs []byte, elemSer binco.Serializer[T],
 	}
 	var n1 int
 	for range length {
-		n1, err = elemSer.Skip(bs[n:])
+		n1, err = elemSerializer.Skip(bs[n:])
 		n += n1
 		if err != nil {
 			return
@@ -159,11 +159,11 @@ func SkipSlice[T any](bs []byte, elemSer binco.Serializer[T],
 }
 
 // UnmarshalValidSlice decodes a slice and validates its length and elements.
-func UnmarshalValidSlice[T any](bs []byte, elemSer binco.Serializer[T],
-	lenSer binco.Serializer[int], lenVl binco.Validator[int],
+func UnmarshalValidSlice[T any](bs []byte, elemSerializer binco.Serializer[T],
+	lenSerializer binco.Serializer[int], lenVl binco.Validator[int],
 	elemVl binco.Validator[T],
 ) (v []T, n int, err error) {
-	length, n, err := lenSer.Unmarshal(bs)
+	length, n, err := lenSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
@@ -182,7 +182,7 @@ func UnmarshalValidSlice[T any](bs []byte, elemSer binco.Serializer[T],
 
 	v = make([]T, length)
 	for i := range length {
-		e, n1, err = elemSer.Unmarshal(bs[n:])
+		e, n1, err = elemSerializer.Unmarshal(bs[n:])
 		n += n1
 		if err != nil {
 			return

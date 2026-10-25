@@ -63,13 +63,13 @@ func SkipBool(r wirefmt.Reader) (n int, err error) {
 	return
 }
 
-// NewPtrSer returns a pointer serializer that encodes nil as a flag byte.
-func NewPtrSer[T any](baseSer wirefmt.Serializer[T]) ptrCodec[T] {
-	return ptrCodec[T]{baseSer}
+// NewPtrSerializer returns a pointer serializer that encodes nil as a flag byte.
+func NewPtrSerializer[T any](baseSerializer wirefmt.Serializer[T]) ptrCodec[T] {
+	return ptrCodec[T]{baseSerializer}
 }
 
 type ptrCodec[T any] struct {
-	baseSer wirefmt.Serializer[T]
+	baseSerializer wirefmt.Serializer[T]
 }
 
 func (s ptrCodec[T]) Marshal(v *T, w wirefmt.Writer) (n int, err error) {
@@ -84,7 +84,7 @@ func (s ptrCodec[T]) Marshal(v *T, w wirefmt.Writer) (n int, err error) {
 	if err = w.WriteByte(byte(binco.PtrNotNil)); err != nil {
 		return
 	}
-	n, err = s.baseSer.Marshal(*v, w)
+	n, err = s.baseSerializer.Marshal(*v, w)
 	n += 1
 	return
 }
@@ -103,7 +103,7 @@ func (s ptrCodec[T]) Unmarshal(r wirefmt.Reader) (v *T, n int, err error) {
 		return
 	}
 	var n1 int
-	k, n1, err := s.baseSer.Unmarshal(r)
+	k, n1, err := s.baseSerializer.Unmarshal(r)
 	n += n1
 	if err != nil {
 		return
@@ -114,7 +114,7 @@ func (s ptrCodec[T]) Unmarshal(r wirefmt.Reader) (v *T, n int, err error) {
 
 func (s ptrCodec[T]) Size(v *T) (size int) {
 	if v != nil {
-		return 1 + s.baseSer.Size(*v)
+		return 1 + s.baseSerializer.Size(*v)
 	}
 	return 1
 }
@@ -132,7 +132,7 @@ func (s ptrCodec[T]) Skip(r wirefmt.Reader) (n int, err error) {
 		err = binco.ErrWrongFormat
 		return
 	}
-	n, err = s.baseSer.Skip(r)
+	n, err = s.baseSerializer.Skip(r)
 	n += 1
 	return
 }

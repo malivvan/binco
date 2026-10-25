@@ -26,11 +26,11 @@ func (l lengthLimit) Validate(n int) error {
 
 func main() {
 
-	ser := composite.NewValidStringSer(stropts.WithLenValidator(lengthLimit{max: maxLen}))
+	serializer := composite.NewValidStringSerializer(stropts.WithLenValidator(lengthLimit{max: maxLen}))
 
 	for _, value := range []string{"hello", strings.Repeat("a", maxLen+1)} {
-		bs := binco.Encode(ser, value)
-		got, _, err := ser.Unmarshal(bs)
+		bs := binco.Encode(serializer, value)
+		got, _, err := serializer.Unmarshal(bs)
 		switch {
 		case err != nil:
 			fmt.Printf("%-14q → rejected: %v (errors.Is: %v)\n", value, err,

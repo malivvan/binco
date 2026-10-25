@@ -1,4 +1,4 @@
-{{/* {Map: map[data.AnonSerName]data.AnonData, Ops: genops.Options} */}}
+{{/* {Map: map[data.AnonSerializerName]data.AnonData, Ops: genops.Options} */}}
 {{- if gt (len .Map)  0 }}
 	{{- $gops := .Ops }}
 	var (
@@ -7,56 +7,56 @@
 {{- /* string type */}}
 			{{- if eq $ad.Kind.String "string" }}
 				{{- if ne $ad.LenVl "nil" }}
-					{{- $constructorName = "NewValidStringSer" }}
+					{{- $constructorName = "NewValidStringSerializer" }}
 				{{- else }}
-					{{- $constructorName = "NewStringSer" }}
+					{{- $constructorName = "NewStringSerializer" }}
 				{{- end }}
-				{{ $name }} = composite.{{ $constructorName }}({{ Ser.StringOpts $ad }})
+				{{ $name }} = composite.{{ $constructorName }}({{ Serializer.StringOpts $ad }})
 			{{- end }}
 {{- /* array type */}}
 			{{- if eq $ad.Kind.String "array" }}
-				{{- $elemSer := Ser.Elem $ad $gops }}
+				{{- $elemSerializer := Serializer.Elem $ad $gops }}
 				{{- if ne $ad.ElemVl "nil" }}
-					{{- $constructorName = "NewValidArraySer" }}
+					{{- $constructorName = "NewValidArraySerializer" }}
 				{{- else }}
-					{{- $constructorName = "NewArraySer" }}
+					{{- $constructorName = "NewArraySerializer" }}
 				{{- end }}
-				{{ $name }} = zerocpy.{{ $constructorName }}[{{ Ser.RelName $ad.ArrType }}]({{ $elemSer }}{{ Tmpl.WithComma (Ser.ArrayOpts $ad) }})
+				{{ $name }} = zerocpy.{{ $constructorName }}[{{ Serializer.RelName $ad.ArrType }}]({{ $elemSerializer }}{{ Tmpl.WithComma (Serializer.ArrayOpts $ad) }})
 			{{- end }}
 {{- /* byte slice type */}}
 			{{- if eq $ad.Kind.String "byteSlice" }}
 				{{- if ne $ad.LenVl "nil" }}
-					{{- $constructorName = "NewValidByteSliceSer" }}
+					{{- $constructorName = "NewValidByteSliceSerializer" }}
 				{{- else }}
-					{{- $constructorName = "NewByteSliceSer" }}
+					{{- $constructorName = "NewByteSliceSerializer" }}
 				{{- end }}
-				{{ $name }} = composite.{{ $constructorName }}({{ Ser.ByteSliceOpts $ad }})
+				{{ $name }} = composite.{{ $constructorName }}({{ Serializer.ByteSliceOpts $ad }})
 			{{- end }}
 {{- /* slice type */}}
 			{{- if eq $ad.Kind.String "slice" }}
-				{{- $elemSer := Ser.Elem $ad $gops }}
+				{{- $elemSerializer := Serializer.Elem $ad $gops }}
 				{{- if or (ne $ad.LenVl "nil") (ne $ad.ElemVl "nil") }}
-					{{- $constructorName = "NewValidSliceSer" }}
+					{{- $constructorName = "NewValidSliceSerializer" }}
 				{{- else }}
-					{{- $constructorName = "NewSliceSer" }}
+					{{- $constructorName = "NewSliceSerializer" }}
 				{{- end }}
-				{{ $name }} = composite.{{ $constructorName }}[{{ Ser.RelName $ad.ElemType }}]({{ $elemSer }}{{ Tmpl.WithComma (Ser.SliceOpts $ad) }})
+				{{ $name }} = composite.{{ $constructorName }}[{{ Serializer.RelName $ad.ElemType }}]({{ $elemSerializer }}{{ Tmpl.WithComma (Serializer.SliceOpts $ad) }})
 			{{- end }}
 {{- /* map type */}}
 			{{- if eq $ad.Kind.String "map" }}
-				{{- $keySer := Ser.Key $ad $gops }}
-				{{- $elemSer := Ser.Elem $ad $gops }}
+				{{- $keySerializer := Serializer.Key $ad $gops }}
+				{{- $elemSerializer := Serializer.Elem $ad $gops }}
 				{{- if or (ne $ad.LenVl "nil") (ne $ad.KeyVl "nil") (ne $ad.ElemVl "nil") }}
-					{{- $constructorName = "NewValidMapSer" }}
+					{{- $constructorName = "NewValidMapSerializer" }}
 				{{- else}}
-					{{- $constructorName = "NewMapSer" }}
+					{{- $constructorName = "NewMapSerializer" }}
 				{{- end }}
-				{{ $name }} = composite.{{ $constructorName }}[{{ Ser.RelName $ad.KeyType }}, {{ Ser.RelName $ad.ElemType }}]({{ $keySer}}, {{ $elemSer }}{{ Tmpl.WithComma (Ser.MapOpts $ad) }})
+				{{ $name }} = composite.{{ $constructorName }}[{{ Serializer.RelName $ad.KeyType }}, {{ Serializer.RelName $ad.ElemType }}]({{ $keySerializer}}, {{ $elemSerializer }}{{ Tmpl.WithComma (Serializer.MapOpts $ad) }})
 			{{- end }}
 {{- /* ptr type */}}
 			{{- if eq $ad.Kind.String "ptr" }}
-				{{- $elemSer := Ser.Elem $ad $gops }}
-				{{ $name }} = composite.NewPtrSer[{{ Ser.RelName $ad.ElemType }}]({{ $elemSer }})
+				{{- $elemSerializer := Serializer.Elem $ad $gops }}
+				{{ $name }} = composite.NewPtrSerializer[{{ Serializer.RelName $ad.ElemType }}]({{ $elemSerializer }})
 			{{- end }}
 		{{- end }}
 	)

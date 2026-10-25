@@ -9,8 +9,8 @@ import (
 )
 
 func TestPointerCodecErrors(t *testing.T) {
-	newSer := func() binco.Serializer[*int] {
-		return ptrmap.NewPtrSer(binco.NewPtrMap(), binco.NewReversePtrMap(), varnum.Int)
+	newSerializer := func() binco.Serializer[*int] {
+		return ptrmap.NewPtrSerializer(binco.NewPtrMap(), binco.NewReversePtrMap(), varnum.Int)
 	}
 
 	tests := []struct {
@@ -19,35 +19,35 @@ func TestPointerCodecErrors(t *testing.T) {
 		want error
 	}{
 		{"unmarshal empty", func() error {
-			_, _, err := newSer().Unmarshal(nil)
+			_, _, err := newSerializer().Unmarshal(nil)
 			return err
 		}, binco.ErrTooSmallByteSlice},
 		{"unmarshal unknown flag", func() error {
-			_, _, err := newSer().Unmarshal([]byte{0xFF})
+			_, _, err := newSerializer().Unmarshal([]byte{0xFF})
 			return err
 		}, binco.ErrWrongFormat},
 		{"unmarshal truncated id", func() error {
-			_, _, err := newSer().Unmarshal([]byte{byte(binco.PtrMapping)})
+			_, _, err := newSerializer().Unmarshal([]byte{byte(binco.PtrMapping)})
 			return err
 		}, binco.ErrTooSmallByteSlice},
 		{"unmarshal truncated data", func() error {
-			_, _, err := newSer().Unmarshal([]byte{byte(binco.PtrMapping), 0})
+			_, _, err := newSerializer().Unmarshal([]byte{byte(binco.PtrMapping), 0})
 			return err
 		}, binco.ErrTooSmallByteSlice},
 		{"skip empty", func() error {
-			_, err := newSer().Skip(nil)
+			_, err := newSerializer().Skip(nil)
 			return err
 		}, binco.ErrTooSmallByteSlice},
 		{"skip unknown flag", func() error {
-			_, err := newSer().Skip([]byte{0xFF})
+			_, err := newSerializer().Skip([]byte{0xFF})
 			return err
 		}, binco.ErrWrongFormat},
 		{"skip truncated id", func() error {
-			_, err := newSer().Skip([]byte{byte(binco.PtrMapping)})
+			_, err := newSerializer().Skip([]byte{byte(binco.PtrMapping)})
 			return err
 		}, binco.ErrTooSmallByteSlice},
 		{"skip truncated data", func() error {
-			_, err := newSer().Skip([]byte{byte(binco.PtrMapping), 0})
+			_, err := newSerializer().Skip([]byte{byte(binco.PtrMapping), 0})
 			return err
 		}, binco.ErrTooSmallByteSlice},
 	}
@@ -62,20 +62,20 @@ func TestPointerCodecErrors(t *testing.T) {
 }
 
 func TestPointerCodecNil(t *testing.T) {
-	ser := ptrmap.NewPtrSer(binco.NewPtrMap(), binco.NewReversePtrMap(), varnum.Int)
+	serializer := ptrmap.NewPtrSerializer(binco.NewPtrMap(), binco.NewReversePtrMap(), varnum.Int)
 
-	bs := binco.Encode(ser, (*int)(nil))
+	bs := binco.Encode(serializer, (*int)(nil))
 	if len(bs) != 1 || bs[0] != byte(binco.PtrNil) {
 		t.Fatalf("Marshal(nil) = %v", bs)
 	}
-	got, n, err := ser.Unmarshal(bs)
+	got, n, err := serializer.Unmarshal(bs)
 	if err != nil || got != nil || n != 1 {
 		t.Fatalf("Unmarshal = (%v, %d, %v)", got, n, err)
 	}
-	if size := ser.Size(nil); size != 1 {
+	if size := serializer.Size(nil); size != 1 {
 		t.Fatalf("Size(nil) = %d, want 1", size)
 	}
-	if n, err := ser.Skip(bs); err != nil || n != 1 {
+	if n, err := serializer.Skip(bs); err != nil || n != 1 {
 		t.Fatalf("Skip = (%d, %v)", n, err)
 	}
 }

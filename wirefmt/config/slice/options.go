@@ -9,17 +9,17 @@ import (
 // Options for the slice serializer.
 // Options collects the codecs and validators a serializer accepts.
 type Options[T any] struct {
-	LenSer wirefmt.Serializer[int]
-	LenVl  binco.Validator[int]
-	ElemVl binco.Validator[T]
+	LenSerializer wirefmt.Serializer[int]
+	LenVl         binco.Validator[int]
+	ElemVl        binco.Validator[T]
 }
 
 // SetOption changes one field of Options.
 type SetOption[T any] func(o *Options[T])
 
-// WithLenSer replaces the codec used for the length.
-func WithLenSer[T any](lenSer wirefmt.Serializer[int]) SetOption[T] {
-	return func(o *Options[T]) { o.LenSer = lenSer }
+// WithLenSerializer replaces the codec used for the length.
+func WithLenSerializer[T any](lenSerializer wirefmt.Serializer[int]) SetOption[T] {
+	return func(o *Options[T]) { o.LenSerializer = lenSerializer }
 }
 
 // WithLenValidator sets the validator called with the decoded length.

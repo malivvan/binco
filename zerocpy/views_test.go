@@ -111,35 +111,35 @@ func TestBoolErrors(t *testing.T) {
 }
 
 func TestArray(t *testing.T) {
-	ser := zerocpy.NewArraySer[[3]int, int](varnum.Int)
+	serializer := zerocpy.NewArraySerializer[[3]int, int](varnum.Int)
 	v := [3]int{1, 2, 3}
-	bs := binco.Encode(ser, v)
+	bs := binco.Encode(serializer, v)
 	if want := []byte{3, 2, 4, 6}; !reflect.DeepEqual(bs, want) {
 		t.Fatalf("Marshal = %v, want %v", bs, want)
 	}
-	if len(bs) != ser.Size(v) {
-		t.Fatalf("Size = %d, Marshal wrote %d", ser.Size(v), len(bs))
+	if len(bs) != serializer.Size(v) {
+		t.Fatalf("Size = %d, Marshal wrote %d", serializer.Size(v), len(bs))
 	}
-	got, n, err := ser.Unmarshal(bs)
+	got, n, err := serializer.Unmarshal(bs)
 	if err != nil || n != len(bs) || got != v {
 		t.Fatalf("Unmarshal(%v) = (%v, %d, %v)", bs, got, n, err)
 	}
-	if n, err = ser.Skip(bs); err != nil || n != len(bs) {
+	if n, err = serializer.Skip(bs); err != nil || n != len(bs) {
 		t.Fatalf("Skip = (%d, %v)", n, err)
 	}
 
-	sliceSer := composite.NewSliceSer(varnum.Int)
-	short := binco.Encode(sliceSer, []int{1, 2})
-	if _, _, err = ser.Unmarshal(short); err != binco.ErrWrongLength {
+	sliceSerializer := composite.NewSliceSerializer(varnum.Int)
+	short := binco.Encode(sliceSerializer, []int{1, 2})
+	if _, _, err = serializer.Unmarshal(short); err != binco.ErrWrongLength {
 		t.Fatalf("Unmarshal of a shorter array returned %v, want ErrWrongLength", err)
 	}
 
-	long := binco.Encode(sliceSer, []int{1, 2, 3, 4})
-	if _, _, err = ser.Unmarshal(long); err != binco.ErrTooLargeLength {
+	long := binco.Encode(sliceSerializer, []int{1, 2, 3, 4})
+	if _, _, err = serializer.Unmarshal(long); err != binco.ErrTooLargeLength {
 		t.Fatalf("Unmarshal of a longer array returned %v, want ErrTooLargeLength", err)
 	}
 
-	zero := zerocpy.NewArraySer[[0]int, int](varnum.Int)
+	zero := zerocpy.NewArraySerializer[[0]int, int](varnum.Int)
 	zbs := binco.Encode(zero, [0]int{})
 	if !reflect.DeepEqual(zbs, []byte{0}) {
 		t.Fatalf("Marshal of a zero-length array = %v", zbs)
@@ -151,34 +151,34 @@ func TestArray(t *testing.T) {
 
 func TestValidArray(t *testing.T) {
 	wantErr := errors.New("elem")
-	ser := zerocpy.NewValidArraySer[[2]int, int](varnum.Int,
+	serializer := zerocpy.NewValidArraySerializer[[2]int, int](varnum.Int,
 		arropts.WithElemValidator[int](binco.ValidatorFn[int](func(v int) error {
 			if v < 0 {
 				return wantErr
 			}
 			return nil
 		})))
-	if _, _, err := ser.Unmarshal(binco.Encode(ser, [2]int{-1, 1})); !errors.Is(err, wantErr) {
+	if _, _, err := serializer.Unmarshal(binco.Encode(serializer, [2]int{-1, 1})); !errors.Is(err, wantErr) {
 		t.Fatalf("element validator returned %v", err)
 	}
-	if got, err := binco.Decode(ser, binco.Encode(ser, [2]int{1, 2})); err != nil || got != [2]int{1, 2} {
+	if got, err := binco.Decode(serializer, binco.Encode(serializer, [2]int{1, 2})); err != nil || got != [2]int{1, 2} {
 		t.Fatalf("Unmarshal = (%v, %v)", got, err)
 	}
 
-	rawSer := zerocpy.NewValidArraySer[[2]int, int](varnum.Int,
-		arropts.WithLenSer[int](scalar.Int))
-	bs := binco.Encode(rawSer, [2]int{1, 2})
+	rawSerializer := zerocpy.NewValidArraySerializer[[2]int, int](varnum.Int,
+		arropts.WithLenSerializer[int](scalar.Int))
+	bs := binco.Encode(rawSerializer, [2]int{1, 2})
 	if len(bs) != 10 || bs[0] != 2 {
 		t.Fatalf("Marshal with a scalar.Int length = %v", bs)
 	}
 }
 
-type negativeLenSer struct{}
+type negativeLenSerializer struct{}
 
-func (negativeLenSer) Marshal(v int, bs []byte) (n int)      { return 0 }
-func (negativeLenSer) Unmarshal(bs []byte) (int, int, error) { return -1, 1, nil }
-func (negativeLenSer) Size(v int) (size int)                 { return 1 }
-func (negativeLenSer) Skip(bs []byte) (n int, err error)     { return 1, nil }
+func (negativeLenSerializer) Marshal(v int, bs []byte) (n int)      { return 0 }
+func (negativeLenSerializer) Unmarshal(bs []byte) (int, int, error) { return -1, 1, nil }
+func (negativeLenSerializer) Size(v int) (size int)                 { return 1 }
+func (negativeLenSerializer) Skip(bs []byte) (n int, err error)     { return 1, nil }
 
 func checkScalar[T comparable](t *testing.T, name string, s, ref binco.Serializer[T], values []T) {
 	t.Helper()
@@ -245,7 +245,7 @@ func TestStringSerializers(t *testing.T) {
 		}
 	}
 
-	rawLen := zerocpy.NewStringSer(stropts.WithLenSer(scalar.Int))
+	rawLen := zerocpy.NewStringSerializer(stropts.WithLenSerializer(scalar.Int))
 	bs := binco.Encode(rawLen, "abc")
 	if len(bs) != 11 || bs[0] != 3 {
 		t.Fatalf("Marshal with a scalar.Int length = %v", bs)
@@ -255,7 +255,7 @@ func TestStringSerializers(t *testing.T) {
 	}
 
 	wantErr := errors.New("too long")
-	valid := zerocpy.NewValidStringSer(stropts.WithLenValidator(binco.ValidatorFn[int](
+	valid := zerocpy.NewValidStringSerializer(stropts.WithLenValidator(binco.ValidatorFn[int](
 		func(n int) error {
 			if n > 2 {
 				return wantErr
@@ -275,7 +275,7 @@ func TestStringSerializers(t *testing.T) {
 	if _, err := zerocpy.String.Skip([]byte{5, 'a'}); err != binco.ErrTooSmallByteSlice {
 		t.Fatalf("Skip of a truncated string returned %v", err)
 	}
-	neg := zerocpy.NewStringSer(stropts.WithLenSer(negativeLenSer{}))
+	neg := zerocpy.NewStringSerializer(stropts.WithLenSerializer(negativeLenSerializer{}))
 	if _, _, err := neg.Unmarshal([]byte{0}); err != binco.ErrNegativeLength {
 		t.Fatalf("Unmarshal returned %v, want ErrNegativeLength", err)
 	}
@@ -299,14 +299,14 @@ func TestByteSliceSerializers(t *testing.T) {
 		}
 	}
 
-	rawLen := zerocpy.NewByteSliceSer(bsopts.WithLenSer(scalar.Int))
+	rawLen := zerocpy.NewByteSliceSerializer(bsopts.WithLenSerializer(scalar.Int))
 	bs := binco.Encode(rawLen, []byte{1, 2})
 	if len(bs) != 10 || bs[0] != 2 {
 		t.Fatalf("Marshal with a scalar.Int length = %v", bs)
 	}
 
 	wantErr := errors.New("too long")
-	valid := zerocpy.NewValidByteSliceSer(bsopts.WithLenValidator(binco.ValidatorFn[int](
+	valid := zerocpy.NewValidByteSliceSerializer(bsopts.WithLenValidator(binco.ValidatorFn[int](
 		func(n int) error {
 			if n > 2 {
 				return wantErr
@@ -329,7 +329,7 @@ func TestByteSliceSerializers(t *testing.T) {
 	if _, err := zerocpy.ByteSlice.Skip([]byte{3, 1}); err != binco.ErrTooSmallByteSlice {
 		t.Fatalf("Skip of a truncated slice returned %v", err)
 	}
-	neg := zerocpy.NewByteSliceSer(bsopts.WithLenSer(negativeLenSer{}))
+	neg := zerocpy.NewByteSliceSerializer(bsopts.WithLenSerializer(negativeLenSerializer{}))
 	if _, _, err := neg.Unmarshal([]byte{0}); err != binco.ErrNegativeLength {
 		t.Fatalf("Unmarshal returned %v, want ErrNegativeLength", err)
 	}
@@ -357,29 +357,29 @@ func TestTimeAllUnits(t *testing.T) {
 		sec.Add(456789 * time.Microsecond),
 		sec.Add(456789123 * time.Nanosecond),
 	}
-	for _, ser := range serializers {
+	for _, serializer := range serializers {
 		for _, v := range values {
-			bs := binco.Encode(ser.native, v)
-			if want := binco.Encode(ser.ref, v); !bytes.Equal(bs, want) {
-				t.Fatalf("%v: native %v != raw %v", ser.name, bs, want)
+			bs := binco.Encode(serializer.native, v)
+			if want := binco.Encode(serializer.ref, v); !bytes.Equal(bs, want) {
+				t.Fatalf("%v: native %v != raw %v", serializer.name, bs, want)
 			}
-			if len(bs) != ser.native.Size(v) {
-				t.Fatalf("%v: Size = %d, Marshal wrote %d", ser.name, ser.native.Size(v), len(bs))
+			if len(bs) != serializer.native.Size(v) {
+				t.Fatalf("%v: Size = %d, Marshal wrote %d", serializer.name, serializer.native.Size(v), len(bs))
 			}
-			got, n, err := ser.native.Unmarshal(bs)
+			got, n, err := serializer.native.Unmarshal(bs)
 			if err != nil || n != len(bs) {
-				t.Fatalf("%v: Unmarshal = (%v, %d, %v)", ser.name, got, n, err)
+				t.Fatalf("%v: Unmarshal = (%v, %d, %v)", serializer.name, got, n, err)
 			}
 
-			if ser.name == "unix nano" || ser.name == "unix nano utc" {
+			if serializer.name == "unix nano" || serializer.name == "unix nano utc" {
 				if !got.Equal(v) {
-					t.Fatalf("%v: round trip returned %v, want %v", ser.name, got, v)
+					t.Fatalf("%v: round trip returned %v, want %v", serializer.name, got, v)
 				}
 			} else if got.Unix() != v.Unix() {
-				t.Fatalf("%v: round trip returned %v, want %v", ser.name, got, v)
+				t.Fatalf("%v: round trip returned %v, want %v", serializer.name, got, v)
 			}
-			if n, err = ser.native.Skip(bs); err != nil || n != len(bs) {
-				t.Fatalf("%v: Skip = (%d, %v)", ser.name, n, err)
+			if n, err = serializer.native.Skip(bs); err != nil || n != len(bs) {
+				t.Fatalf("%v: Skip = (%d, %v)", serializer.name, n, err)
 			}
 		}
 	}
@@ -452,8 +452,8 @@ func TestScalarErrors(t *testing.T) {
 			return err
 		}},
 		{"array unmarshal", func() error {
-			ser := zerocpy.NewArraySer[[2]int, int](varnum.Int)
-			_, _, err := ser.Unmarshal([]byte{2, 2})
+			serializer := zerocpy.NewArraySerializer[[2]int, int](varnum.Int)
+			_, _, err := serializer.Unmarshal([]byte{2, 2})
 			return err
 		}},
 	}
@@ -467,7 +467,7 @@ func TestScalarErrors(t *testing.T) {
 }
 
 func TestValidStringErrors(t *testing.T) {
-	valid := zerocpy.NewValidStringSer()
+	valid := zerocpy.NewValidStringSerializer()
 
 	got, n, err := valid.Unmarshal([]byte{0})
 	if err != nil || n != 1 || got != "" {
@@ -478,14 +478,14 @@ func TestValidStringErrors(t *testing.T) {
 		t.Fatalf("Unmarshal of a truncated string returned %v", err)
 	}
 
-	if _, _, err = zerocpy.NewValidStringSer(
-		stropts.WithLenSer(negativeLenSer{})).Unmarshal([]byte{0}); err != binco.ErrNegativeLength {
+	if _, _, err = zerocpy.NewValidStringSerializer(
+		stropts.WithLenSerializer(negativeLenSerializer{})).Unmarshal([]byte{0}); err != binco.ErrNegativeLength {
 		t.Fatalf("Unmarshal returned %v, want ErrNegativeLength", err)
 	}
 }
 
 func TestValidByteSliceErrors(t *testing.T) {
-	valid := zerocpy.NewValidByteSliceSer()
+	valid := zerocpy.NewValidByteSliceSerializer()
 
 	got, n, err := valid.Unmarshal([]byte{0})
 	if err != nil || n != 1 || len(got) != 0 {
@@ -494,8 +494,8 @@ func TestValidByteSliceErrors(t *testing.T) {
 	if _, _, err = valid.Unmarshal([]byte{3, 1}); err != binco.ErrTooSmallByteSlice {
 		t.Fatalf("Unmarshal of a truncated slice returned %v", err)
 	}
-	if _, _, err = zerocpy.NewValidByteSliceSer(
-		bsopts.WithLenSer(negativeLenSer{})).Unmarshal([]byte{0}); err != binco.ErrNegativeLength {
+	if _, _, err = zerocpy.NewValidByteSliceSerializer(
+		bsopts.WithLenSerializer(negativeLenSerializer{})).Unmarshal([]byte{0}); err != binco.ErrNegativeLength {
 		t.Fatalf("Unmarshal returned %v, want ErrNegativeLength", err)
 	}
 }
@@ -541,12 +541,12 @@ func TestMoreScalarErrors(t *testing.T) {
 
 func TestArrayWithLengthSerializer(t *testing.T) {
 
-	ser := zerocpy.NewArraySer[[2]int, int](varnum.Int, arropts.WithLenSer[int](scalar.Int))
-	bs := binco.Encode(ser, [2]int{1, 2})
+	serializer := zerocpy.NewArraySerializer[[2]int, int](varnum.Int, arropts.WithLenSerializer[int](scalar.Int))
+	bs := binco.Encode(serializer, [2]int{1, 2})
 	if len(bs) != 10 || bs[0] != 2 {
 		t.Fatalf("Marshal with a scalar.Int length = %v", bs)
 	}
-	if got, err := binco.Decode(ser, bs); err != nil || got != [2]int{1, 2} {
+	if got, err := binco.Decode(serializer, bs); err != nil || got != [2]int{1, 2} {
 		t.Fatalf("Unmarshal = (%v, %v)", got, err)
 	}
 }

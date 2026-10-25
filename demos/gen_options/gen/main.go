@@ -17,9 +17,9 @@ import (
 
 func main() {
 	g, err := codegen.NewGenerator(
-		genopts.WithPkgPath("github.com/malivvan/binco/demos/gen_options/pkg"),
+		genopts.WithPath("github.com/malivvan/binco/demos/gen_options/pkg"),
 
-		genopts.WithSerName(reflect.TypeFor[pkg.Foo](), "CustomFoo"),
+		genopts.WithSerializer(reflect.TypeFor[pkg.Foo](), "CustomFoo"),
 	)
 	if err != nil {
 		log.Fatal(err)

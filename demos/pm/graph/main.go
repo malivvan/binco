@@ -10,15 +10,15 @@ import (
 
 func main() {
 	graph := CyclicGraph()
-	ser := MakeGraphSer[int, string](varnum.Int, composite.String)
+	serializer := MakeGraphSerializer[int, string](varnum.Int, composite.String)
 
-	bs := make([]byte, ser.Size(graph))
-	n := ser.Marshal(graph, bs)
+	bs := make([]byte, serializer.Size(graph))
+	n := serializer.Marshal(graph, bs)
 	fmt.Printf("graph:\n%s", graph.Render())
 	fmt.Printf("size:    %d bytes\n", len(bs))
 	fmt.Printf("encoded: %v (wrote %d)\n\n", bs, n)
 
-	back, n, err := ser.Unmarshal(bs)
+	back, n, err := serializer.Unmarshal(bs)
 	if err != nil {
 		panic(err)
 	}
@@ -29,7 +29,7 @@ func main() {
 	fmt.Printf("edge 2→3 → vertex 3: %v\n", v2.Edges[3].Vertex == v3)
 	fmt.Printf("edge 3→1 → vertex 1: %v\n", v3.Edges[1].Vertex == v1)
 
-	n, err = ser.Skip(bs)
+	n, err = serializer.Skip(bs)
 	if err != nil {
 		panic(err)
 	}

@@ -15,14 +15,14 @@ The same type as in [gen](../gen), but with three generator options:
 
 | Option | Effect |
 |--------|--------|
-| `genopts.WithSerName(Foo, "CustomFoo")` | the serializer is named `CustomFooBinco` |
+| `genopts.WithSerializer(Foo, "CustomFoo")` | the serializer is named `CustomFooBinco` |
 | `fldopts.WithType(tpopts.WithNumEncoding(tpopts.NumEncodingRaw))` | `Num` uses `scalar.Int` (8 bytes) instead of `varnum.Int` |
 | `fldopts.WithType(tpopts.WithLenValidator("ValidateLength"))` | the generated code validates `Str`'s length while unmarshalling |
 
 ```go
 g, _ := codegen.NewGenerator(
-	genopts.WithPkgPath("github.com/malivvan/binco/demos/gen_options/pkg"),
-	genopts.WithSerName(reflect.TypeFor[pkg.Foo](), "CustomFoo"),
+	genopts.WithPath("github.com/malivvan/binco/demos/gen_options/pkg"),
+	genopts.WithSerializer(reflect.TypeFor[pkg.Foo](), "CustomFoo"),
 )
 g.AddStruct(reflect.TypeFor[pkg.Foo](),
 	stopts.WithField(fldopts.WithType(

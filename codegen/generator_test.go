@@ -23,7 +23,7 @@ const modelPkgPath = "github.com/malivvan/binco/testdata"
 func newGenerator(t *testing.T, opts ...genopts.SetOption) *codegen.Generator {
 	t.Helper()
 	opts = append([]genopts.SetOption{
-		genopts.WithPkgPath(modelPkgPath),
+		genopts.WithPath(modelPkgPath),
 		genopts.WithImport("time"),
 	}, opts...)
 	g, err := codegen.NewGenerator(opts...)
@@ -55,14 +55,14 @@ func TestNewGeneratorErrors(t *testing.T) {
 	if _, err := codegen.NewGenerator(); err == nil {
 		t.Fatal("NewGenerator without a package path returned no error")
 	}
-	if _, err := codegen.NewGenerator(genopts.WithPkgPath("not a path")); err == nil {
+	if _, err := codegen.NewGenerator(genopts.WithPath("not a path")); err == nil {
 		t.Fatal("NewGenerator with an invalid package path returned no error")
 	}
-	if _, err := codegen.NewGenerator(genopts.WithPkgPath(modelPkgPath),
+	if _, err := codegen.NewGenerator(genopts.WithPath(modelPkgPath),
 		genopts.WithImport("not a path")); err == nil {
 		t.Fatal("NewGenerator with an invalid import path returned no error")
 	}
-	if _, err := codegen.NewGenerator(genopts.WithPkgPath(modelPkgPath),
+	if _, err := codegen.NewGenerator(genopts.WithPath(modelPkgPath),
 		genopts.WithImportAlias("fmt", "a"), genopts.WithImportAlias("io", "a")); err == nil {
 		t.Fatal("NewGenerator with duplicate aliases returned no error")
 	}
@@ -178,8 +178,8 @@ func TestGenerateInterface(t *testing.T) {
 	mustContain(t, src,
 		"const (\n\tStructImplDTM binco.DTM = iota + 1\n\tDefinedImplDTM\n)",
 		"var UniversalBinco = universalBinco{}",
-		"var StructImplTypedBinco = typeid.NewSer(StructImplDTM, StructImplBinco)",
-		"var DefinedImplTypedBinco = typeid.NewSer(DefinedImplDTM, DefinedImplBinco)",
+		"var StructImplTypedBinco = typeid.NewSerializer(StructImplDTM, StructImplBinco)",
+		"var DefinedImplTypedBinco = typeid.NewSerializer(DefinedImplDTM, DefinedImplBinco)",
 		"case StructImplDTM:",
 		"binco.NewUnexpectedDTMError(dtm)",
 	)
@@ -242,7 +242,7 @@ func TestGenerateUnsafeModes(t *testing.T) {
 
 func TestCustomSerializerName(t *testing.T) {
 	g := newGenerator(t,
-		genopts.WithSerName(reflect.TypeFor[testdata.Int](), "CustomIntSer"))
+		genopts.WithSerializer(reflect.TypeFor[testdata.Int](), "CustomIntSerializer"))
 	if err := g.AddStruct(reflect.TypeFor[testdata.IntHolder]()); err != nil {
 		t.Fatalf("AddStruct: %v", err)
 	}
@@ -251,9 +251,9 @@ func TestCustomSerializerName(t *testing.T) {
 	}
 	src := generate(t, g)
 	mustContain(t, src,
-		"var CustomIntSerBinco = customIntSerBinco{}",
-		"type customIntSerBinco struct{}",
-		"CustomIntSerBinco.Marshal(v.V, bs)")
+		"var CustomIntSerializerBinco = customIntSerializerBinco{}",
+		"type customIntSerializerBinco struct{}",
+		"CustomIntSerializerBinco.Marshal(v.V, bs)")
 }
 
 func TestGeneratedCodeCompilesAndRuns(t *testing.T) {

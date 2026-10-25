@@ -1,5 +1,5 @@
 {{/* spec.InterfaceType */}}
-{{- $v := Ser.Val . }}
+{{- $v := Serializer.Val . }}
 {{- $mlp := Tmpl.MarshalLastParam true .Gops }}
 {{- if .Iops.Marshaller }}
 	if m, ok := {{ $v }}.({{ Tmpl.ModImportName .Gops }}.MarshallerTyped); ok {
@@ -9,8 +9,8 @@
 {{- else }}
 	switch t := {{ $v }}.(type) {
 		{{- range $e := .Impls }}
-			case {{ Ser.RelName $e }}:
-				return {{ Ser.TypedVar $e }}.Marshal(t, {{ $mlp }})
+			case {{ Serializer.RelName $e }}:
+				return {{ Serializer.TypedVar $e }}.Marshal(t, {{ $mlp }})
 		{{- end }}
 			default:
 				panic(fmt.Sprintf(binco.ErrorPrefix+"unexpected %v type", t))

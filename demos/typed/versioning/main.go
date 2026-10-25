@@ -10,15 +10,15 @@ import (
 func main() {
 
 	v1 := FooV1{Num: 10}
-	v1BS := binco.Encode(FooV1TypedSer, v1)
+	v1BS := binco.Encode(FooV1TypedSerializer, v1)
 	fmt.Printf("V1 payload: %v (%d bytes)\n", v1BS, len(v1BS))
 
 	v2 := FooV2{Str: "current"}
-	v2BS := binco.Encode(FooV2TypedSer, v2)
+	v2BS := binco.Encode(FooV2TypedSerializer, v2)
 	fmt.Printf("V2 payload: %v (%d bytes)\n\n", v2BS, len(v2BS))
 
 	for _, bs := range [][]byte{v1BS, v2BS} {
-		foo, n, err := FooSer.Unmarshal(bs)
+		foo, n, err := FooSerializer.Unmarshal(bs)
 		if err != nil {
 			panic(err)
 		}
@@ -26,9 +26,9 @@ func main() {
 	}
 
 	foo := Foo(FooV2{Str: "rewritten"})
-	bs := binco.Encode(FooSer, foo)
+	bs := binco.Encode(FooSerializer, foo)
 	fmt.Printf("\nmarshaled %q → %v\n", foo, bs)
-	back, err := binco.Decode(FooSer, bs)
+	back, err := binco.Decode(FooSerializer, bs)
 	if err != nil {
 		panic(err)
 	}
@@ -38,7 +38,7 @@ func main() {
 	fmt.Printf("binco.MarshalTyped: %v\n", binco.MarshalTyped(v1))
 
 	for _, bs := range [][]byte{v1BS, v2BS} {
-		n, err := FooSer.Skip(bs)
+		n, err := FooSerializer.Skip(bs)
 		if err != nil {
 			panic(err)
 		}
@@ -46,7 +46,7 @@ func main() {
 	}
 
 	unknown := append([]byte{99}, v2BS[1:]...)
-	if _, _, err = FooSer.Unmarshal(unknown); err != nil {
+	if _, _, err = FooSerializer.Unmarshal(unknown); err != nil {
 		fmt.Printf("\nunknown version: %v\n", err)
 	}
 }

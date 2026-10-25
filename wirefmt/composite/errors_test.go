@@ -66,24 +66,24 @@ func TestWriterErrorsAtEveryStep(t *testing.T) {
 			return err
 		}},
 		{"slice", func(w wirefmt.Writer) error {
-			_, err := composite.NewSliceSer(wvarnum.Int).Marshal([]int{1, 2, 3}, w)
+			_, err := composite.NewSliceSerializer(wvarnum.Int).Marshal([]int{1, 2, 3}, w)
 			return err
 		}},
 		{"map", func(w wirefmt.Writer) error {
-			_, err := composite.NewMapSer(wvarnum.Int, wvarnum.Int).Marshal(
+			_, err := composite.NewMapSerializer(wvarnum.Int, wvarnum.Int).Marshal(
 				map[int]int{1: 2, 3: 4}, w)
 			return err
 		}},
 		{"ptr", func(w wirefmt.Writer) error {
-			_, err := composite.NewPtrSer(wvarnum.Int).Marshal(&ptr, w)
+			_, err := composite.NewPtrSerializer(wvarnum.Int).Marshal(&ptr, w)
 			return err
 		}},
 		{"valid slice", func(w wirefmt.Writer) error {
-			_, err := composite.NewValidSliceSer(wvarnum.Int).Marshal([]int{1, 2}, w)
+			_, err := composite.NewValidSliceSerializer(wvarnum.Int).Marshal([]int{1, 2}, w)
 			return err
 		}},
 		{"valid map", func(w wirefmt.Writer) error {
-			_, err := composite.NewValidMapSer(wvarnum.Int, wvarnum.Int).Marshal(
+			_, err := composite.NewValidMapSerializer(wvarnum.Int, wvarnum.Int).Marshal(
 				map[int]int{1: 2}, w)
 			return err
 		}},
@@ -124,39 +124,39 @@ func TestUnmarshalTruncatedStreams(t *testing.T) {
 			return err
 		}},
 		{"slice length", func() error {
-			_, _, err := composite.NewSliceSer(wvarnum.Int).Unmarshal(reader())
+			_, _, err := composite.NewSliceSerializer(wvarnum.Int).Unmarshal(reader())
 			return err
 		}},
 		{"slice elements", func() error {
-			_, _, err := composite.NewSliceSer(wvarnum.Int).Unmarshal(reader(2, 2))
+			_, _, err := composite.NewSliceSerializer(wvarnum.Int).Unmarshal(reader(2, 2))
 			return err
 		}},
 		{"map length", func() error {
-			_, _, err := composite.NewMapSer(wvarnum.Int, wvarnum.Int).Unmarshal(reader())
+			_, _, err := composite.NewMapSerializer(wvarnum.Int, wvarnum.Int).Unmarshal(reader())
 			return err
 		}},
 		{"map key", func() error {
-			_, _, err := composite.NewMapSer(wvarnum.Int, wvarnum.Int).Unmarshal(reader(1))
+			_, _, err := composite.NewMapSerializer(wvarnum.Int, wvarnum.Int).Unmarshal(reader(1))
 			return err
 		}},
 		{"map value", func() error {
-			_, _, err := composite.NewMapSer(wvarnum.Int, wvarnum.Int).Unmarshal(reader(1, 2))
+			_, _, err := composite.NewMapSerializer(wvarnum.Int, wvarnum.Int).Unmarshal(reader(1, 2))
 			return err
 		}},
 		{"ptr flag", func() error {
-			_, _, err := composite.NewPtrSer(wvarnum.Int).Unmarshal(reader())
+			_, _, err := composite.NewPtrSerializer(wvarnum.Int).Unmarshal(reader())
 			return err
 		}},
 		{"ptr data", func() error {
-			_, _, err := composite.NewPtrSer(wvarnum.Int).Unmarshal(reader(0))
+			_, _, err := composite.NewPtrSerializer(wvarnum.Int).Unmarshal(reader(0))
 			return err
 		}},
 		{"valid slice", func() error {
-			_, _, err := composite.NewValidSliceSer(wvarnum.Int).Unmarshal(reader(2, 2))
+			_, _, err := composite.NewValidSliceSerializer(wvarnum.Int).Unmarshal(reader(2, 2))
 			return err
 		}},
 		{"valid map", func() error {
-			_, _, err := composite.NewValidMapSer(wvarnum.Int, wvarnum.Int).Unmarshal(reader(1, 2))
+			_, _, err := composite.NewValidMapSerializer(wvarnum.Int, wvarnum.Int).Unmarshal(reader(1, 2))
 			return err
 		}},
 	}
@@ -189,27 +189,27 @@ func TestSkipTruncatedStreams(t *testing.T) {
 			return err
 		}},
 		{"slice length", func() error {
-			_, err := composite.NewSliceSer(wvarnum.Int).Skip(reader())
+			_, err := composite.NewSliceSerializer(wvarnum.Int).Skip(reader())
 			return err
 		}},
 		{"slice elements", func() error {
-			_, err := composite.NewSliceSer(wvarnum.Int).Skip(reader(2, 2))
+			_, err := composite.NewSliceSerializer(wvarnum.Int).Skip(reader(2, 2))
 			return err
 		}},
 		{"map length", func() error {
-			_, err := composite.NewMapSer(wvarnum.Int, wvarnum.Int).Skip(reader())
+			_, err := composite.NewMapSerializer(wvarnum.Int, wvarnum.Int).Skip(reader())
 			return err
 		}},
 		{"map entries", func() error {
-			_, err := composite.NewMapSer(wvarnum.Int, wvarnum.Int).Skip(reader(1, 2))
+			_, err := composite.NewMapSerializer(wvarnum.Int, wvarnum.Int).Skip(reader(1, 2))
 			return err
 		}},
 		{"ptr flag", func() error {
-			_, err := composite.NewPtrSer(wvarnum.Int).Skip(reader())
+			_, err := composite.NewPtrSerializer(wvarnum.Int).Skip(reader())
 			return err
 		}},
 		{"ptr data", func() error {
-			_, err := composite.NewPtrSer(wvarnum.Int).Skip(reader(0))
+			_, err := composite.NewPtrSerializer(wvarnum.Int).Skip(reader(0))
 			return err
 		}},
 	}

@@ -9,15 +9,15 @@ import (
 
 func main() {
 	list := ShortLinkedList()
-	ser := MakeLinkedListSer[int](varnum.Int)
+	serializer := MakeLinkedListSerializer[int](varnum.Int)
 
-	bs := make([]byte, ser.Size(list))
-	n := ser.Marshal(list, bs)
+	bs := make([]byte, serializer.Size(list))
+	n := serializer.Marshal(list, bs)
 	fmt.Printf("list:     %v (%d elements)\n", list, list.Len)
 	fmt.Printf("size:     %d bytes\n", len(bs))
 	fmt.Printf("encoded:  %v (wrote %d)\n", bs, n)
 
-	back, n, err := ser.Unmarshal(bs)
+	back, n, err := serializer.Unmarshal(bs)
 	if err != nil {
 		panic(err)
 	}
@@ -40,7 +40,7 @@ func main() {
 	fmt.Printf("\nafter removing %v: %v (len=%d)\n", second.Val, back, back.Len)
 	fmt.Printf("new head.Next.Prev == head: %v\n", back.Head.Next.Prev == back.Head)
 
-	n, err = ser.Skip(bs)
+	n, err = serializer.Skip(bs)
 	if err != nil {
 		panic(err)
 	}

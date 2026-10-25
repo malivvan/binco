@@ -7,122 +7,122 @@ import (
 	"github.com/malivvan/binco/varnum"
 )
 
-func MakeGraphSer[T comparable, V any](keySer binco.Serializer[T],
-	valSer binco.Serializer[V],
+func MakeGraphSerializer[T comparable, V any](keySerializer binco.Serializer[T],
+	valSerializer binco.Serializer[V],
 ) binco.Serializer[Graph[T, V]] {
 	ptrMap, revPtrMap := binco.NewPtrMap(), binco.NewReversePtrMap()
-	return ptrmap.Wrap(ptrMap, revPtrMap, newGraphSer(ptrMap, revPtrMap, keySer, valSer))
+	return ptrmap.Wrap(ptrMap, revPtrMap, newGraphSerializer(ptrMap, revPtrMap, keySerializer, valSerializer))
 }
 
-func newGraphSer[T comparable, V any](ptrMap *binco.PtrMap,
-	revPtrMap *binco.ReversePtrMap, keySer binco.Serializer[T], valSer binco.Serializer[V],
-) graphSer[T, V] {
+func newGraphSerializer[T comparable, V any](ptrMap *binco.PtrMap,
+	revPtrMap *binco.ReversePtrMap, keySerializer binco.Serializer[T], valSerializer binco.Serializer[V],
+) graphSerializer[T, V] {
 	var (
-		edgesSer    binco.Serializer[map[T]*Edge[T, V]]
-		verticesSer binco.Serializer[map[T]*Vertex[T, V]]
+		edgesSerializer    binco.Serializer[map[T]*Edge[T, V]]
+		verticesSerializer binco.Serializer[map[T]*Vertex[T, V]]
 
-		edgePtrSer   binco.Serializer[*Edge[T, V]]
-		vertexPtrSer binco.Serializer[*Vertex[T, V]]
+		edgePtrSerializer   binco.Serializer[*Edge[T, V]]
+		vertexPtrSerializer binco.Serializer[*Vertex[T, V]]
 
-		edge   = edgeSer[T, V]{vertexPtrSer: &vertexPtrSer}
-		vertex = vertexSer[T, V]{valSer: valSer, edgesSer: &edgesSer}
+		edge   = edgeSerializer[T, V]{vertexPtrSerializer: &vertexPtrSerializer}
+		vertex = vertexSerializer[T, V]{valSerializer: valSerializer, edgesSerializer: &edgesSerializer}
 	)
-	edgePtrSer = ptrmap.NewPtrSer(ptrMap, revPtrMap, edge)
-	vertexPtrSer = ptrmap.NewPtrSer(ptrMap, revPtrMap, vertex)
+	edgePtrSerializer = ptrmap.NewPtrSerializer(ptrMap, revPtrMap, edge)
+	vertexPtrSerializer = ptrmap.NewPtrSerializer(ptrMap, revPtrMap, vertex)
 
-	edgesSer = composite.NewMapSer(keySer, edgePtrSer)
-	verticesSer = composite.NewMapSer(keySer, vertexPtrSer)
+	edgesSerializer = composite.NewMapSerializer(keySerializer, edgePtrSerializer)
+	verticesSerializer = composite.NewMapSerializer(keySerializer, vertexPtrSerializer)
 
-	return graphSer[T, V]{verticesSer: verticesSer}
+	return graphSerializer[T, V]{verticesSerializer: verticesSerializer}
 }
 
-type edgeSer[T comparable, V any] struct {
-	vertexPtrSer *binco.Serializer[*Vertex[T, V]]
+type edgeSerializer[T comparable, V any] struct {
+	vertexPtrSerializer *binco.Serializer[*Vertex[T, V]]
 }
 
-func (s edgeSer[T, V]) Marshal(v Edge[T, V], bs []byte) (n int) {
+func (s edgeSerializer[T, V]) Marshal(v Edge[T, V], bs []byte) (n int) {
 	n = varnum.Int.Marshal(v.Weight, bs)
-	return n + (*s.vertexPtrSer).Marshal(v.Vertex, bs[n:])
+	return n + (*s.vertexPtrSerializer).Marshal(v.Vertex, bs[n:])
 }
 
-func (s edgeSer[T, V]) Unmarshal(bs []byte) (v Edge[T, V], n int, err error) {
+func (s edgeSerializer[T, V]) Unmarshal(bs []byte) (v Edge[T, V], n int, err error) {
 	v.Weight, n, err = varnum.Int.Unmarshal(bs)
 	if err != nil {
 		return
 	}
 	var n1 int
-	v.Vertex, n1, err = (*s.vertexPtrSer).Unmarshal(bs[n:])
+	v.Vertex, n1, err = (*s.vertexPtrSerializer).Unmarshal(bs[n:])
 	n += n1
 	return
 }
 
-func (s edgeSer[T, V]) Size(v Edge[T, V]) (size int) {
-	return varnum.Int.Size(v.Weight) + (*s.vertexPtrSer).Size(v.Vertex)
+func (s edgeSerializer[T, V]) Size(v Edge[T, V]) (size int) {
+	return varnum.Int.Size(v.Weight) + (*s.vertexPtrSerializer).Size(v.Vertex)
 }
 
-func (s edgeSer[T, V]) Skip(bs []byte) (n int, err error) {
+func (s edgeSerializer[T, V]) Skip(bs []byte) (n int, err error) {
 	n, err = varnum.Int.Skip(bs)
 	if err != nil {
 		return
 	}
 	var n1 int
-	n1, err = (*s.vertexPtrSer).Skip(bs[n:])
+	n1, err = (*s.vertexPtrSerializer).Skip(bs[n:])
 	return n + n1, err
 }
 
-type vertexSer[T comparable, V any] struct {
-	valSer   binco.Serializer[V]
-	edgesSer *binco.Serializer[map[T]*Edge[T, V]]
+type vertexSerializer[T comparable, V any] struct {
+	valSerializer   binco.Serializer[V]
+	edgesSerializer *binco.Serializer[map[T]*Edge[T, V]]
 }
 
-func (s vertexSer[T, V]) Marshal(v Vertex[T, V], bs []byte) (n int) {
-	n = s.valSer.Marshal(v.Val, bs)
-	return n + (*s.edgesSer).Marshal(v.Edges, bs[n:])
+func (s vertexSerializer[T, V]) Marshal(v Vertex[T, V], bs []byte) (n int) {
+	n = s.valSerializer.Marshal(v.Val, bs)
+	return n + (*s.edgesSerializer).Marshal(v.Edges, bs[n:])
 }
 
-func (s vertexSer[T, V]) Unmarshal(bs []byte) (v Vertex[T, V], n int, err error) {
-	v.Val, n, err = s.valSer.Unmarshal(bs)
+func (s vertexSerializer[T, V]) Unmarshal(bs []byte) (v Vertex[T, V], n int, err error) {
+	v.Val, n, err = s.valSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
 	var n1 int
-	v.Edges, n1, err = (*s.edgesSer).Unmarshal(bs[n:])
+	v.Edges, n1, err = (*s.edgesSerializer).Unmarshal(bs[n:])
 	n += n1
 	return
 }
 
-func (s vertexSer[T, V]) Size(v Vertex[T, V]) (size int) {
-	return s.valSer.Size(v.Val) + (*s.edgesSer).Size(v.Edges)
+func (s vertexSerializer[T, V]) Size(v Vertex[T, V]) (size int) {
+	return s.valSerializer.Size(v.Val) + (*s.edgesSerializer).Size(v.Edges)
 }
 
-func (s vertexSer[T, V]) Skip(bs []byte) (n int, err error) {
-	n, err = s.valSer.Skip(bs)
+func (s vertexSerializer[T, V]) Skip(bs []byte) (n int, err error) {
+	n, err = s.valSerializer.Skip(bs)
 	if err != nil {
 		return
 	}
 	var n1 int
-	n1, err = (*s.edgesSer).Skip(bs[n:])
+	n1, err = (*s.edgesSerializer).Skip(bs[n:])
 	return n + n1, err
 }
 
-type graphSer[T comparable, V any] struct {
-	verticesSer binco.Serializer[map[T]*Vertex[T, V]]
+type graphSerializer[T comparable, V any] struct {
+	verticesSerializer binco.Serializer[map[T]*Vertex[T, V]]
 }
 
-func (s graphSer[T, V]) Marshal(v Graph[T, V], bs []byte) (n int) {
-	return s.verticesSer.Marshal(v.Vertices, bs)
+func (s graphSerializer[T, V]) Marshal(v Graph[T, V], bs []byte) (n int) {
+	return s.verticesSerializer.Marshal(v.Vertices, bs)
 }
 
-func (s graphSer[T, V]) Unmarshal(bs []byte) (v Graph[T, V], n int, err error) {
+func (s graphSerializer[T, V]) Unmarshal(bs []byte) (v Graph[T, V], n int, err error) {
 	v = Graph[T, V]{}
-	v.Vertices, n, err = s.verticesSer.Unmarshal(bs)
+	v.Vertices, n, err = s.verticesSerializer.Unmarshal(bs)
 	return
 }
 
-func (s graphSer[T, V]) Size(v Graph[T, V]) (size int) {
-	return s.verticesSer.Size(v.Vertices)
+func (s graphSerializer[T, V]) Size(v Graph[T, V]) (size int) {
+	return s.verticesSerializer.Size(v.Vertices)
 }
 
-func (s graphSer[T, V]) Skip(bs []byte) (n int, err error) {
-	return s.verticesSer.Skip(bs)
+func (s graphSerializer[T, V]) Skip(bs []byte) (n int, err error) {
+	return s.verticesSerializer.Skip(bs)
 }

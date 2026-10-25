@@ -1,16 +1,16 @@
 {{/* spec.InterfaceType */}}
-{{- $v := Ser.Val . }}
+{{- $v := Serializer.Val . }}
 {{- $fulp := Tmpl.UnmarshalLastParam true .Gops }}
 {{- $ulp := Tmpl.UnmarshalLastParam false .Gops }}
-dtm, n, err := typeid.DTMSer.Unmarshal({{ $fulp }})
+dtm, n, err := typeid.DTMSerializer.Unmarshal({{ $fulp }})
 if err != nil {
 	return
 }
 var n1 int
 switch dtm {
 {{- range $e := .Impls }}
-	case {{ Ser.DTMVar $e }}:
-		n1, err = {{ Ser.TypedVar $e }}.SkipData({{ $ulp }})
+	case {{ Serializer.DTMVar $e }}:
+		n1, err = {{ Serializer.TypedVar $e }}.SkipData({{ $ulp }})
 {{- end }}
 	default:
 		err = binco.NewUnexpectedDTMError(dtm)

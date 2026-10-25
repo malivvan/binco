@@ -2,14 +2,14 @@
 {{- $mlp := Tmpl.MarshalLastParam (eq .Index 0) .Gops }}
 
 {{- $vf := print .Val "." .Field.FieldName }}
-{{- $fieldSer := Ser.Of .Field.FullName .Tops .Gops }}
+{{- $fieldSerializer := Serializer.Of .Field.FullName .Tops .Gops }}
 
 {{- $nVar := "n" }}
 {{- if gt .Index 0 }}
 	{{- $nVar = "n1" }}
 {{- end }}
 
-{{- $call := print $fieldSer ".Marshal(" $vf ", " $mlp ")" }}
+{{- $call := print $fieldSerializer ".Marshal(" $vf ", " $mlp ")" }}
 {{- if eq .FieldsCount 1 }}
 	return {{ $call }}
 {{- else }}

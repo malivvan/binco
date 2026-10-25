@@ -49,33 +49,33 @@ func (m Upload) writeTo(w wirefmt.Writer) (n int, err error) {
 }
 
 var (
-	LoginTyped  = wtypeid.NewSer(LoginDTM, loginSer{})
-	ChatTyped   = wtypeid.NewSer(ChatDTM, chatSer{})
-	UploadTyped = wtypeid.NewSer(UploadDTM, uploadSer{})
+	LoginTyped  = wtypeid.NewSerializer(LoginDTM, loginSerializer{})
+	ChatTyped   = wtypeid.NewSerializer(ChatDTM, chatSerializer{})
+	UploadTyped = wtypeid.NewSerializer(UploadDTM, uploadSerializer{})
 )
 
-type loginSer struct{}
+type loginSerializer struct{}
 
-func (loginSer) Marshal(v Login, w wirefmt.Writer) (n int, err error) {
+func (loginSerializer) Marshal(v Login, w wirefmt.Writer) (n int, err error) {
 	return wcomposite.String.Marshal(v.User, w)
 }
 
-func (loginSer) Unmarshal(r wirefmt.Reader) (v Login, n int, err error) {
+func (loginSerializer) Unmarshal(r wirefmt.Reader) (v Login, n int, err error) {
 	v.User, n, err = wcomposite.String.Unmarshal(r)
 	return
 }
 
-func (loginSer) Size(v Login) (size int) {
+func (loginSerializer) Size(v Login) (size int) {
 	return wcomposite.String.Size(v.User)
 }
 
-func (loginSer) Skip(r wirefmt.Reader) (n int, err error) {
+func (loginSerializer) Skip(r wirefmt.Reader) (n int, err error) {
 	return wcomposite.String.Skip(r)
 }
 
-type chatSer struct{}
+type chatSerializer struct{}
 
-func (chatSer) Marshal(v Chat, w wirefmt.Writer) (n int, err error) {
+func (chatSerializer) Marshal(v Chat, w wirefmt.Writer) (n int, err error) {
 	n, err = wcomposite.String.Marshal(v.From, w)
 	if err != nil {
 		return
@@ -90,7 +90,7 @@ func (chatSer) Marshal(v Chat, w wirefmt.Writer) (n int, err error) {
 	return n + n1, err
 }
 
-func (chatSer) Unmarshal(r wirefmt.Reader) (v Chat, n int, err error) {
+func (chatSerializer) Unmarshal(r wirefmt.Reader) (v Chat, n int, err error) {
 	v.From, n, err = wcomposite.String.Unmarshal(r)
 	if err != nil {
 		return
@@ -106,12 +106,12 @@ func (chatSer) Unmarshal(r wirefmt.Reader) (v Chat, n int, err error) {
 	return
 }
 
-func (chatSer) Size(v Chat) (size int) {
+func (chatSerializer) Size(v Chat) (size int) {
 	return wcomposite.String.Size(v.From) + wcomposite.String.Size(v.Text) +
 		wscalar.TimeUnixUTC.Size(v.At)
 }
 
-func (chatSer) Skip(r wirefmt.Reader) (n int, err error) {
+func (chatSerializer) Skip(r wirefmt.Reader) (n int, err error) {
 	n, err = wcomposite.String.Skip(r)
 	if err != nil {
 		return
@@ -126,9 +126,9 @@ func (chatSer) Skip(r wirefmt.Reader) (n int, err error) {
 	return n + n1, err
 }
 
-type uploadSer struct{}
+type uploadSerializer struct{}
 
-func (uploadSer) Marshal(v Upload, w wirefmt.Writer) (n int, err error) {
+func (uploadSerializer) Marshal(v Upload, w wirefmt.Writer) (n int, err error) {
 	n, err = wcomposite.String.Marshal(v.Name, w)
 	if err != nil {
 		return
@@ -138,7 +138,7 @@ func (uploadSer) Marshal(v Upload, w wirefmt.Writer) (n int, err error) {
 	return n + n1, err
 }
 
-func (uploadSer) Unmarshal(r wirefmt.Reader) (v Upload, n int, err error) {
+func (uploadSerializer) Unmarshal(r wirefmt.Reader) (v Upload, n int, err error) {
 	v.Name, n, err = wcomposite.String.Unmarshal(r)
 	if err != nil {
 		return
@@ -149,11 +149,11 @@ func (uploadSer) Unmarshal(r wirefmt.Reader) (v Upload, n int, err error) {
 	return
 }
 
-func (uploadSer) Size(v Upload) (size int) {
+func (uploadSerializer) Size(v Upload) (size int) {
 	return wcomposite.String.Size(v.Name) + wcomposite.ByteSlice.Size(v.Data)
 }
 
-func (uploadSer) Skip(r wirefmt.Reader) (n int, err error) {
+func (uploadSerializer) Skip(r wirefmt.Reader) (n int, err error) {
 	n, err = wcomposite.String.Skip(r)
 	if err != nil {
 		return

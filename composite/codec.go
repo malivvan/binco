@@ -45,13 +45,13 @@ func SkipBool(bs []byte) (n int, err error) {
 	return 0, binco.ErrWrongFormat
 }
 
-// NewPtrSer returns a pointer serializer that encodes nil as a flag byte.
-func NewPtrSer[T any](baseSer binco.Serializer[T]) ptrCodec[T] {
-	return ptrCodec[T]{baseSer}
+// NewPtrSerializer returns a pointer serializer that encodes nil as a flag byte.
+func NewPtrSerializer[T any](baseSerializer binco.Serializer[T]) ptrCodec[T] {
+	return ptrCodec[T]{baseSerializer}
 }
 
 type ptrCodec[T any] struct {
-	baseSer binco.Serializer[T]
+	baseSerializer binco.Serializer[T]
 }
 
 func (s ptrCodec[T]) Marshal(v *T, bs []byte) (n int) {
@@ -61,7 +61,7 @@ func (s ptrCodec[T]) Marshal(v *T, bs []byte) (n int) {
 		return
 	}
 	bs[0] = byte(binco.PtrNotNil)
-	return 1 + s.baseSer.Marshal(*v, bs[1:])
+	return 1 + s.baseSerializer.Marshal(*v, bs[1:])
 }
 
 func (s ptrCodec[T]) Unmarshal(bs []byte) (v *T, n int, err error) {
@@ -77,7 +77,7 @@ func (s ptrCodec[T]) Unmarshal(bs []byte) (v *T, n int, err error) {
 		err = binco.ErrWrongFormat
 		return
 	}
-	k, n, err := s.baseSer.Unmarshal(bs[1:])
+	k, n, err := s.baseSerializer.Unmarshal(bs[1:])
 	if err != nil {
 		n = 1 + n
 		return
@@ -87,7 +87,7 @@ func (s ptrCodec[T]) Unmarshal(bs []byte) (v *T, n int, err error) {
 
 func (s ptrCodec[T]) Size(v *T) (size int) {
 	if v != nil {
-		return 1 + s.baseSer.Size(*v)
+		return 1 + s.baseSerializer.Size(*v)
 	}
 	return 1
 }
@@ -105,6 +105,6 @@ func (s ptrCodec[T]) Skip(bs []byte) (n int, err error) {
 		err = binco.ErrWrongFormat
 		return
 	}
-	n, err = s.baseSer.Skip(bs[1:])
+	n, err = s.baseSerializer.Skip(bs[1:])
 	return 1 + n, err
 }

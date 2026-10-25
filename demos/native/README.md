@@ -56,7 +56,7 @@ Fixes, in order of cost:
 
 * Byte slices have the same rule: modifying the payload changes the decoded
   slice.
-* `zerocpy.NewArraySer[T, V]` is the only array serializer, because decoding into
+* `zerocpy.NewArraySerializer[T, V]` is the only array serializer, because decoding into
   an array means reinterpreting the decoded elements as the array type. It
   rejects payloads whose length differs from the array type.
 * The package assumes little-endian byte order and panics at init on a

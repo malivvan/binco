@@ -12,45 +12,45 @@ import (
 )
 
 // String serializes a string; decoding allocates a fresh one, because a stream cannot hand out a view of unread bytes.
-var String = NewStringSer()
+var String = NewStringSerializer()
 
-// NewStringSer returns a string serializer whose length codec can be replaced through opts.
-func NewStringSer(opts ...stropts.SetOption) textView {
+// NewStringSerializer returns a string serializer whose length codec can be replaced through opts.
+func NewStringSerializer(opts ...stropts.SetOption) textView {
 	o := stropts.Options{}
 	stropts.Apply(opts, &o)
 
 	return newTextView(o)
 }
 
-// NewValidStringSer returns a string serializer that runs its length validator while decoding.
-func NewValidStringSer(opts ...stropts.SetOption) checkedText {
+// NewValidStringSerializer returns a string serializer that runs its length validator while decoding.
+func NewValidStringSerializer(opts ...stropts.SetOption) checkedText {
 	o := stropts.Options{}
 	stropts.Apply(opts, &o)
 	return checkedText{newTextView(o), o.LenVl}
 }
 
 func newTextView(o stropts.Options) textView {
-	var lenSer wirefmt.Serializer[int] = varnum.PositiveInt
-	if o.LenSer != nil {
-		lenSer = o.LenSer
+	var lenSerializer wirefmt.Serializer[int] = varnum.PositiveInt
+	if o.LenSerializer != nil {
+		lenSerializer = o.LenSerializer
 	}
-	return textView{lenSer}
+	return textView{lenSerializer}
 }
 
 type textView struct {
-	lenSer wirefmt.Serializer[int]
+	lenSerializer wirefmt.Serializer[int]
 }
 
 func (s textView) Marshal(v string, w wirefmt.Writer) (n int,
 	err error,
 ) {
-	return composite.MarshalString(v, s.lenSer, w)
+	return composite.MarshalString(v, s.lenSerializer, w)
 }
 
 func (s textView) Unmarshal(r wirefmt.Reader) (v string,
 	n int, err error,
 ) {
-	length, n, err := s.lenSer.Unmarshal(r)
+	length, n, err := s.lenSerializer.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -76,11 +76,11 @@ func (s textView) Unmarshal(r wirefmt.Reader) (v string,
 }
 
 func (s textView) Size(v string) (n int) {
-	return composite.SizeString(v, s.lenSer)
+	return composite.SizeString(v, s.lenSerializer)
 }
 
 func (s textView) Skip(r wirefmt.Reader) (n int, err error) {
-	return composite.SkipString(r, s.lenSer)
+	return composite.SkipString(r, s.lenSerializer)
 }
 
 type checkedText struct {
@@ -89,7 +89,7 @@ type checkedText struct {
 }
 
 func (s checkedText) Unmarshal(r wirefmt.Reader) (v string, n int, err error) {
-	length, n, err := s.lenSer.Unmarshal(r)
+	length, n, err := s.lenSerializer.Unmarshal(r)
 	if err != nil {
 		return
 	}

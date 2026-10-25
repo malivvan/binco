@@ -119,15 +119,15 @@ func (s i64Codec) Skip(bs []byte) (n int, err error) {
 }
 
 // Int serializes an int, following the word size of the host.
-var Int = IntSer{}
+var Int = IntSerializer{}
 
-type IntSer struct{}
+type IntSerializer struct{}
 
-func (s IntSer) Marshal(v int, bs []byte) (n int) {
+func (s IntSerializer) Marshal(v int, bs []byte) (n int) {
 	return putUnsigned(uint(EncodeZigZag(v)), bs)
 }
 
-func (s IntSer) Unmarshal(bs []byte) (v int, n int, err error) {
+func (s IntSerializer) Unmarshal(bs []byte) (v int, n int, err error) {
 	uv, n, err := Uint.Unmarshal(bs)
 	if err != nil {
 		return
@@ -135,10 +135,10 @@ func (s IntSer) Unmarshal(bs []byte) (v int, n int, err error) {
 	return int(DecodeZigZag(uv)), n, nil
 }
 
-func (s IntSer) Size(v int) (size int) {
+func (s IntSerializer) Size(v int) (size int) {
 	return unsignedLen(uint(EncodeZigZag(v)))
 }
 
-func (s IntSer) Skip(bs []byte) (n int, err error) {
+func (s IntSerializer) Skip(bs []byte) (n int, err error) {
 	return Uint.Skip(bs)
 }

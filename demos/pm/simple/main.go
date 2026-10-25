@@ -10,7 +10,7 @@ import (
 func main() {
 
 	two := NewTwoPtrs("the same pointer in two fields")
-	bs := binco.Encode(MakeTwoPtrsSer(), two)
+	bs := binco.Encode(MakeTwoPtrsSerializer(), two)
 	fmt.Printf("TwoPtrs: %v\n", bs)
 	fmt.Printf("  [2 0 ...] flag 2 (mapping), ID 0, then the string\n")
 	fmt.Printf("  [2 0]     the same ID again, no string\n")
@@ -20,7 +20,7 @@ func main() {
 	fmt.Printf("  identity preserved: %v\n\n", back.Ptr1 == back.Ptr2)
 
 	embedded := NewEmbeddedPtrs("the same pointer in a composite struct")
-	bs = binco.Encode(MakeEmbeddedPtrsSer(), embedded)
+	bs = binco.Encode(MakeEmbeddedPtrsSerializer(), embedded)
 	fmt.Printf("EmbeddedPtrs: %v (%d bytes)\n", bs, len(bs))
 
 	backE := decodeEmbeddedPtrs(bs)
@@ -29,7 +29,7 @@ func main() {
 		backE.Ptr1 == backE.Ptr2 && backE.Ptr1 == backE.Ptr3)
 
 	var nilPtrs TwoPtrs
-	bs = binco.Encode(MakeTwoPtrsSer(), nilPtrs)
+	bs = binco.Encode(MakeTwoPtrsSerializer(), nilPtrs)
 	fmt.Printf("\nnil pointers: %v\n", bs)
 	back = decodeTwoPtrs(bs)
 	fmt.Printf("  decoded nil: %v, %v\n", back.Ptr1 == nil, back.Ptr2 == nil)
@@ -50,7 +50,7 @@ func NewEmbeddedPtrs(s string) EmbeddedPtrs {
 }
 
 func decodeTwoPtrs(bs []byte) TwoPtrs {
-	v, err := binco.Decode(MakeTwoPtrsSer(), bs)
+	v, err := binco.Decode(MakeTwoPtrsSerializer(), bs)
 	if err != nil {
 		panic(err)
 	}
@@ -58,7 +58,7 @@ func decodeTwoPtrs(bs []byte) TwoPtrs {
 }
 
 func decodeEmbeddedPtrs(bs []byte) EmbeddedPtrs {
-	v, err := binco.Decode(MakeEmbeddedPtrsSer(), bs)
+	v, err := binco.Decode(MakeEmbeddedPtrsSerializer(), bs)
 	if err != nil {
 		panic(err)
 	}

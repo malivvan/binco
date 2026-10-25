@@ -1,0 +1,52 @@
+{{/* spec.StructType */}}
+{{- $v := Serializer.Val . }}
+{{- $serializerVar := Serializer.Var .FullName }}
+{{- $serializerType := Serializer.Type .FullName }}
+{{- $Type := Serializer.RelName .FullName }}
+{{- $mslp := Tmpl.MarshalSignatureLastParam .Gops }}
+{{- $uslp := Tmpl.UnmarshalSignatureLastParam .Gops }}
+{{- $td := . }}
+
+var {{ $serializerVar }} = {{ $serializerType }}{}
+
+type {{ $serializerType }} struct{}
+
+func (s {{ $serializerType }}) Marshal({{ $v }} {{ $Type }}, {{ $mslp }}) (n int {{ if .Gops.Stream }} , err error {{ end }}) {
+	{{- if eq (len .SerializedFields) 0}}
+		return
+	{{- else }}
+		{{- range $i, $f := .SerializedFields }}
+			{{- Tmpl.Include "field_marshal.tmpl" (Serializer.FieldTmplPipe $td $f $i .Gops) }}		
+		{{- end }}
+	{{- end }}
+}
+
+func (s {{ $serializerType }}) Unmarshal({{ $uslp }}) ({{ $v }} {{ $Type }}, n int, err error) {
+	{{- range $i, $f := .SerializedFields }}
+		{{- Tmpl.Include "field_unmarshal.tmpl" (Serializer.FieldTmplPipe $td $f $i .Gops) }}		
+	{{- end }}
+  {{- if ne .Sops.Validator "" }}
+	  if err != nil {
+			return
+		}
+    err = {{ .Sops.Validator }}({{ $v }})
+  {{- end }}
+	return
+}
+
+func (s {{ $serializerType }}) Size({{ $v }} {{ $Type }}) (size int) {
+	{{- if eq (len .Fields) 0}}
+		return
+	{{- else }}
+		{{- range $i, $f := .SerializedFields }}
+			{{- Tmpl.Include "field_size.tmpl" (Serializer.FieldTmplPipe $td $f $i .Gops) }}		
+		{{- end }}
+	{{- end }}
+}
+
+func (s {{ $serializerType }}) Skip({{ $uslp }}) (n int, err error) {
+	{{- range $i, $f := .SerializedFields }}
+		{{- Tmpl.Include "field_skip.tmpl" (Serializer.FieldTmplPipe $td $f $i .Gops) }}		
+	{{- end }}
+	return
+}

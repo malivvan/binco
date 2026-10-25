@@ -7,19 +7,19 @@ import (
 	"github.com/malivvan/binco/wirefmt/varnum"
 )
 
-// NewMapSer returns a map serializer for keySer and valueSer.
-func NewMapSer[T comparable, V any](keySer wirefmt.Serializer[T],
-	valueSer wirefmt.Serializer[V], opts ...mapopts.SetOption[T, V],
+// NewMapSerializer returns a map serializer that encodes keys with keySerializer and values with valueSerializer.
+func NewMapSerializer[T comparable, V any](keySerializer wirefmt.Serializer[T],
+	valueSerializer wirefmt.Serializer[V], opts ...mapopts.SetOption[T, V],
 ) dictCodec[T, V] {
 	o := mapopts.Options[T, V]{}
 	mapopts.Apply(opts, &o)
 
-	return newDictCodec(keySer, valueSer, o)
+	return newDictCodec(keySerializer, valueSerializer, o)
 }
 
-// NewValidMapSer returns a map serializer that runs its length, key and value validators while decoding.
-func NewValidMapSer[T comparable, V any](keySer wirefmt.Serializer[T],
-	valueSer wirefmt.Serializer[V], opts ...mapopts.SetOption[T, V],
+// NewValidMapSerializer returns a map serializer that runs its length, key and value validators while decoding.
+func NewValidMapSerializer[T comparable, V any](keySerializer wirefmt.Serializer[T],
+	valueSerializer wirefmt.Serializer[V], opts ...mapopts.SetOption[T, V],
 ) checkedDict[T, V] {
 	o := mapopts.Options[T, V]{}
 	mapopts.Apply(opts, &o)
@@ -41,42 +41,42 @@ func NewValidMapSer[T comparable, V any](keySer wirefmt.Serializer[T],
 	}
 
 	return checkedDict[T, V]{
-		dictCodec: newDictCodec(keySer, valueSer, o),
+		dictCodec: newDictCodec(keySerializer, valueSerializer, o),
 		lenVl:     lenVl,
 		keyVl:     keyVl,
 		valueVl:   valueVl,
 	}
 }
 
-func newDictCodec[T comparable, V any](keySer wirefmt.Serializer[T],
-	valueSer wirefmt.Serializer[V], o mapopts.Options[T, V],
+func newDictCodec[T comparable, V any](keySerializer wirefmt.Serializer[T],
+	valueSerializer wirefmt.Serializer[V], o mapopts.Options[T, V],
 ) dictCodec[T, V] {
-	var lenSer wirefmt.Serializer[int] = varnum.PositiveInt
-	if o.LenSer != nil {
-		lenSer = o.LenSer
+	var lenSerializer wirefmt.Serializer[int] = varnum.PositiveInt
+	if o.LenSerializer != nil {
+		lenSerializer = o.LenSerializer
 	}
-	return dictCodec[T, V]{lenSer, keySer, valueSer}
+	return dictCodec[T, V]{lenSerializer, keySerializer, valueSerializer}
 }
 
 type dictCodec[T comparable, V any] struct {
-	lenSer wirefmt.Serializer[int]
-	keySer wirefmt.Serializer[T]
-	valSer wirefmt.Serializer[V]
+	lenSerializer wirefmt.Serializer[int]
+	keySerializer wirefmt.Serializer[T]
+	valSerializer wirefmt.Serializer[V]
 }
 
 func (s dictCodec[T, V]) Marshal(v map[T]V, w wirefmt.Writer) (n int, err error) {
-	n, err = s.lenSer.Marshal(len(v), w)
+	n, err = s.lenSerializer.Marshal(len(v), w)
 	if err != nil {
 		return
 	}
 	var n1 int
 	for k, v := range v {
-		n1, err = s.keySer.Marshal(k, w)
+		n1, err = s.keySerializer.Marshal(k, w)
 		n += n1
 		if err != nil {
 			return
 		}
-		n1, err = s.valSer.Marshal(v, w)
+		n1, err = s.valSerializer.Marshal(v, w)
 		n += n1
 		if err != nil {
 			return
@@ -86,7 +86,7 @@ func (s dictCodec[T, V]) Marshal(v map[T]V, w wirefmt.Writer) (n int, err error)
 }
 
 func (s dictCodec[T, V]) Unmarshal(r wirefmt.Reader) (v map[T]V, n int, err error) {
-	length, n, err := s.lenSer.Unmarshal(r)
+	length, n, err := s.lenSerializer.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -102,12 +102,12 @@ func (s dictCodec[T, V]) Unmarshal(r wirefmt.Reader) (v map[T]V, n int, err erro
 
 	v = make(map[T]V, length)
 	for range length {
-		k, n1, err = s.keySer.Unmarshal(r)
+		k, n1, err = s.keySerializer.Unmarshal(r)
 		n += n1
 		if err != nil {
 			return
 		}
-		p, n1, err = s.valSer.Unmarshal(r)
+		p, n1, err = s.valSerializer.Unmarshal(r)
 		n += n1
 		if err != nil {
 			return
@@ -118,10 +118,10 @@ func (s dictCodec[T, V]) Unmarshal(r wirefmt.Reader) (v map[T]V, n int, err erro
 }
 
 func (s dictCodec[T, V]) Size(v map[T]V) (size int) {
-	size = s.lenSer.Size(len(v))
+	size = s.lenSerializer.Size(len(v))
 	for k, v := range v {
-		size += s.keySer.Size(k)
-		size += s.valSer.Size(v)
+		size += s.keySerializer.Size(k)
+		size += s.valSerializer.Size(v)
 	}
 	return
 }
@@ -129,7 +129,7 @@ func (s dictCodec[T, V]) Size(v map[T]V) (size int) {
 func (s dictCodec[T, V]) Skip(r wirefmt.Reader) (
 	n int, err error,
 ) {
-	length, n, err := s.lenSer.Unmarshal(r)
+	length, n, err := s.lenSerializer.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -139,12 +139,12 @@ func (s dictCodec[T, V]) Skip(r wirefmt.Reader) (
 	}
 	var n1 int
 	for range length {
-		n1, err = s.keySer.Skip(r)
+		n1, err = s.keySerializer.Skip(r)
 		n += n1
 		if err != nil {
 			return
 		}
-		n1, err = s.valSer.Skip(r)
+		n1, err = s.valSerializer.Skip(r)
 		n += n1
 		if err != nil {
 			return
@@ -163,7 +163,7 @@ type checkedDict[T comparable, V any] struct {
 func (s checkedDict[T, V]) Unmarshal(r wirefmt.Reader) (v map[T]V, n int,
 	err error,
 ) {
-	length, n, err := s.lenSer.Unmarshal(r)
+	length, n, err := s.lenSerializer.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -184,7 +184,7 @@ func (s checkedDict[T, V]) Unmarshal(r wirefmt.Reader) (v map[T]V, n int,
 	}
 	v = make(map[T]V, length)
 	for range length {
-		k, n1, err = s.keySer.Unmarshal(r)
+		k, n1, err = s.keySerializer.Unmarshal(r)
 		n += n1
 		if err != nil {
 			return
@@ -194,7 +194,7 @@ func (s checkedDict[T, V]) Unmarshal(r wirefmt.Reader) (v map[T]V, n int,
 				return
 			}
 		}
-		p, n1, err = s.valSer.Unmarshal(r)
+		p, n1, err = s.valSerializer.Unmarshal(r)
 		n += n1
 		if err != nil {
 			return

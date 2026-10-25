@@ -72,7 +72,7 @@ func receive(r wirefmt.Reader) (stats, error) {
 	var st stats
 	for {
 
-		dtm, n, err := wtypeid.DTMSer.Unmarshal(r)
+		dtm, n, err := wtypeid.DTMSerializer.Unmarshal(r)
 		if errors.Is(err, io.EOF) {
 			return st, nil
 		}
@@ -132,7 +132,7 @@ type unknownMessage struct{}
 
 func (unknownMessage) writeTo(w wirefmt.Writer) (n int, err error) {
 
-	if n, err = wtypeid.DTMSer.Marshal(binco.DTM(99), w); err != nil {
+	if n, err = wtypeid.DTMSerializer.Marshal(binco.DTM(99), w); err != nil {
 		return
 	}
 	var n1 int

@@ -26,7 +26,7 @@ const (
 // TimeUnit selects the unit and the UTC handling of a timestamp.
 type TimeUnit int
 
-func (u TimeUnit) Ser() string {
+func (u TimeUnit) Serializer() string {
 	switch u {
 	case TimeUnitSec:
 		return "TimeUnix"

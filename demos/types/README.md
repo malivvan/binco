@@ -11,13 +11,13 @@ Serializing arrays, slices, maps and structs.
 Every example follows the same shape:
 
 ```go
-size := ser.Size(v)          // exact number of bytes
+size := serializer.Size(v)          // exact number of bytes
 bs := make([]byte, size)     // allocate once
-n := ser.Marshal(v, bs)      // no allocation inside Marshal
-v, n, err := ser.Unmarshal(bs)
+n := serializer.Marshal(v, bs)      // no allocation inside Marshal
+v, n, err := serializer.Unmarshal(bs)
 ```
 
-`binco.Encode(ser, v)` and `binco.Decode(ser, bs)` are shorthands that allocate
+`binco.Encode(serializer, v)` and `binco.Decode(serializer, bs)` are shorthands that allocate
 for you; use them when buffer reuse does not matter.
 
 ## array
@@ -46,7 +46,7 @@ nil=true → len=0, nil=false
 nil=false → len=0, nil=false
 ```
 
-The length is a positive varint by default. `slopts.WithLenSer` replaces it, for
+The length is a positive varint by default. `slopts.WithLenSerializer` replaces it, for
 example with the fixed-width `scalar.Int`. A nil slice and an empty slice encode
 identically and decode to an empty, non-nil slice.
 

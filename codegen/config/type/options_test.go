@@ -21,18 +21,18 @@ func TestNumEncoding(t *testing.T) {
 		if got := tc.enc.Package(); got != tc.pkg {
 			t.Fatalf("%v.Package() = %q, want %q", tc.enc, got, tc.pkg)
 		}
-		if got := tc.enc.LenSer(); got != tc.lenS {
-			t.Fatalf("%v.LenSer() = %q, want %q", tc.enc, got, tc.lenS)
+		if got := tc.enc.LenSerializer(); got != tc.lenS {
+			t.Fatalf("%v.LenSerializer() = %q, want %q", tc.enc, got, tc.lenS)
 		}
 	}
 	checkPanics(t, func() { tpopts.NumEncoding(99).Package() })
-	checkPanics(t, func() { tpopts.NumEncoding(99).LenSer() })
+	checkPanics(t, func() { tpopts.NumEncoding(99).LenSerializer() })
 }
 
 func TestTimeUnit(t *testing.T) {
 	tests := []struct {
-		unit tpopts.TimeUnit
-		ser  string
+		unit       tpopts.TimeUnit
+		serializer string
 	}{
 		{tpopts.TimeUnitSec, "TimeUnix"},
 		{tpopts.TimeUnitMilli, "TimeUnixMilli"},
@@ -44,11 +44,11 @@ func TestTimeUnit(t *testing.T) {
 		{tpopts.TimeUnitNanoUTC, "TimeUnixNanoUTC"},
 	}
 	for _, tc := range tests {
-		if got := tc.unit.Ser(); got != tc.ser {
-			t.Fatalf("%v.Ser() = %q, want %q", tc.unit, got, tc.ser)
+		if got := tc.unit.Serializer(); got != tc.serializer {
+			t.Fatalf("%v.Serializer() = %q, want %q", tc.unit, got, tc.serializer)
 		}
 	}
-	checkPanics(t, func() { tpopts.TimeUnit(99).Ser() })
+	checkPanics(t, func() { tpopts.TimeUnit(99).Serializer() })
 }
 
 func TestOptions(t *testing.T) {

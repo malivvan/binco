@@ -33,7 +33,7 @@ func main() {
 		return nil
 	})
 
-	ser := composite.NewValidSliceSer(
+	serializer := composite.NewValidSliceSerializer(
 		composite.String,
 		slopts.WithLenValidator[string](lenVl),
 		slopts.WithElemValidator[string](elemVl),
@@ -45,8 +45,8 @@ func main() {
 		{"hello", ""},
 	}
 	for _, value := range values {
-		bs := binco.Encode(ser, value)
-		got, _, err := ser.Unmarshal(bs)
+		bs := binco.Encode(serializer, value)
+		got, _, err := serializer.Unmarshal(bs)
 		if err != nil {
 			fmt.Printf("%-28s → rejected: %v\n", render(value), err)
 			continue
@@ -54,7 +54,7 @@ func main() {
 		fmt.Printf("%-28s → accepted: %s\n", render(value), render(got))
 	}
 
-	n, err := ser.Skip(binco.Encode(ser, values[1]))
+	n, err := serializer.Skip(binco.Encode(serializer, values[1]))
 	if err != nil {
 		panic(err)
 	}

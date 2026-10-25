@@ -27,7 +27,7 @@ Bar reader got a Foo payload: expected 2, actual 1
 DTM prefix: 1 (1 byte), data: [10]
 ```
 
-`typeid.NewSer(dtm, ser)` returns a serializer that reads and writes `DTM + data`.
+`typeid.NewSerializer(dtm, serializer)` returns a serializer that reads and writes `DTM + data`.
 It implements `binco.Serializer`, so it composes like any other serializer.
 `Unmarshal` checks the DTM and returns `binco.WrongDTMError` when the payload
 belongs to another type; `UnmarshalData` reads only the data when the caller has
@@ -45,7 +45,7 @@ skipped 3 of 3 bytes
 unknown instruction: unexpected instruction: binco: unexpected DTM 99
 ```
 
-`InstructionSer` marshals through `binco.MarshallerTyped`, so the implementations
+`InstructionSerializer` marshals through `binco.MarshallerTyped`, so the implementations
 own their encoding and adding one requires no change to the interface
 serializer. Unmarshalling needs the DTM → serializer table, because the concrete
 type is unknown until the DTM has been read.

@@ -1,0 +1,7 @@
+{{/* spec.Type */}}
+{{- $typedSerializerVar := Serializer.TypedVar .FullName }}
+{{- $dtmVar := Serializer.DTMVar .FullName }}
+{{- $serializerVar := Serializer.Var .FullName }}
+{{- $type := Serializer.RelName .FullName }}
+
+var {{ $typedSerializerVar }} = typeid.NewSerializer({{ $dtmVar }}, {{ $serializerVar }})

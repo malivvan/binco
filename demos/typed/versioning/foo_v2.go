@@ -5,9 +5,9 @@ type FooV2 struct {
 }
 
 func (v FooV2) MarshalTypedBinco(bs []byte) (n int) {
-	return FooV2TypedSer.Marshal(v, bs)
+	return FooV2TypedSerializer.Marshal(v, bs)
 }
 
 func (v FooV2) SizeTypedBinco() (size int) {
-	return FooV2TypedSer.Size(v)
+	return FooV2TypedSerializer.Size(v)
 }

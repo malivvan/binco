@@ -13,31 +13,31 @@ import (
 	"github.com/malivvan/binco/codegen/typename"
 )
 
-// SerFns answers the naming questions the templates ask: how a serializer, a typed serializer or a type identifier is named, and which codec a Go type maps to.
-type SerFns struct {
-	converter    cnvtr.TypeNameConverter
-	builder      TypeBuilder
-	foreignTypes map[typename.FullName]struct{}
-	serNames     map[typename.FullName]string
-	utilFns      TmplFns
-	gopts        genopts.Options
+// SerializerFns answers the naming questions the templates ask: how a serializer, a typed serializer or a type identifier is named, and which codec a Go type maps to.
+type SerializerFns struct {
+	converter       cnvtr.TypeNameConverter
+	builder         TypeBuilder
+	foreignTypes    map[typename.FullName]struct{}
+	serializerNames map[typename.FullName]string
+	utilFns         TmplFns
+	gopts           genopts.Options
 }
 
-func (f SerFns) lowerFirst(str string) string {
+func (f SerializerFns) lowerFirst(str string) string {
 	r := []rune(str)
 	r[0] = unicode.ToLower(r[0])
 	return string(r)
 }
 
-func (f SerFns) upperFirst(str string) string {
+func (f SerializerFns) upperFirst(str string) string {
 	r := []rune(str)
 	r[0] = unicode.ToUpper(r[0])
 	return string(r)
 }
 
-func (f SerFns) codecName(name typename.FullName) string {
-	if serName, pst := f.serNames[name]; pst {
-		return serName
+func (f SerializerFns) codecName(name typename.FullName) string {
+	if serializerName, pst := f.serializerNames[name]; pst {
+		return serializerName
 	}
 	var rname typename.RelativeName
 	if _, pst := f.foreignTypes[name]; pst {
@@ -48,15 +48,15 @@ func (f SerFns) codecName(name typename.FullName) string {
 	return rname.WithoutSquares()
 }
 
-func (f SerFns) MapOpts(anonType spec.AnonType) string {
+func (f SerializerFns) MapOpts(anonType spec.AnonType) string {
 	var (
 		b        = strings.Builder{}
 		keyType  = f.converter.ConvertToRelativeName(anonType.KeyType)
 		elemType = f.converter.ConvertToRelativeName(anonType.ElemType)
 	)
-	if anonType.LenSer != "" && anonType.LenSer != "nil" {
-		fmt.Fprintf(&b, "mapopts.WithLenSer[%v, %v](%v)", keyType, elemType,
-			anonType.LenSer)
+	if anonType.LenSerializer != "" && anonType.LenSerializer != "nil" {
+		fmt.Fprintf(&b, "mapopts.WithLenSerializer[%v, %v](%v)", keyType, elemType,
+			anonType.LenSerializer)
 	}
 	if anonType.LenVl != "" && anonType.LenVl != "nil" {
 		if b.Len() > 0 {
@@ -81,13 +81,13 @@ func (f SerFns) MapOpts(anonType spec.AnonType) string {
 	return b.String()
 }
 
-func (f SerFns) SliceOpts(anonType spec.AnonType) string {
+func (f SerializerFns) SliceOpts(anonType spec.AnonType) string {
 	var (
 		b        = strings.Builder{}
 		elemType = f.converter.ConvertToRelativeName(anonType.ElemType)
 	)
-	if anonType.LenSer != "" && anonType.LenSer != "nil" {
-		fmt.Fprintf(&b, "slopts.WithLenSer[%v](%v)", elemType, anonType.LenSer)
+	if anonType.LenSerializer != "" && anonType.LenSerializer != "nil" {
+		fmt.Fprintf(&b, "slopts.WithLenSerializer[%v](%v)", elemType, anonType.LenSerializer)
 	}
 	if anonType.LenVl != "" && anonType.LenVl != "nil" {
 		if b.Len() > 0 {
@@ -104,10 +104,10 @@ func (f SerFns) SliceOpts(anonType spec.AnonType) string {
 	return b.String()
 }
 
-func (f SerFns) ByteSliceOpts(anonType spec.AnonType) string {
+func (f SerializerFns) ByteSliceOpts(anonType spec.AnonType) string {
 	b := strings.Builder{}
-	if anonType.LenSer != "" && anonType.LenSer != "nil" {
-		fmt.Fprintf(&b, "bslopts.WithLenSer(%v)", anonType.LenSer)
+	if anonType.LenSerializer != "" && anonType.LenSerializer != "nil" {
+		fmt.Fprintf(&b, "bslopts.WithLenSerializer(%v)", anonType.LenSerializer)
 	}
 	if anonType.LenVl != "" && anonType.LenVl != "nil" {
 		if b.Len() > 0 {
@@ -118,13 +118,13 @@ func (f SerFns) ByteSliceOpts(anonType spec.AnonType) string {
 	return b.String()
 }
 
-func (f SerFns) ArrayOpts(anonType spec.AnonType) string {
+func (f SerializerFns) ArrayOpts(anonType spec.AnonType) string {
 	var (
 		b        = strings.Builder{}
 		elemType = f.converter.ConvertToRelativeName(anonType.ElemType)
 	)
-	if anonType.LenSer != "" && anonType.LenSer != "nil" {
-		fmt.Fprintf(&b, "arropts.WithLenSer[%v](%v)", elemType, anonType.LenSer)
+	if anonType.LenSerializer != "" && anonType.LenSerializer != "nil" {
+		fmt.Fprintf(&b, "arropts.WithLenSerializer[%v](%v)", elemType, anonType.LenSerializer)
 	}
 	if anonType.ElemVl != "" && anonType.ElemVl != "nil" {
 		if b.Len() > 0 {
@@ -135,10 +135,10 @@ func (f SerFns) ArrayOpts(anonType spec.AnonType) string {
 	return b.String()
 }
 
-func (f SerFns) StringOpts(anonData spec.AnonType) string {
+func (f SerializerFns) StringOpts(anonData spec.AnonType) string {
 	b := strings.Builder{}
-	if anonData.LenSer != "" && anonData.LenSer != "nil" {
-		fmt.Fprintf(&b, "stropts.WithLenSer(%v)", anonData.LenSer)
+	if anonData.LenSerializer != "" && anonData.LenSerializer != "nil" {
+		fmt.Fprintf(&b, "stropts.WithLenSerializer(%v)", anonData.LenSerializer)
 	}
 	if anonData.LenVl != "" && anonData.LenVl != "nil" {
 		if b.Len() > 0 {
@@ -149,7 +149,7 @@ func (f SerFns) StringOpts(anonData spec.AnonType) string {
 	return b.String()
 }
 
-func (f SerFns) FieldTmplPipe(structType spec.StructType,
+func (f SerializerFns) FieldTmplPipe(structType spec.StructType,
 	fieldType spec.FieldType, index int, opts genopts.Options) FieldTmplPipe {
 	pipe := FieldTmplPipe{
 		Val:         f.Val(structType),
@@ -164,19 +164,19 @@ func (f SerFns) FieldTmplPipe(structType spec.StructType,
 	return pipe
 }
 
-func (f SerFns) RelName(name typename.FullName) string {
+func (f SerializerFns) RelName(name typename.FullName) string {
 	return string(f.converter.ConvertToRelativeName(name))
 }
 
-func (f SerFns) Elem(anonType spec.AnonType, opts genopts.Options) string {
+func (f SerializerFns) Elem(anonType spec.AnonType, opts genopts.Options) string {
 	return f.Of(anonType.ElemType, tpopts.Options{}, opts)
 }
 
-func (f SerFns) Key(anonType spec.AnonType, opts genopts.Options) string {
+func (f SerializerFns) Key(anonType spec.AnonType, opts genopts.Options) string {
 	return f.Of(anonType.KeyType, tpopts.Options{}, opts)
 }
 
-func (f SerFns) Of(fullName typename.FullName, tops tpopts.Options,
+func (f SerializerFns) Of(fullName typename.FullName, tops tpopts.Options,
 	opts genopts.Options,
 ) string {
 	anonType, ok, err := f.builder.BuildAnonType(fullName, tops)
@@ -184,12 +184,12 @@ func (f SerFns) Of(fullName typename.FullName, tops tpopts.Options,
 		panic(fmt.Sprintf("can't get serializer for the %v, cause %v", fullName, err))
 	}
 	if ok {
-		return string(anonType.SerName)
+		return string(anonType.SerializerName)
 	}
 	var (
-		pkg     string
-		serName string
-		rules   map[string]string
+		pkg            string
+		serializerName string
+		rules          map[string]string
 	)
 
 	switch opts.Mode {
@@ -207,69 +207,69 @@ func (f SerFns) Of(fullName typename.FullName, tops tpopts.Options,
 
 	switch fullName {
 	case "int", "int64", "int32", "int16", "int8":
-		serName = f.upperFirst(string(fullName))
+		serializerName = f.upperFirst(string(fullName))
 		if tops.NumEncoding == tpopts.NumEncodingVarintPositive {
-			serName = "Positive" + serName
+			serializerName = "Positive" + serializerName
 		}
 	case "uint", "uint64", "uint32", "uint16", "uint8", "float64", "float32", "byte":
-		serName = f.upperFirst(string(fullName))
+		serializerName = f.upperFirst(string(fullName))
 	case "bool", "string":
-		serName = f.upperFirst(string(fullName))
+		serializerName = f.upperFirst(string(fullName))
 	case "[]byte", "[]uint8":
-		serName = "ByteSlice"
+		serializerName = "ByteSlice"
 	case "time.Time":
-		serName = rules["time_ser"]
+		serializerName = rules["time_serializer"]
 	default:
 		panic(fmt.Sprintf("internal bug: unpredicted case %v", fullName))
 	}
-	return pkg + "." + serName
+	return pkg + "." + serializerName
 }
 
-func (f SerFns) Val(tp any) string {
+func (f SerializerFns) Val(tp any) string {
 	return "v"
 }
 
-func (f SerFns) Type(fullName typename.FullName) string {
+func (f SerializerFns) Type(fullName typename.FullName) string {
 	return f.lowerFirst(f.Var(fullName))
 }
 
-func (f SerFns) DTMVar(fullName typename.FullName) string {
+func (f SerializerFns) DTMVar(fullName typename.FullName) string {
 	return string(f.codecName(fullName)) + SuffixDTM
 }
 
-func (f SerFns) TypedVar(fullName typename.FullName) string {
+func (f SerializerFns) TypedVar(fullName typename.FullName) string {
 	return string(f.codecName(fullName)) + SuffixTypedBinco
 }
 
-func (f SerFns) Var(name typename.FullName) string {
+func (f SerializerFns) Var(name typename.FullName) string {
 	return string(f.codecName(name)) + SuffixBinco
 }
 
-// NewSerFns prepares the naming helpers for one generator run.
-func NewSerFns(converter cnvtr.TypeNameConverter,
+// NewSerializerFns prepares the naming helpers for one generator run.
+func NewSerializerFns(converter cnvtr.TypeNameConverter,
 	builder TypeBuilder,
 	foreignTypes map[typename.FullName]struct{},
 	utilFns TmplFns,
 	gopts genopts.Options,
-) SerFns {
+) SerializerFns {
 
-	serNames := map[typename.FullName]string{}
-	for t, serName := range gopts.SerNames {
+	serializerNames := map[typename.FullName]string{}
+	for t, serializerName := range gopts.SerializerNames {
 		cname, err := typename.TypeCompleteName(t)
 		if err != nil {
 			panic(err)
 		}
 		fullName := converter.ConvertToFullName(cname)
-		serNames[fullName] = serName
+		serializerNames[fullName] = serializerName
 	}
 
-	return SerFns{
-		converter:    converter,
-		builder:      builder,
-		foreignTypes: foreignTypes,
-		serNames:     serNames,
-		utilFns:      utilFns,
-		gopts:        gopts,
+	return SerializerFns{
+		converter:       converter,
+		builder:         builder,
+		foreignTypes:    foreignTypes,
+		serializerNames: serializerNames,
+		utilFns:         utilFns,
+		gopts:           gopts,
 	}
 }
 

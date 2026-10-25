@@ -19,13 +19,13 @@ func TestApply(t *testing.T) {
 	)
 	o := arropts.Options[int]{}
 	arropts.Apply([]arropts.SetOption[int]{
-		arropts.WithLenSer[int](varnum.PositiveInt),
+		arropts.WithLenSerializer[int](varnum.PositiveInt),
 		arropts.WithElemValidator[int](vl),
 		nil,
 	}, &o)
 
-	if o.LenSer != varnum.PositiveInt {
-		t.Fatal("WithLenSer was not applied")
+	if o.LenSerializer != varnum.PositiveInt {
+		t.Fatal("WithLenSerializer was not applied")
 	}
 	if o.ElemVl == nil {
 		t.Fatal("WithElemValidator was not applied")
@@ -41,7 +41,7 @@ func TestApply(t *testing.T) {
 func TestApplyEmpty(t *testing.T) {
 	o := arropts.Options[int]{}
 	arropts.Apply(nil, &o)
-	if o.LenSer != nil || o.ElemVl != nil {
+	if o.LenSerializer != nil || o.ElemVl != nil {
 		t.Fatalf("empty Apply changed the options: %+v", o)
 	}
 }

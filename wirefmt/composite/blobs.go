@@ -11,41 +11,41 @@ import (
 )
 
 // String serializes a string as a length-prefixed byte sequence.
-var String = NewStringSer()
+var String = NewStringSerializer()
 
-// NewStringSer returns a string serializer whose length codec can be replaced through opts.
-func NewStringSer(opts ...stropts.SetOption) textCodec {
+// NewStringSerializer returns a string serializer whose length codec can be replaced through opts.
+func NewStringSerializer(opts ...stropts.SetOption) textCodec {
 	o := stropts.Options{}
 	stropts.Apply(opts, &o)
 
 	return newTextCodec(o)
 }
 
-// NewValidStringSer returns a string serializer that runs its length validator while decoding.
-func NewValidStringSer(opts ...stropts.SetOption) checkedText {
+// NewValidStringSerializer returns a string serializer that runs its length validator while decoding.
+func NewValidStringSerializer(opts ...stropts.SetOption) checkedText {
 	o := stropts.Options{}
 	stropts.Apply(opts, &o)
 	return checkedText{newTextCodec(o), o.LenVl}
 }
 
 func newTextCodec(o stropts.Options) textCodec {
-	var lenSer wirefmt.Serializer[int] = varnum.PositiveInt
-	if o.LenSer != nil {
-		lenSer = o.LenSer
+	var lenSerializer wirefmt.Serializer[int] = varnum.PositiveInt
+	if o.LenSerializer != nil {
+		lenSerializer = o.LenSerializer
 	}
-	return textCodec{lenSer}
+	return textCodec{lenSerializer}
 }
 
 type textCodec struct {
-	lenSer wirefmt.Serializer[int]
+	lenSerializer wirefmt.Serializer[int]
 }
 
 func (s textCodec) Marshal(v string, w wirefmt.Writer) (n int, err error) {
-	return MarshalString(v, s.lenSer, w)
+	return MarshalString(v, s.lenSerializer, w)
 }
 
 func (s textCodec) Unmarshal(r wirefmt.Reader) (v string, n int, err error) {
-	length, n, err := s.lenSer.Unmarshal(r)
+	length, n, err := s.lenSerializer.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -71,11 +71,11 @@ func (s textCodec) Unmarshal(r wirefmt.Reader) (v string, n int, err error) {
 }
 
 func (s textCodec) Size(v string) (n int) {
-	return SizeString(v, s.lenSer)
+	return SizeString(v, s.lenSerializer)
 }
 
 func (s textCodec) Skip(r wirefmt.Reader) (n int, err error) {
-	return SkipString(r, s.lenSer)
+	return SkipString(r, s.lenSerializer)
 }
 
 type checkedText struct {
@@ -84,7 +84,7 @@ type checkedText struct {
 }
 
 func (s checkedText) Unmarshal(r wirefmt.Reader) (v string, n int, err error) {
-	length, n, err := s.lenSer.Unmarshal(r)
+	length, n, err := s.lenSerializer.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -115,8 +115,8 @@ func (s checkedText) Unmarshal(r wirefmt.Reader) (v string, n int, err error) {
 }
 
 // MarshalString writes v, prefixed by its length, to w.
-func MarshalString(v string, lenSer wirefmt.Serializer[int], w wirefmt.Writer) (n int, err error) {
-	n, err = lenSer.Marshal(len(v), w)
+func MarshalString(v string, lenSerializer wirefmt.Serializer[int], w wirefmt.Writer) (n int, err error) {
+	n, err = lenSerializer.Marshal(len(v), w)
 	if err != nil {
 		return
 	}
@@ -127,14 +127,14 @@ func MarshalString(v string, lenSer wirefmt.Serializer[int], w wirefmt.Writer) (
 }
 
 // SizeString reports the encoded size of v.
-func SizeString(v string, lenSer wirefmt.Serializer[int]) (n int) {
+func SizeString(v string, lenSerializer wirefmt.Serializer[int]) (n int) {
 	length := len(v)
-	return lenSer.Size(length) + length
+	return lenSerializer.Size(length) + length
 }
 
 // SkipString advances over an encoded string.
-func SkipString(r wirefmt.Reader, lenSer wirefmt.Serializer[int]) (n int, err error) {
-	length, n, err := lenSer.Unmarshal(r)
+func SkipString(r wirefmt.Reader, lenSerializer wirefmt.Serializer[int]) (n int, err error) {
+	length, n, err := lenSerializer.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -149,18 +149,18 @@ func SkipString(r wirefmt.Reader, lenSer wirefmt.Serializer[int]) (n int, err er
 }
 
 // ByteSlice serializes a byte slice as a length-prefixed byte sequence.
-var ByteSlice = NewByteSliceSer()
+var ByteSlice = NewByteSliceSerializer()
 
-// NewByteSliceSer returns a byte slice serializer whose length codec can be replaced.
-func NewByteSliceSer(opts ...bslopts.SetOption) blobCodec {
+// NewByteSliceSerializer returns a byte slice serializer whose length codec can be replaced.
+func NewByteSliceSerializer(opts ...bslopts.SetOption) blobCodec {
 	o := bslopts.Options{}
 	bslopts.Apply(opts, &o)
 
 	return newBlobCodec(o)
 }
 
-// NewValidByteSliceSer returns a byte slice serializer that runs its length validator while decoding.
-func NewValidByteSliceSer(opts ...bslopts.SetOption) checkedBlob {
+// NewValidByteSliceSerializer returns a byte slice serializer that runs its length validator while decoding.
+func NewValidByteSliceSerializer(opts ...bslopts.SetOption) checkedBlob {
 	o := bslopts.Options{}
 	bslopts.Apply(opts, &o)
 
@@ -172,21 +172,21 @@ func NewValidByteSliceSer(opts ...bslopts.SetOption) checkedBlob {
 }
 
 func newBlobCodec(o bslopts.Options) blobCodec {
-	var lenSer wirefmt.Serializer[int] = varnum.PositiveInt
-	if o.LenSer != nil {
-		lenSer = o.LenSer
+	var lenSerializer wirefmt.Serializer[int] = varnum.PositiveInt
+	if o.LenSerializer != nil {
+		lenSerializer = o.LenSerializer
 	}
-	return blobCodec{lenSer}
+	return blobCodec{lenSerializer}
 }
 
 type blobCodec struct {
-	lenSer wirefmt.Serializer[int]
+	lenSerializer wirefmt.Serializer[int]
 }
 
 func (s blobCodec) Marshal(v []byte, w wirefmt.Writer) (
 	n int, err error,
 ) {
-	n, err = s.lenSer.Marshal(len(v), w)
+	n, err = s.lenSerializer.Marshal(len(v), w)
 	if err != nil {
 		return
 	}
@@ -196,7 +196,7 @@ func (s blobCodec) Marshal(v []byte, w wirefmt.Writer) (
 }
 
 func (s blobCodec) Unmarshal(r wirefmt.Reader) (v []byte, n int, err error) {
-	length, n, err := s.lenSer.Unmarshal(r)
+	length, n, err := s.lenSerializer.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -213,11 +213,11 @@ func (s blobCodec) Unmarshal(r wirefmt.Reader) (v []byte, n int, err error) {
 
 func (s blobCodec) Size(v []byte) (size int) {
 	length := len(v)
-	return s.lenSer.Size(length) + length
+	return s.lenSerializer.Size(length) + length
 }
 
 func (s blobCodec) Skip(r wirefmt.Reader) (n int, err error) {
-	length, n, err := s.lenSer.Unmarshal(r)
+	length, n, err := s.lenSerializer.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -237,7 +237,7 @@ type checkedBlob struct {
 }
 
 func (s checkedBlob) Unmarshal(r wirefmt.Reader) (v []byte, n int, err error) {
-	length, n, err := s.lenSer.Unmarshal(r)
+	length, n, err := s.lenSerializer.Unmarshal(r)
 	if err != nil {
 		return
 	}

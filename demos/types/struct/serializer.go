@@ -1,4 +1,4 @@
-// FooSer is a hand-written codec; the generated code in examples/gen has the same shape.
+// FooSerializer is a hand-written codec; the generated code in examples/gen has the same shape.
 package main
 
 import (
@@ -7,20 +7,20 @@ import (
 )
 
 var (
-	FooSer  = fooSer{}
-	intsSer = composite.NewSliceSer(varnum.Int)
+	FooSerializer  = fooSerializer{}
+	intsSerializer = composite.NewSliceSerializer(varnum.Int)
 )
 
-type fooSer struct{}
+type fooSerializer struct{}
 
-func (s fooSer) Marshal(v Foo, bs []byte) (n int) {
+func (s fooSerializer) Marshal(v Foo, bs []byte) (n int) {
 
 	n = composite.String.Marshal(v.Str, bs)
 
-	return n + intsSer.Marshal(v.Sl, bs[n:])
+	return n + intsSerializer.Marshal(v.Sl, bs[n:])
 }
 
-func (s fooSer) Unmarshal(bs []byte) (v Foo, n int, err error) {
+func (s fooSerializer) Unmarshal(bs []byte) (v Foo, n int, err error) {
 
 	v.Str, n, err = composite.String.Unmarshal(bs)
 	if err != nil {
@@ -28,30 +28,30 @@ func (s fooSer) Unmarshal(bs []byte) (v Foo, n int, err error) {
 	}
 
 	var n1 int
-	v.Sl, n1, err = intsSer.Unmarshal(bs[n:])
+	v.Sl, n1, err = intsSerializer.Unmarshal(bs[n:])
 
 	n += n1
 	return
 }
 
-func (s fooSer) Size(v Foo) (size int) {
-	return composite.String.Size(v.Str) + intsSer.Size(v.Sl)
+func (s fooSerializer) Size(v Foo) (size int) {
+	return composite.String.Size(v.Str) + intsSerializer.Size(v.Sl)
 }
 
-func (s fooSer) Skip(bs []byte) (n int, err error) {
+func (s fooSerializer) Skip(bs []byte) (n int, err error) {
 	n, err = composite.String.Skip(bs)
 	if err != nil {
 		return
 	}
 	var n1 int
-	n1, err = intsSer.Skip(bs[n:])
+	n1, err = intsSerializer.Skip(bs[n:])
 	return n + n1, err
 }
 
 func (f Foo) MarshalBinco(bs []byte) (n int) {
-	return FooSer.Marshal(f, bs)
+	return FooSerializer.Marshal(f, bs)
 }
 
 func (f Foo) SizeBinco() (size int) {
-	return FooSer.Size(f)
+	return FooSerializer.Size(f)
 }

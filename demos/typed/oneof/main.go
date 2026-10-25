@@ -14,10 +14,10 @@ func main() {
 		Insert{Str: "hello world"},
 	}
 	for _, v := range values {
-		bs := binco.Encode(InstructionSer, v)
+		bs := binco.Encode(InstructionSerializer, v)
 		fmt.Printf("marshaled %T %+v → %v (%d bytes)\n", v, v, bs, len(bs))
 
-		back, n, err := InstructionSer.Unmarshal(bs)
+		back, n, err := InstructionSerializer.Unmarshal(bs)
 		if err != nil {
 			panic(err)
 		}
@@ -26,15 +26,15 @@ func main() {
 	}
 
 	var copyIns Instruction = Copy{Start: 1, End: 2}
-	bs := binco.Encode(InstructionSer, copyIns)
-	n, err := InstructionSer.Skip(bs)
+	bs := binco.Encode(InstructionSerializer, copyIns)
+	n, err := InstructionSerializer.Skip(bs)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("\nskipped %d of %d bytes\n", n, len(bs))
 
 	unknown := append([]byte{99}, bs[1:]...)
-	if _, _, err = InstructionSer.Unmarshal(unknown); err != nil {
+	if _, _, err = InstructionSerializer.Unmarshal(unknown); err != nil {
 		fmt.Printf("unknown instruction: %v\n", err)
 	}
 }

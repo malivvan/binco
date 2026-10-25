@@ -8,17 +8,17 @@ import (
 	"github.com/malivvan/binco/wirefmt/varnum"
 )
 
-// NewPtrSer returns a pointer serializer that writes the pointed-to data once and refers to it by identifier afterwards.
-func NewPtrSer[T any](ptrMap *binco.PtrMap, revPtrMap *binco.ReversePtrMap,
-	baseSer wirefmt.Serializer[T],
+// NewPtrSerializer returns a pointer serializer that writes the pointed-to data once and refers to it by identifier afterwards.
+func NewPtrSerializer[T any](ptrMap *binco.PtrMap, revPtrMap *binco.ReversePtrMap,
+	baseSerializer wirefmt.Serializer[T],
 ) ptrCodec[T] {
-	return ptrCodec[T]{ptrMap, revPtrMap, baseSer}
+	return ptrCodec[T]{ptrMap, revPtrMap, baseSerializer}
 }
 
 type ptrCodec[T any] struct {
-	ptrMap    *binco.PtrMap
-	revPtrMap *binco.ReversePtrMap
-	baseSer   wirefmt.Serializer[T]
+	ptrMap         *binco.PtrMap
+	revPtrMap      *binco.ReversePtrMap
+	baseSerializer wirefmt.Serializer[T]
 }
 
 func (s ptrCodec[T]) Marshal(v *T, w wirefmt.Writer) (n int, err error) {
@@ -43,7 +43,7 @@ func (s ptrCodec[T]) Marshal(v *T, w wirefmt.Writer) (n int, err error) {
 		return
 	}
 	if newOne {
-		n1, err = s.baseSer.Marshal(*v, w)
+		n1, err = s.baseSerializer.Marshal(*v, w)
 		n += n1
 	}
 	return
@@ -88,7 +88,7 @@ func (s ptrCodec[T]) Size(v *T) (size int) {
 		id, newOne := idFor(unsafe.Pointer(v), s.ptrMap)
 		size += varnum.PositiveInt.Size(id)
 		if newOne {
-			return size + s.baseSer.Size(*v)
+			return size + s.baseSerializer.Size(*v)
 		} else {
 			return
 		}
@@ -121,7 +121,7 @@ func (s ptrCodec[T]) Skip(r wirefmt.Reader) (n int,
 		_, pst := s.revPtrMap.Get(id)
 		if !pst {
 			s.revPtrMap.Put(id, nil)
-			n1, err = s.baseSer.Skip(r)
+			n1, err = s.baseSerializer.Skip(r)
 			n += n1
 			if err != nil {
 				return
@@ -139,7 +139,7 @@ func (s ptrCodec[T]) unmarshalData(id int, r wirefmt.Reader) (v *T, n int, err e
 	var n1 int
 
 	s.revPtrMap.Put(id, unsafe.Pointer(&k))
-	k, n1, err = s.baseSer.Unmarshal(r)
+	k, n1, err = s.baseSerializer.Unmarshal(r)
 	n += n1
 	if err != nil {
 		return

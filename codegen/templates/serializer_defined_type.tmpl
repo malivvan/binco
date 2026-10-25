@@ -1,0 +1,43 @@
+{{/* spec.DefinedType */}}
+{{- $v := Serializer.Val . }}
+{{- $serializerVar := Serializer.Var .FullName }}
+{{- $serializerType := Serializer.Type .FullName }}
+{{- $type := Serializer.RelName .FullName}}
+{{- $fieldSerializer := Serializer.Of .UnderlyingTypeName .Tops .Gops }}
+{{- $mslp := Tmpl.MarshalSignatureLastParam .Gops }}
+{{- $mlp := Tmpl.MarshalLastParam true .Gops }}
+{{- $uslp := Tmpl.UnmarshalSignatureLastParam .Gops }}
+{{- $ulp := Tmpl.UnmarshalLastParam true .Gops }}
+
+{{- $ft := Serializer.RelName .UnderlyingTypeName }}
+{{- if Tmpl.PtrType .UnderlyingTypeName }}
+  {{- $ft = print "(" (Serializer.RelName .UnderlyingTypeName) ")" }}
+{{- end }}
+
+var {{ $serializerVar }} = {{ $serializerType }}{}
+
+type {{ $serializerType }} struct{}
+
+func (s {{ $serializerType }}) Marshal({{ $v }} {{ $type }}, {{ $mslp }}) (n int {{ if .Gops.Stream }} , err error {{ end }}) {
+  return {{ $fieldSerializer }}.Marshal({{ $ft }}({{ $v }}), {{ $mlp }})
+}
+
+func (s {{ $serializerType }}) Unmarshal({{ $uslp }}) ({{ $v }} {{ $type }}, n int, err error) {
+  tmp, n, err := {{ $fieldSerializer }}.Unmarshal({{ $ulp }})
+    if err != nil {
+      return
+    }
+  {{ $v }} = {{ $type }}(tmp)
+  {{- if ne .Tops.Validator "" }}
+    err = {{ .Tops.Validator }}({{ $v }})
+  {{- end }}
+  return
+}
+
+func (s {{ $serializerType }}) Size({{ $v }} {{ $type }}) (size int) {
+  return {{ $fieldSerializer }}.Size({{ $ft }}({{ $v }}))
+}
+
+func (s {{ $serializerType }}) Skip({{ $uslp }}) (n int, err error) {
+  return {{ $fieldSerializer }}.Skip({{ $ulp }})
+}

@@ -1,6 +1,6 @@
 # Pointer mapping (ptrmap)
 
-A plain pointer serializer (`composite.NewPtrSer`) writes every pointer by value. That
+A plain pointer serializer (`composite.NewPtrSerializer`) writes every pointer by value. That
 cannot represent shared references (each copy is written again) and cannot
 represent cycles at all. A `ptrmap` pointer serializer assigns an ID to every pointer
 and writes the pointed-to data only the first time the ID occurs:
@@ -24,10 +24,10 @@ restored exactly.
 var (
 	ptrMap    = binco.NewPtrMap()
 	revPtrMap = binco.NewReversePtrMap()
-	nodePtr   = ptrmap.NewPtrSer(ptrMap, revPtrMap, nodeSer) // *Node
+	nodePtr   = ptrmap.NewPtrSerializer(ptrMap, revPtrMap, nodeSerializer) // *Node
 )
 
-var NodeSer = ptrmap.Wrap(ptrMap, revPtrMap, nodePtr) // clears the maps per call
+var NodeSerializer = ptrmap.Wrap(ptrMap, revPtrMap, nodePtr) // clears the maps per call
 ```
 
 Three rules:
@@ -89,8 +89,8 @@ edge 3→1 → vertex 1: true
 
 This is the hardest case: a vertex points at its edges and every edge points
 back at a vertex, so the serializer graph itself is cyclic
-(`vertexSer → edgeSer → vertexSer`). The serializers are wired through variables
-that are assigned at the end of `newGraphSer`. Each vertex reached through an
+(`vertexSerializer → edgeSerializer → vertexSerializer`). The serializers are wired through variables
+that are assigned at the end of `newGraphSerializer`. Each vertex reached through an
 edge is recognized as the vertex stored in `Vertices` - the identity checks after
 decoding prove it.
 
@@ -98,5 +98,5 @@ decoding prove it.
 
 Pointer mapping costs a map lookup per pointer and adds an ID to every pointer on
 the wire. If your data is a tree without shared references, the plain
-`composite.NewPtrSer` is smaller and faster. Use `ptrmap` for linked lists, trees with
+`composite.NewPtrSerializer` is smaller and faster. Use `ptrmap` for linked lists, trees with
 parent pointers, graphs, and any structure where two fields may alias.

@@ -39,7 +39,7 @@ go run ./demos/gen        # uses it
 
 ```go
 g, err := codegen.NewGenerator(
-	genopts.WithPkgPath("github.com/malivvan/binco/demos/gen/pkg"),
+	genopts.WithPath("github.com/malivvan/binco/demos/gen/pkg"),
 )
 if err != nil {
 	log.Fatal(err)
@@ -56,7 +56,7 @@ if err != nil {
 os.WriteFile("./pkg/binco.gen.go", bs, 0o644)
 ```
 
-`WithPkgPath` is the only required option: it is the import path of the package
+`WithPath` is the only required option: it is the import path of the package
 the generated file belongs to, and usually the `reflect.Type.PkgPath()` of one of
 the types.
 
@@ -75,7 +75,7 @@ func (s fooBinco) Skip(bs []byte) (n int, err error)
 ```
 
 Naming: the serializer variable is `<Type>Binco`, a DTM constant would be
-`<Type>DTM`, and a typed serializer `<Type>TypedBinco`. Use `genopts.WithSerName`
+`<Type>DTM`, and a typed serializer `<Type>TypedBinco`. Use `genopts.WithSerializer`
 to change it (see [gen_options](../gen_options)).
 
 ## Related

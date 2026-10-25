@@ -71,9 +71,9 @@ func main() {
 	fmt.Printf("zerocpy.Uint64 round trips: %s\n", strings.Join(parts, ", "))
 
 	arr := [3]int32{7, 8, 9}
-	arrSer := zerocpy.NewArraySer[[3]int32, int32](scalar.Int32)
-	arrBS := binco.Encode(arrSer, arr)
-	gotArr, _, err := arrSer.Unmarshal(arrBS)
+	arrSerializer := zerocpy.NewArraySerializer[[3]int32, int32](scalar.Int32)
+	arrBS := binco.Encode(arrSerializer, arr)
+	gotArr, _, err := arrSerializer.Unmarshal(arrBS)
 	if err != nil {
 		panic(err)
 	}

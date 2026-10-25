@@ -10,46 +10,46 @@ import (
 const FooDTM binco.DTM = 1
 
 var (
-	FooSer = fooSer{}
-	BarSer = barSer{}
+	FooSerializer = fooSerializer{}
+	BarSerializer = barSerializer{}
 
-	FooTypedSer = typeid.NewSer[Foo](FooDTM, FooSer)
+	FooTypedSerializer = typeid.NewSerializer[Foo](FooDTM, FooSerializer)
 )
 
-type fooSer struct{}
+type fooSerializer struct{}
 
-func (fooSer) Marshal(v Foo, bs []byte) (n int) {
+func (fooSerializer) Marshal(v Foo, bs []byte) (n int) {
 	return varnum.Int.Marshal(v.Num, bs)
 }
 
-func (fooSer) Unmarshal(bs []byte) (v Foo, n int, err error) {
+func (fooSerializer) Unmarshal(bs []byte) (v Foo, n int, err error) {
 	v.Num, n, err = varnum.Int.Unmarshal(bs)
 	return
 }
 
-func (fooSer) Size(v Foo) (size int) {
+func (fooSerializer) Size(v Foo) (size int) {
 	return varnum.Int.Size(v.Num)
 }
 
-func (fooSer) Skip(bs []byte) (n int, err error) {
+func (fooSerializer) Skip(bs []byte) (n int, err error) {
 	return varnum.Int.Skip(bs)
 }
 
-type barSer struct{}
+type barSerializer struct{}
 
-func (barSer) Marshal(v Bar, bs []byte) (n int) {
+func (barSerializer) Marshal(v Bar, bs []byte) (n int) {
 	return composite.String.Marshal(v.Str, bs)
 }
 
-func (barSer) Unmarshal(bs []byte) (v Bar, n int, err error) {
+func (barSerializer) Unmarshal(bs []byte) (v Bar, n int, err error) {
 	v.Str, n, err = composite.String.Unmarshal(bs)
 	return
 }
 
-func (barSer) Size(v Bar) (size int) {
+func (barSerializer) Size(v Bar) (size int) {
 	return composite.String.Size(v.Str)
 }
 
-func (barSer) Skip(bs []byte) (n int, err error) {
+func (barSerializer) Skip(bs []byte) (n int, err error) {
 	return composite.String.Skip(bs)
 }

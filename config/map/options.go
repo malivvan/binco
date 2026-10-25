@@ -7,18 +7,18 @@ import (
 
 // Options collects the codecs and validators a serializer accepts.
 type Options[T, V any] struct {
-	LenSer  binco.Serializer[int]
-	LenVl   binco.Validator[int]
-	KeyVl   binco.Validator[T]
-	ValueVl binco.Validator[V]
+	LenSerializer binco.Serializer[int]
+	LenVl         binco.Validator[int]
+	KeyVl         binco.Validator[T]
+	ValueVl       binco.Validator[V]
 }
 
 // SetOption changes one field of Options.
 type SetOption[T, V any] func(o *Options[T, V])
 
-// WithLenSer replaces the codec used for the length.
-func WithLenSer[T, V any](lenSer binco.Serializer[int]) SetOption[T, V] {
-	return func(o *Options[T, V]) { o.LenSer = lenSer }
+// WithLenSerializer replaces the codec used for the length.
+func WithLenSerializer[T, V any](lenSerializer binco.Serializer[int]) SetOption[T, V] {
+	return func(o *Options[T, V]) { o.LenSerializer = lenSerializer }
 }
 
 // WithLenValidator sets the validator called with the decoded length.

@@ -27,7 +27,7 @@ type Generator struct {
 	rootTmpl     *template.Template
 	builder      bldr.TypeBuilder
 	foreignTypes map[typename.FullName]struct{}
-	anonTypes    map[spec.AnonSerName]spec.AnonType
+	anonTypes    map[spec.AnonSerializerName]spec.AnonType
 	queue        []queued
 	dtmGroups    [][]string
 	scratch      []byte
@@ -89,7 +89,7 @@ func (g *Generator) generateSerializers() (scratch []byte) {
 
 func (g *Generator) generateAnonymosDefinitions() (scratch []byte) {
 	return g.render(anonDefinitionsTmpl, struct {
-		Map map[spec.AnonSerName]spec.AnonType
+		Map map[spec.AnonSerializerName]spec.AnonType
 		Ops genops.Options
 	}{
 		Map: g.anonTypes,
@@ -115,7 +115,7 @@ func (g *Generator) addStructUnderlyingTime(t reflect.Type, sops stopts.Options)
 		return
 	}
 	g.markForeign(t, definedType.FullName)
-	g.queue = append(g.queue, queued{definedTypeSerTmpl, definedType})
+	g.queue = append(g.queue, queued{definedTypeSerializerTmpl, definedType})
 	return
 }
 
@@ -226,7 +226,7 @@ func (g *Generator) AddVersioned(t reflect.Type, opts ...veropts.SetOption) (
 		return
 	}
 	g.markForeign(t, versionedType.FullName)
-	g.queue = append(g.queue, queued{versionedSerTmpl, versionedType})
+	g.queue = append(g.queue, queued{versionedSerializerTmpl, versionedType})
 	return nil
 }
 
@@ -240,7 +240,7 @@ func (g *Generator) AddInterface(t reflect.Type, opts ...intropts.SetOption) (
 		return
 	}
 	g.markForeign(t, interfaceType.FullName)
-	g.queue = append(g.queue, queued{interfaceSerTmpl, interfaceType})
+	g.queue = append(g.queue, queued{interfaceSerializerTmpl, interfaceType})
 	return
 }
 
@@ -253,7 +253,7 @@ func (g *Generator) AddTyped(t reflect.Type, opts ...tpopts.SetOption) (
 	if err != nil {
 		return
 	}
-	g.queue = append(g.queue, queued{typedSerTmpl, tp})
+	g.queue = append(g.queue, queued{typedSerializerTmpl, tp})
 	return
 }
 
@@ -279,7 +279,7 @@ func (g *Generator) AddStruct(t reflect.Type, opts ...stopts.SetOption) (
 		}
 	}
 	g.markForeign(t, structType.FullName)
-	g.queue = append(g.queue, queued{structSerTmpl, structType})
+	g.queue = append(g.queue, queued{structSerializerTmpl, structType})
 	return
 }
 
@@ -297,11 +297,11 @@ func (g *Generator) AddDefinedType(t reflect.Type, opts ...tpopts.SetOption) (
 		g.anonTypes, tops); err != nil {
 		return
 	}
-	g.queue = append(g.queue, queued{definedTypeSerTmpl, definedType})
+	g.queue = append(g.queue, queued{definedTypeSerializerTmpl, definedType})
 	return
 }
 
-// NewGenerator returns a Generator configured by opts. Only WithPkgPath is required.
+// NewGenerator returns a Generator configured by opts. Only WithPath is required.
 func NewGenerator(opts ...genops.SetOption) (g *Generator, err error) {
 	settings := genops.New()
 	if err = genops.Apply(opts, &settings); err != nil {
@@ -322,7 +322,7 @@ func NewGenerator(opts ...genops.SetOption) (g *Generator, err error) {
 		rootTmpl:     rootTmpl,
 		builder:      builder,
 		foreignTypes: foreignTypes,
-		anonTypes:    map[spec.AnonSerName]spec.AnonType{},
+		anonTypes:    map[spec.AnonSerializerName]spec.AnonType{},
 		queue:        []queued{},
 		scratch:      []byte{},
 		opts:         settings,
@@ -354,15 +354,15 @@ func registerFns(builder bldr.TypeBuilder, converter cnvtr.TypeNameConverter,
 	gopts genops.Options,
 ) {
 	var (
-		tmplFns = TmplFns{tmpl: tmpl}
-		serFns  = NewSerFns(converter, builder, foreignTypes, tmplFns, gopts)
+		tmplFns       = TmplFns{tmpl: tmpl}
+		serializerFns = NewSerializerFns(converter, builder, foreignTypes, tmplFns, gopts)
 	)
 	m := map[string]any{}
 	m["Tmpl"] = func() TmplFns {
 		return tmplFns
 	}
-	m["Ser"] = func() SerFns {
-		return serFns
+	m["Serializer"] = func() SerializerFns {
+		return serializerFns
 	}
 	tmpl.Funcs(m)
 }

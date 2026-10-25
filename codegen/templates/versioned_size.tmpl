@@ -1,5 +1,5 @@
 {{/* spec.VersionedType */}}
-{{- $val := Ser.Val . }}
+{{- $val := Serializer.Val . }}
 {{- $curr := "" }}
 {{- range $i, $e := .Versions }}
     {{- $vopt := index $.Vops.Versions $i }}
@@ -7,4 +7,4 @@
         {{- $curr = $e }}
     {{- end }}
 {{- end }}
-return {{ Ser.TypedVar $curr }}.Size({{ Ser.RelName $curr }}({{ $val }}))
+return {{ Serializer.TypedVar $curr }}.Size({{ Serializer.RelName $curr }}({{ $val }}))

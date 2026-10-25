@@ -11,29 +11,29 @@ import (
 )
 
 // String serializes a string. Decoding returns a string that shares memory with the input buffer.
-var String = NewStringSer()
+var String = NewStringSerializer()
 
-// NewStringSer returns a string serializer whose length codec can be replaced through opts.
-func NewStringSer(opts ...stropts.SetOption) textView {
+// NewStringSerializer returns a string serializer whose length codec can be replaced through opts.
+func NewStringSerializer(opts ...stropts.SetOption) textView {
 	o := stropts.Options{}
 	stropts.Apply(opts, &o)
 
 	return newTextView(o)
 }
 
-// NewValidStringSer returns a string serializer that runs its length validator while decoding.
-func NewValidStringSer(opts ...stropts.SetOption) checkedText {
+// NewValidStringSerializer returns a string serializer that runs its length validator while decoding.
+func NewValidStringSerializer(opts ...stropts.SetOption) checkedText {
 	o := stropts.Options{}
 	stropts.Apply(opts, &o)
 	return checkedText{newTextView(o), o.LenVl}
 }
 
 func newTextView(o stropts.Options) textView {
-	var lenSer binco.Serializer[int] = varnum.PositiveInt
-	if o.LenSer != nil {
-		lenSer = o.LenSer
+	var lenSerializer binco.Serializer[int] = varnum.PositiveInt
+	if o.LenSerializer != nil {
+		lenSerializer = o.LenSerializer
 	}
-	return textView{lenSer}
+	return textView{lenSerializer}
 }
 
 type textView struct {
@@ -103,18 +103,18 @@ func (s checkedText) Unmarshal(bs []byte) (v string, n int, err error) {
 }
 
 // ByteSlice serializes a byte slice. Decoding returns a slice that shares memory with the input buffer.
-var ByteSlice = NewByteSliceSer()
+var ByteSlice = NewByteSliceSerializer()
 
-// NewByteSliceSer returns a byte slice serializer whose length codec can be replaced.
-func NewByteSliceSer(opts ...bslopts.SetOption) blobView {
+// NewByteSliceSerializer returns a byte slice serializer whose length codec can be replaced.
+func NewByteSliceSerializer(opts ...bslopts.SetOption) blobView {
 	o := bslopts.Options{}
 	bslopts.Apply(opts, &o)
 
 	return newBlobView(o)
 }
 
-// NewValidByteSliceSer returns a byte slice serializer that runs its length validator while decoding.
-func NewValidByteSliceSer(opts ...bslopts.SetOption) checkedBlob {
+// NewValidByteSliceSerializer returns a byte slice serializer that runs its length validator while decoding.
+func NewValidByteSliceSerializer(opts ...bslopts.SetOption) checkedBlob {
 	o := bslopts.Options{}
 	bslopts.Apply(opts, &o)
 
@@ -126,23 +126,23 @@ func NewValidByteSliceSer(opts ...bslopts.SetOption) checkedBlob {
 }
 
 func newBlobView(o bslopts.Options) blobView {
-	var lenSer binco.Serializer[int] = varnum.PositiveInt
-	if o.LenSer != nil {
-		lenSer = o.LenSer
+	var lenSerializer binco.Serializer[int] = varnum.PositiveInt
+	if o.LenSerializer != nil {
+		lenSerializer = o.LenSerializer
 	}
-	return blobView{lenSer}
+	return blobView{lenSerializer}
 }
 
 type blobView struct {
-	lenSer binco.Serializer[int]
+	lenSerializer binco.Serializer[int]
 }
 
 func (s blobView) Marshal(v []byte, bs []byte) (n int) {
-	return composite.MarshalByteSlice(v, s.lenSer, bs)
+	return composite.MarshalByteSlice(v, s.lenSerializer, bs)
 }
 
 func (s blobView) Unmarshal(bs []byte) (v []byte, n int, err error) {
-	length, n, err := s.lenSer.Unmarshal(bs)
+	length, n, err := s.lenSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
@@ -162,11 +162,11 @@ func (s blobView) Unmarshal(bs []byte) (v []byte, n int, err error) {
 }
 
 func (s blobView) Size(v []byte) (size int) {
-	return composite.SizeByteSlice(v, s.lenSer)
+	return composite.SizeByteSlice(v, s.lenSerializer)
 }
 
 func (s blobView) Skip(bs []byte) (n int, err error) {
-	return composite.SkipByteSlice(s.lenSer, bs)
+	return composite.SkipByteSlice(s.lenSerializer, bs)
 }
 
 type checkedBlob struct {
@@ -175,7 +175,7 @@ type checkedBlob struct {
 }
 
 func (s checkedBlob) Unmarshal(bs []byte) (v []byte, n int, err error) {
-	length, n, err := s.lenSer.Unmarshal(bs)
+	length, n, err := s.lenSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}

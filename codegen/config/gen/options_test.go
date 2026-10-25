@@ -9,15 +9,15 @@ import (
 
 func TestNew(t *testing.T) {
 	o := genopts.New()
-	if o.SerNames == nil || o.ImportAliases() == nil {
+	if o.SerializerNames == nil || o.ImportAliases() == nil {
 		t.Fatal("New did not initialize the internal maps")
 	}
 }
 
 func TestOptions(t *testing.T) {
 	o := genopts.New()
-	if err := genopts.WithPkgPath("github.com/user/project")(&o); err != nil {
-		t.Fatalf("WithPkgPath: %v", err)
+	if err := genopts.WithPath("github.com/user/project")(&o); err != nil {
+		t.Fatalf("WithPath: %v", err)
 	}
 	if o.PkgPath != "github.com/user/project" || o.Package != "project" {
 		t.Fatalf("unexpected options %+v", o)
@@ -28,8 +28,8 @@ func TestOptions(t *testing.T) {
 	if o.Package != "custom" {
 		t.Fatalf("Package = %q", o.Package)
 	}
-	if err := genopts.WithPkgPath("not a path")(&o); err == nil {
-		t.Fatal("WithPkgPath accepted an invalid path")
+	if err := genopts.WithPath("not a path")(&o); err == nil {
+		t.Fatal("WithPath accepted an invalid path")
 	}
 	if err := genopts.WithPackage("not a package")(&o); err == nil {
 		t.Fatal("WithPackage accepted an invalid name")
@@ -59,11 +59,11 @@ func TestOptions(t *testing.T) {
 	}
 
 	intType := reflect.TypeFor[int]()
-	if err := genopts.WithSerName(intType, "IntSer")(&o); err != nil {
-		t.Fatalf("WithSerName: %v", err)
+	if err := genopts.WithSerializer(intType, "IntSerializer")(&o); err != nil {
+		t.Fatalf("WithSerializer: %v", err)
 	}
-	if o.SerNames[intType] != "IntSer" {
-		t.Fatalf("SerNames = %v", o.SerNames)
+	if o.SerializerNames[intType] != "IntSerializer" {
+		t.Fatalf("SerializerNames = %v", o.SerializerNames)
 	}
 
 	if err := genopts.WithUnsafe()(&o); err != nil || o.Mode != genopts.ModeUnsafe {
@@ -91,7 +91,7 @@ func TestValidate(t *testing.T) {
 func TestApply(t *testing.T) {
 	o := genopts.New()
 	ops := []genopts.SetOption{
-		genopts.WithPkgPath("github.com/user/project"),
+		genopts.WithPath("github.com/user/project"),
 		genopts.WithStream(),
 		nil,
 	}
@@ -108,7 +108,7 @@ func TestApply(t *testing.T) {
 
 	o = genopts.New()
 	ops = []genopts.SetOption{
-		genopts.WithPkgPath("github.com/user/project"),
+		genopts.WithPath("github.com/user/project"),
 		genopts.WithImportAlias("fmt", "project"),
 	}
 	if err := genopts.Apply(ops, &o); err == nil {
@@ -117,7 +117,7 @@ func TestApply(t *testing.T) {
 
 	o = genopts.New()
 	if err := genopts.Apply([]genopts.SetOption{
-		genopts.WithPkgPath("github.com/user/project"),
+		genopts.WithPath("github.com/user/project"),
 		genopts.WithImport("a b"),
 	}, &o); err == nil {
 		t.Fatal("Apply ignored an invalid import path")

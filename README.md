@@ -1,4 +1,4 @@
-# <img alt="rumo logo" src="binco.png" width="200" style="margin-bottom:-15px;"> [![Go Reference](https://pkg.go.dev/badge/github.com/malivvan/binco.svg)](https://pkg.go.dev/github.com/malivvan/binco) [![Release](https://img.shields.io/github/v/release/malivvan/binco.svg?sort=semver)](https://github.com/malivvan/binco/releases/latest) [![CI](https://github.com/malivvan/binco/actions/workflows/ci.yml/badge.svg)](https://github.com/malivvan/binco/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/github/malivvan/binco/badge.svg)](https://coveralls.io/github/malivvan/binco) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+# binco [![Go Reference](https://pkg.go.dev/badge/github.com/malivvan/binco.svg)](https://pkg.go.dev/github.com/malivvan/binco) [![Release](https://img.shields.io/github/v/release/malivvan/binco.svg?sort=semver)](https://github.com/malivvan/binco/releases/latest) [![CI](https://github.com/malivvan/binco/actions/workflows/ci.yml/badge.svg)](https://github.com/malivvan/binco/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/github/malivvan/binco/badge.svg)](https://coveralls.io/github/malivvan/binco) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
 `binco` is a binary codec toolkit for Go. It gives you codecs for every
 built-in type, a zero-copy fast path, pointer mapping for graphs, type
@@ -226,15 +226,15 @@ type Serializer[T any] interface {
 
 Codecs are values, not functions with hidden state. The exported ones are
 package-level variables (`varnum.Int`, `composite.String`, `scalar.Uint64`,
-`zerocpy.Int32`, ...) and constructors (`composite.NewSliceSer`, `ptrmap.NewPtrSer`,
-`typeid.NewSer`, ...). Because the interface is generic, codecs compose: a slice
+`zerocpy.Int32`, ...) and constructors (`composite.NewSliceSerializer`, `ptrmap.NewPtrSerializer`,
+`typeid.NewSerializer`, ...). Because the interface is generic, codecs compose: a slice
 codec takes an element codec, a map codec takes a key and a value codec, a typed
 codec wraps any of them.
 
 ```go
-ints := composite.NewSliceSer(varnum.Int)                    // []int
-rows := composite.NewSliceSer(composite.NewSliceSer(varnum.Int))   // [][]int
-byName := composite.NewMapSer(composite.String, varnum.Int)        // map[string]int
+ints := composite.NewSliceSerializer(varnum.Int)                               // []int
+rows := composite.NewSliceSerializer(composite.NewSliceSerializer(varnum.Int)) // [][]int
+byName := composite.NewMapSerializer(composite.String, varnum.Int)             // map[string]int
 ```
 
 ### 3.2 Buffers and streams
@@ -364,7 +364,7 @@ type PersonCodec struct{}
 func (PersonCodec) Marshal(v Person, bs []byte) (n int) {
 	n = composite.String.Marshal(v.Name, bs)
 	n += varnum.Int.Marshal(v.Age, bs[n:])
-	return n + composite.NewSliceSer(composite.String).Marshal(v.Tags, bs[n:])
+	return n + composite.NewSliceSerializer(composite.String).Marshal(v.Tags, bs[n:])
 }
 
 func (PersonCodec) Unmarshal(bs []byte) (v Person, n int, err error) {
@@ -378,7 +378,7 @@ func (PersonCodec) Unmarshal(bs []byte) (v Person, n int, err error) {
 	if err != nil {
 		return
 	}
-	v.Tags, n1, err = composite.NewSliceSer(composite.String).Unmarshal(bs[n:])
+	v.Tags, n1, err = composite.NewSliceSerializer(composite.String).Unmarshal(bs[n:])
 	n += n1
 	return
 }
@@ -386,7 +386,7 @@ func (PersonCodec) Unmarshal(bs []byte) (v Person, n int, err error) {
 func (PersonCodec) Size(v Person) (size int) {
 	return composite.String.Size(v.Name) +
 		varnum.Int.Size(v.Age) +
-		composite.NewSliceSer(composite.String).Size(v.Tags)
+		composite.NewSliceSerializer(composite.String).Size(v.Tags)
 }
 
 func (PersonCodec) Skip(bs []byte) (n int, err error) {
@@ -400,16 +400,16 @@ func (PersonCodec) Skip(bs []byte) (n int, err error) {
 	if err != nil {
 		return
 	}
-	n1, err = composite.NewSliceSer(composite.String).Skip(bs[n:])
+	n1, err = composite.NewSliceSerializer(composite.String).Skip(bs[n:])
 	return n + n1, err
 }
 
-var PersonSer = PersonCodec{}
+var PersonSerializer = PersonCodec{}
 
 // Usage:
 p := Person{Name: "ada", Age: 36, Tags: []string{"math", "code"}}
-bs := binco.Encode(PersonSer, p)      // 13 bytes
-back, err := binco.Decode(PersonSer, bs)
+bs := binco.Encode(PersonSerializer, p)      // 13 bytes
+back, err := binco.Decode(PersonSerializer, bs)
 ```
 
 The pattern is always the same: encode field by field into `bs[n:]`, decode
@@ -445,7 +445,7 @@ import (
 )
 
 func main() {
-	g, err := codegen.NewGenerator(genopts.WithPkgPath("example.com/app"))
+	g, err := codegen.NewGenerator(genopts.WithPath("example.com/app"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -642,7 +642,7 @@ A pointer starts with a one-byte flag:
 | `1` | `binco.PtrNil` | nil, nothing follows |
 | `2` | `binco.PtrMapping` | an identifier follows; data only the first time |
 
-The plain pointer codec (`composite.NewPtrSer`) writes flags 0 and 1 and rejects flag 2:
+The plain pointer codec (`composite.NewPtrSerializer`) writes flags 0 and 1 and rejects flag 2:
 
 ```
 nil *string        ->  [1]
@@ -694,7 +694,7 @@ It is written with `varnum.PositiveInt`, so ids below 128 cost one byte. The
 receiver reads the id first and dispatches to the matching codec:
 
 ```go
-dtm, n, err := typeid.DTMSer.Unmarshal(bs)
+dtm, n, err := typeid.DTMSerializer.Unmarshal(bs)
 switch dtm {
 case LoginDTM:
 	// decode the rest with the Login codec
@@ -933,19 +933,19 @@ composite.Bool
 composite.String
 composite.ByteSlice
 
-composite.NewStringSer(opts ...stropts.SetOption)        // string
-composite.NewValidStringSer(opts ...stropts.SetOption)   // string + validation
-composite.NewByteSliceSer(opts ...bslopts.SetOption)     // []byte
-composite.NewValidByteSliceSer(opts ...bslopts.SetOption)
+composite.NewStringSerializer(opts ...stropts.SetOption)        // string
+composite.NewValidStringSerializer(opts ...stropts.SetOption)   // string + validation
+composite.NewByteSliceSerializer(opts ...bslopts.SetOption)     // []byte
+composite.NewValidByteSliceSerializer(opts ...bslopts.SetOption)
 
-composite.NewPtrSer[T any](baseSer binco.Serializer[T])   // *T (flags 0 and 1)
+composite.NewPtrSerializer[T any](baseSerializer binco.Serializer[T])   // *T (flags 0 and 1)
 
-composite.NewSliceSer[T any](elemSer binco.Serializer[T], opts ...slopts.SetOption[T])
-composite.NewValidSliceSer[T any](elemSer binco.Serializer[T], opts ...slopts.SetOption[T])
+composite.NewSliceSerializer[T any](elemSerializer binco.Serializer[T], opts ...slopts.SetOption[T])
+composite.NewValidSliceSerializer[T any](elemSerializer binco.Serializer[T], opts ...slopts.SetOption[T])
 
-composite.NewMapSer[T comparable, V any](keySer binco.Serializer[T], valueSer binco.Serializer[V],
+composite.NewMapSerializer[T comparable, V any](keySerializer binco.Serializer[T], valueSerializer binco.Serializer[V],
 	opts ...mapopts.SetOption[T, V])
-composite.NewValidMapSer[T comparable, V any](keySer binco.Serializer[T], valueSer binco.Serializer[V],
+composite.NewValidMapSerializer[T comparable, V any](keySerializer binco.Serializer[T], valueSerializer binco.Serializer[V],
 	opts ...mapopts.SetOption[T, V])
 ```
 
@@ -975,13 +975,13 @@ zerocpy.Int8 ... zerocpy.Int64, zerocpy.Int
 zerocpy.Float32, zerocpy.Float64
 zerocpy.TimeUnix ... zerocpy.TimeUnixNanoUTC
 
-zerocpy.NewStringSer(opts ...stropts.SetOption)
-zerocpy.NewValidStringSer(opts ...stropts.SetOption)
-zerocpy.NewByteSliceSer(opts ...bslopts.SetOption)
-zerocpy.NewValidByteSliceSer(opts ...bslopts.SetOption)
+zerocpy.NewStringSerializer(opts ...stropts.SetOption)
+zerocpy.NewValidStringSerializer(opts ...stropts.SetOption)
+zerocpy.NewByteSliceSerializer(opts ...bslopts.SetOption)
+zerocpy.NewValidByteSliceSerializer(opts ...bslopts.SetOption)
 
-zerocpy.NewArraySer[T, V any](elemSer binco.Serializer[V], opts ...arropts.SetOption[V])
-zerocpy.NewValidArraySer[T, V any](elemSer binco.Serializer[V], opts ...arropts.SetOption[V])
+zerocpy.NewArraySerializer[T, V any](elemSerializer binco.Serializer[V], opts ...arropts.SetOption[V])
+zerocpy.NewValidArraySerializer[T, V any](elemSerializer binco.Serializer[V], opts ...arropts.SetOption[V])
 ```
 
 Rules:
@@ -1001,7 +1001,7 @@ Pointer mapping: pointer identity, shared references and cycles.
 ```go
 ptrMap, revPtrMap := binco.NewPtrMap(), binco.NewReversePtrMap()
 
-ptrCodec := ptrmap.NewPtrSer(ptrMap, revPtrMap, baseCodec) // *Base
+ptrCodec := ptrmap.NewPtrSerializer(ptrMap, revPtrMap, baseCodec) // *Base
 wrapped := ptrmap.Wrap(ptrMap, revPtrMap, anyCodec)       // resets the maps per call
 ```
 
@@ -1020,15 +1020,15 @@ Wiring rules:
 Type identifiers in front of payloads.
 
 ```go
-typeid.DTMSer                                 // binco.Serializer[binco.DTM]
-typeid.NewSer[T any](dtm binco.DTM, ser binco.Serializer[T]) Ser[T]
+typeid.DTMSerializer                                 // binco.Serializer[binco.DTM]
+typeid.NewSerializer[T any](dtm binco.DTM, serializer binco.Serializer[T]) typeid.Serializer[T]
 
-ser.DTM() binco.DTM
-ser.UnmarshalData(bs []byte) (T, int, error)  // data only
-ser.SkipData(bs []byte) (int, error)
+serializer.DTM() binco.DTM
+serializer.UnmarshalData(bs []byte) (T, int, error)  // data only
+serializer.SkipData(bs []byte) (int, error)
 ```
 
-`Ser[T]` itself implements `binco.Serializer[T]`, so it drops into any position
+`typeid.Serializer[T]` itself implements `binco.Serializer[T]`, so it drops into any position
 where a codec is expected, including inside slices and maps.
 
 ### 7.8 config
@@ -1039,14 +1039,14 @@ own helpers can build option slices.
 
 | Package | Import alias | Options |
 |---------|--------------|---------|
-| `binco/config/array` | `arropts` | `WithLenSer`, `WithElemValidator` |
-| `binco/config/byte_slice` | `bslopts` | `WithLenSer`, `WithLenValidator` |
-| `binco/config/map` | `mapopts` | `WithLenSer`, `WithLenValidator`, `WithKeyValidator`, `WithValueValidator` |
-| `binco/config/slice` | `slopts` | `WithLenSer`, `WithLenValidator`, `WithElemValidator` |
-| `binco/config/string` | `stropts` | `WithLenSer`, `WithLenValidator` |
+| `binco/config/array` | `arropts` | `WithLenSerializer`, `WithElemValidator` |
+| `binco/config/byte_slice` | `bslopts` | `WithLenSerializer`, `WithLenValidator` |
+| `binco/config/map` | `mapopts` | `WithLenSerializer`, `WithLenValidator`, `WithKeyValidator`, `WithValueValidator` |
+| `binco/config/slice` | `slopts` | `WithLenSerializer`, `WithLenValidator`, `WithElemValidator` |
+| `binco/config/string` | `stropts` | `WithLenSerializer`, `WithLenValidator` |
 
 ```go
-bounded := composite.NewValidStringSer(
+bounded := composite.NewValidStringSerializer(
 	stropts.WithLenValidator(binco.ValidatorFn[int](func(n int) error {
 		if n > 64 {
 			return errors.New("string too long")
@@ -1055,7 +1055,7 @@ bounded := composite.NewValidStringSer(
 	})),
 )
 
-fixedLengths := composite.NewSliceSer(varnum.Int, slopts.WithLenSer[int](scalar.Int))
+fixedLengths := composite.NewSliceSerializer(varnum.Int, slopts.WithLenSerializer[int](scalar.Int))
 ```
 
 The streaming tree has the same options under `binco/wirefmt/config/*`.
@@ -1216,7 +1216,7 @@ so `nil` and `""`/`[]byte{}` encode identically and decode to an empty value.
 after a validator accepted it.
 
 ```go
-boundedText := composite.NewValidStringSer(
+boundedText := composite.NewValidStringSerializer(
 	stropts.WithLenValidator(binco.ValidatorFn[int](func(n int) error {
 		if n > 1<<16 {
 			return errors.New("string too long")
@@ -1225,7 +1225,7 @@ boundedText := composite.NewValidStringSer(
 	})),
 )
 
-boundedBlob := composite.NewValidByteSliceSer(
+boundedBlob := composite.NewValidByteSliceSerializer(
 	bslopts.WithLenValidator(binco.ValidatorFn[int](func(n int) error {
 		if n > 1<<20 {
 			return errors.New("blob too large")
@@ -1260,7 +1260,7 @@ type orderCodec struct{}
 
 func (orderCodec) Marshal(v Order, bs []byte) (n int) {
 	n = userIDCodec{}.Marshal(v.ID, bs)
-	n += composite.NewSliceSer[Item](ItemCodec{}).Marshal(v.Items, bs[n:])
+	n += composite.NewSliceSerializer[Item](ItemCodec{}).Marshal(v.Items, bs[n:])
 	n += composite.String.Marshal(v.Note, bs[n:])
 	return n + varnum.Int64.Marshal(v.Total, bs[n:])
 }
@@ -1271,7 +1271,7 @@ func (orderCodec) Unmarshal(bs []byte) (v Order, n int, err error) {
 		return
 	}
 	var n1 int
-	v.Items, n1, err = composite.NewSliceSer[Item](ItemCodec{}).Unmarshal(bs[n:])
+	v.Items, n1, err = composite.NewSliceSerializer[Item](ItemCodec{}).Unmarshal(bs[n:])
 	n += n1
 	if err != nil {
 		return
@@ -1288,7 +1288,7 @@ func (orderCodec) Unmarshal(bs []byte) (v Order, n int, err error) {
 
 func (orderCodec) Size(v Order) (size int) {
 	return userIDCodec{}.Size(v.ID) +
-		composite.NewSliceSer[Item](ItemCodec{}).Size(v.Items) +
+		composite.NewSliceSerializer[Item](ItemCodec{}).Size(v.Items) +
 		composite.String.Size(v.Note) +
 		varnum.Int64.Size(v.Total)
 }
@@ -1299,7 +1299,7 @@ func (orderCodec) Skip(bs []byte) (n int, err error) {
 		return
 	}
 	var n1 int
-	n1, err = composite.NewSliceSer[Item](ItemCodec{}).Skip(bs[n:])
+	n1, err = composite.NewSliceSerializer[Item](ItemCodec{}).Skip(bs[n:])
 	n += n1
 	if err != nil {
 		return
@@ -1361,9 +1361,9 @@ the workflow.
 **Slices**
 
 ```go
-ints := composite.NewSliceSer(varnum.Int)
-names := composite.NewSliceSer(composite.String)
-matrix := composite.NewSliceSer(composite.NewSliceSer(varnum.Int))
+ints := composite.NewSliceSerializer(varnum.Int)
+names := composite.NewSliceSerializer(composite.String)
+matrix := composite.NewSliceSerializer(composite.NewSliceSerializer(varnum.Int))
 
 bs := binco.Encode(names, []string{"hello", "world"})
 // [2 5 104 101 108 108 111 5 119 111 114 108 100]
@@ -1372,18 +1372,18 @@ bs := binco.Encode(names, []string{"hello", "world"})
 **Arrays** need the `zerocpy` package (the length must match the array type):
 
 ```go
-arrSer := zerocpy.NewArraySer[[3]int, int](varnum.Int)
-bs := binco.Encode(arrSer, [3]int{1, 2, 3})   // [3 2 4 6]
+arrSerializer := zerocpy.NewArraySerializer[[3]int, int](varnum.Int)
+bs := binco.Encode(arrSerializer, [3]int{1, 2, 3})   // [3 2 4 6]
 
 // A payload with a different length is rejected:
-_, _, err := arrSer.Unmarshal(binco.Encode(composite.NewSliceSer(varnum.Int), []int{1, 2}))
+_, _, err := arrSerializer.Unmarshal(binco.Encode(composite.NewSliceSerializer(varnum.Int), []int{1, 2}))
 // err: binco: wrong length
 ```
 
 **Maps**
 
 ```go
-byName := composite.NewMapSer(composite.String, varnum.Int)
+byName := composite.NewMapSerializer(composite.String, varnum.Int)
 bs := binco.Encode(byName, map[string]int{"a": 1}) // [1 1 97 2]
 ```
 
@@ -1435,21 +1435,21 @@ func CanonicalMap(m map[string]int) []byte {
 		entries = append(entries, Entry{Key: k, Value: v})
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Key < entries[j].Key })
-	return binco.Encode(composite.NewSliceSer[Entry](entryCodec{}), entries)
+	return binco.Encode(composite.NewSliceSerializer[Entry](entryCodec{}), entries)
 }
 ```
 
 **Sets.** A set is a map with an empty value, or a sorted slice of keys:
 
 ```go
-setSer := composite.NewSliceSer(composite.String) // sorted on the writer side
+setSerializer := composite.NewSliceSerializer(composite.String) // sorted on the writer side
 ```
 
 **Length codecs.** If you need random access over a stream of slices, a
 fixed-width length lets a reader seek:
 
 ```go
-seekable := composite.NewSliceSer(varnum.Int, slopts.WithLenSer[int](scalar.Int))
+seekable := composite.NewSliceSerializer(varnum.Int, slopts.WithLenSerializer[int](scalar.Int))
 ```
 
 ### 8.6 Optional fields and nil
@@ -1465,7 +1465,7 @@ type Profile struct {
 	Bio      string    // always present
 }
 
-var profileSer = composite.NewPtrSer(composite.String) // use for Nickname
+var profileSerializer = composite.NewPtrSerializer(composite.String) // use for Nickname
 ```
 
 A nil pointer costs one byte, a non-nil pointer costs one byte plus the value.
@@ -1496,9 +1496,9 @@ type Shared struct {
 	B *string
 }
 
-func SharedSer() binco.Serializer[Shared] {
+func SharedSerializer() binco.Serializer[Shared] {
 	ptrMap, revPtrMap := binco.NewPtrMap(), binco.NewReversePtrMap()
-	strPtr := ptrmap.NewPtrSer(ptrMap, revPtrMap, composite.String)
+	strPtr := ptrmap.NewPtrSerializer(ptrMap, revPtrMap, composite.String)
 	return ptrmap.Wrap(ptrMap, revPtrMap, sharedCodec{strPtr})
 }
 
@@ -1540,15 +1540,15 @@ func (s sharedCodec) Skip(bs []byte) (n int, err error) {
 ```go
 s := "hello"
 v := Shared{A: &s, B: &s}
-bs := binco.Encode(SharedSer(), v)
-back, _ := binco.Decode(SharedSer(), bs)
+bs := binco.Encode(SharedSerializer(), v)
+back, _ := binco.Decode(SharedSerializer(), bs)
 fmt.Println(back.A == back.B) // true
 ```
 
 The encoded form is `[2 0 5 hello 2 0]`: flag 2, id 0, the value, then flag 2
 and the same id with no data. See [Pointers](#58-pointers).
 
-**When not to use ptrmap.** If your data is a tree with no sharing, `composite.NewPtrSer`
+**When not to use ptrmap.** If your data is a tree with no sharing, `composite.NewPtrSerializer`
 is smaller and faster: no ids, no maps, no bookkeeping.
 
 ### 8.8 Cycles linked lists trees graphs
@@ -1618,26 +1618,26 @@ func (s *elemCodec) Skip(bs []byte) (n int, err error) {
 	return n + n1, err
 }
 
-func ListSer() binco.Serializer[List] {
+func ListSerializer() binco.Serializer[List] {
 	ptrMap, revPtrMap := binco.NewPtrMap(), binco.NewReversePtrMap()
 	codec := &elemCodec{}
-	codec.next = ptrmap.NewPtrSer(ptrMap, revPtrMap, codec)
+	codec.next = ptrmap.NewPtrSerializer(ptrMap, revPtrMap, codec)
 
-	ser := listSer{codec.next}
-	return ptrmap.Wrap(ptrMap, revPtrMap, ser)
+	serializer := listSerializer{codec.next}
+	return ptrmap.Wrap(ptrMap, revPtrMap, serializer)
 }
 
-type listSer struct {
+type listSerializer struct {
 	elemPtr binco.Serializer[*Elem]
 }
 
-func (s listSer) Marshal(v List, bs []byte) (n int) {
+func (s listSerializer) Marshal(v List, bs []byte) (n int) {
 	n = s.elemPtr.Marshal(v.Head, bs)
 	n += s.elemPtr.Marshal(v.Tail, bs[n:])
 	return n + varnum.Int.Marshal(v.Len, bs[n:])
 }
 
-func (s listSer) Unmarshal(bs []byte) (v List, n int, err error) {
+func (s listSerializer) Unmarshal(bs []byte) (v List, n int, err error) {
 	v.Head, n, err = s.elemPtr.Unmarshal(bs)
 	if err != nil {
 		return
@@ -1668,7 +1668,7 @@ type Node struct {
 }
 ```
 
-Use `ptrmap.NewPtrSer` for `Parent` and `Children`; the root has `Parent == nil`.
+Use `ptrmap.NewPtrSerializer` for `Parent` and `Children`; the root has `Parent == nil`.
 
 **Graphs.** Vertices and edges form cycles (edge → vertex → edge). The wiring is
 the interesting part: the codecs refer to each other, so build them with
@@ -1676,17 +1676,17 @@ variables and assign in dependency order:
 
 ```go
 var (
-	edgesSer    binco.Serializer[map[int]*Edge]
-	verticesSer binco.Serializer[map[int]*Vertex]
-	edgePtrSer  binco.Serializer[*Edge]
-	vertexPtrSer binco.Serializer[*Vertex]
+	edgesSerializer    binco.Serializer[map[int]*Edge]
+	verticesSerializer binco.Serializer[map[int]*Vertex]
+	edgePtrSerializer  binco.Serializer[*Edge]
+	vertexPtrSerializer binco.Serializer[*Vertex]
 )
-edge := edgeCodec{vertexPtr: &vertexPtrSer}
-vertex := vertexCodec{edges: &edgesSer}
-edgePtrSer = ptrmap.NewPtrSer(ptrMap, revPtrMap, edge)
-vertexPtrSer = ptrmap.NewPtrSer(ptrMap, revPtrMap, vertex)
-edgesSer = composite.NewMapSer(varnum.Int, edgePtrSer)
-verticesSer = composite.NewMapSer(varnum.Int, vertexPtrSer)
+edge := edgeCodec{vertexPtr: &vertexPtrSerializer}
+vertex := vertexCodec{edges: &edgesSerializer}
+edgePtrSerializer = ptrmap.NewPtrSerializer(ptrMap, revPtrMap, edge)
+vertexPtrSerializer = ptrmap.NewPtrSerializer(ptrMap, revPtrMap, vertex)
+edgesSerializer = composite.NewMapSerializer(varnum.Int, edgePtrSerializer)
+verticesSerializer = composite.NewMapSerializer(varnum.Int, vertexPtrSerializer)
 ```
 
 A runnable version lives in [`demos/pm/graph`](./demos/pm/graph).
@@ -1712,10 +1712,10 @@ type Add struct{ Value int }
 
 func (a Add) Run() string { return "add" }
 
-func (a Add) MarshalTypedBinco(bs []byte) (n int) { return AddSer.Marshal(a, bs) }
-func (a Add) SizeTypedBinco() (size int)           { return AddSer.Size(a) }
+func (a Add) MarshalTypedBinco(bs []byte) (n int) { return AddSerializer.Marshal(a, bs) }
+func (a Add) SizeTypedBinco() (size int)           { return AddSerializer.Size(a) }
 
-var AddSer = typeid.NewSer(AddDTM, addCodec{})
+var AddSerializer = typeid.NewSerializer(AddDTM, addCodec{})
 ```
 
 ```go
@@ -1745,16 +1745,16 @@ read:
 
 ```go
 func (commandCodec) Unmarshal(bs []byte) (v Command, n int, err error) {
-	dtm, n, err := typeid.DTMSer.Unmarshal(bs)
+	dtm, n, err := typeid.DTMSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
 	var n1 int
 	switch dtm {
 	case AddDTM:
-		v, n1, err = AddSer.UnmarshalData(bs[n:])
+		v, n1, err = AddSerializer.UnmarshalData(bs[n:])
 	case RemoveDTM:
-		v, n1, err = RemoveSer.UnmarshalData(bs[n:])
+		v, n1, err = RemoveSerializer.UnmarshalData(bs[n:])
 	default:
 		err = binco.NewUnexpectedDTMError(dtm)
 	}
@@ -1800,11 +1800,11 @@ func MigrateAddV1(v AddV1) AddLatest { return AddLatest{Value: int(v.Value)} }
 type versionedCodec struct{}
 
 func (versionedCodec) Marshal(v AddLatest, bs []byte) (n int) {
-	return AddV2Ser.Marshal(AddV2(v), bs) // always writes the current version
+	return AddV2Serializer.Marshal(AddV2(v), bs) // always writes the current version
 }
 
 func (versionedCodec) Unmarshal(bs []byte) (v AddLatest, n int, err error) {
-	dtm, n, err := typeid.DTMSer.Unmarshal(bs)
+	dtm, n, err := typeid.DTMSerializer.Unmarshal(bs)
 	if err != nil {
 		return
 	}
@@ -1812,14 +1812,14 @@ func (versionedCodec) Unmarshal(bs []byte) (v AddLatest, n int, err error) {
 	switch dtm {
 	case AddV1DTM:
 		var old AddV1
-		old, n1, err = AddV1Ser.UnmarshalData(bs[n:])
+		old, n1, err = AddV1Serializer.UnmarshalData(bs[n:])
 		if err != nil {
 			return
 		}
 		v = MigrateAddV1(old)
 	case AddV2DTM:
 		var cur AddV2
-		cur, n1, err = AddV2Ser.UnmarshalData(bs[n:])
+		cur, n1, err = AddV2Serializer.UnmarshalData(bs[n:])
 		v = AddLatest(cur)
 	default:
 		err = binco.NewUnexpectedDTMError(dtm)
@@ -1877,7 +1877,7 @@ func Serve(conn net.Conn) error {
 	r := bufio.NewReader(conn)
 	w := bufio.NewWriter(conn)
 	for {
-		dtm, _, err := wtypeid.DTMSer.Unmarshal(r)
+		dtm, _, err := wtypeid.DTMSerializer.Unmarshal(r)
 		if errors.Is(err, io.EOF) {
 			return nil // clean end of stream
 		}
@@ -1886,7 +1886,7 @@ func Serve(conn net.Conn) error {
 		}
 		switch dtm {
 		case LoginDTM:
-			msg, n, err := LoginSer.UnmarshalData(r)
+			msg, n, err := LoginSerializer.UnmarshalData(r)
 			if err != nil {
 				return err
 			}
@@ -1898,7 +1898,7 @@ func Serve(conn net.Conn) error {
 			}
 		case UploadDTM:
 			// Known, but not needed: skip the payload without allocating.
-			if _, err := UploadSer.SkipData(r); err != nil {
+			if _, err := UploadSerializer.SkipData(r); err != nil {
 				return err
 			}
 		default:
@@ -1922,7 +1922,7 @@ Three rules that make this robust:
 it (for example to hand it to another goroutine), prefix it with its size:
 
 ```go
-payload := binco.Encode(OrderSer, order)
+payload := binco.Encode(OrderSerializer, order)
 wirefmt.Encode(wvarnum.PositiveInt, conn, len(payload))
 conn.Write(payload)
 ```
@@ -1946,7 +1946,7 @@ var (
 	ErrBadKey   = errors.New("bad key")
 )
 
-boundedText := composite.NewValidStringSer(
+boundedText := composite.NewValidStringSerializer(
 	stropts.WithLenValidator(binco.ValidatorFn[int](func(n int) error {
 		if n > 4096 {
 			return fmt.Errorf("%w: %d", ErrTooLong, n)
@@ -1955,7 +1955,7 @@ boundedText := composite.NewValidStringSer(
 	})),
 )
 
-boundedList := composite.NewValidSliceSer(varnum.Int,
+boundedList := composite.NewValidSliceSerializer(varnum.Int,
 	slopts.WithLenValidator[int](binco.ValidatorFn[int](func(n int) error {
 		if n > 1000 {
 			return ErrTooMany
@@ -1970,7 +1970,7 @@ boundedList := composite.NewValidSliceSer(varnum.Int,
 	})),
 )
 
-boundedMap := composite.NewValidMapSer(composite.String, composite.ByteSlice,
+boundedMap := composite.NewValidMapSerializer(composite.String, composite.ByteSlice,
 	mapopts.WithLenValidator[string, []byte](binco.ValidatorFn[int](func(n int) error {
 		if n > 100 {
 			return ErrTooMany
@@ -2205,13 +2205,13 @@ type treeCodec struct {
 	self *binco.Serializer[Tree] // set after construction
 }
 
-func (c treeCodec) childrenSer() binco.Serializer[[]Tree] {
-	return composite.NewSliceSer(*c.self)
+func (c treeCodec) childrenSerializer() binco.Serializer[[]Tree] {
+	return composite.NewSliceSerializer(*c.self)
 }
 
 func (c treeCodec) Marshal(v Tree, bs []byte) (n int) {
 	n = varnum.Int.Marshal(v.Value, bs)
-	return n + c.childrenSer().Marshal(v.Children, bs[n:])
+	return n + c.childrenSerializer().Marshal(v.Children, bs[n:])
 }
 
 func (c treeCodec) Unmarshal(bs []byte) (v Tree, n int, err error) {
@@ -2220,13 +2220,13 @@ func (c treeCodec) Unmarshal(bs []byte) (v Tree, n int, err error) {
 		return
 	}
 	var n1 int
-	v.Children, n1, err = c.childrenSer().Unmarshal(bs[n:])
+	v.Children, n1, err = c.childrenSerializer().Unmarshal(bs[n:])
 	n += n1
 	return
 }
 
 func (c treeCodec) Size(v Tree) (size int) {
-	return varnum.Int.Size(v.Value) + c.childrenSer().Size(v.Children)
+	return varnum.Int.Size(v.Value) + c.childrenSerializer().Size(v.Children)
 }
 
 func (c treeCodec) Skip(bs []byte) (n int, err error) {
@@ -2235,11 +2235,11 @@ func (c treeCodec) Skip(bs []byte) (n int, err error) {
 		return
 	}
 	var n1 int
-	n1, err = c.childrenSer().Skip(bs[n:])
+	n1, err = c.childrenSerializer().Skip(bs[n:])
 	return n + n1, err
 }
 
-func NewTreeSer() binco.Serializer[Tree] {
+func NewTreeSerializer() binco.Serializer[Tree] {
 	c := &treeCodec{}
 	self := binco.Serializer[Tree](c)
 	c.self = &self
@@ -2255,7 +2255,7 @@ type Pair[A, B any] struct {
 	Second B
 }
 
-func NewPairSer[A, B any](first binco.Serializer[A], second binco.Serializer[B]) binco.Serializer[Pair[A, B]] {
+func NewPairSerializer[A, B any](first binco.Serializer[A], second binco.Serializer[B]) binco.Serializer[Pair[A, B]] {
 	return pairCodec[A, B]{first, second}
 }
 ```
@@ -2292,12 +2292,12 @@ type Encoder struct {
 }
 
 func (e *Encoder) Encode(v Order) []byte {
-	size := OrderSer.Size(v)
+	size := OrderSerializer.Size(v)
 	if cap(e.buf) < size {
 		e.buf = make([]byte, size)
 	}
 	e.buf = e.buf[:size]
-	OrderSer.Marshal(v, e.buf)
+	OrderSerializer.Marshal(v, e.buf)
 	return e.buf // valid until the next call
 }
 ```
@@ -2309,7 +2309,7 @@ before the next call.
 
 ```go
 for _, order := range orders {
-	bs := binco.Encode(OrderSer, order) // one allocation per iteration
+	bs := binco.Encode(OrderSerializer, order) // one allocation per iteration
 	conn.Write(bs)
 }
 ```
@@ -2318,12 +2318,12 @@ is convenient, while
 
 ```go
 for _, order := range orders {
-	size := OrderSer.Size(order)
+	size := OrderSerializer.Size(order)
 	if cap(buf) < size {
 		buf = make([]byte, size)
 	}
 	buf = buf[:size]
-	OrderSer.Marshal(order, buf)
+	OrderSerializer.Marshal(order, buf)
 	conn.Write(buf)
 }
 ```
@@ -2341,12 +2341,12 @@ func writeOrder(w io.Writer, v Order) error {
 	defer bufPool.Put(bp)
 
 	buf := *bp
-	if size := OrderSer.Size(v); cap(buf) < size {
+	if size := OrderSerializer.Size(v); cap(buf) < size {
 		buf = make([]byte, size)
 	} else {
 		buf = buf[:size]
 	}
-	OrderSer.Marshal(v, buf)
+	OrderSerializer.Marshal(v, buf)
 	*bp = buf
 	_, err := w.Write(buf)
 	return err
@@ -2369,8 +2369,8 @@ allocates a new slice each time).
 
   ```go
   func perRequest() binco.Serializer[Graph] {
-  	ptrMap, revPtrMap := binco.NewPtrMap(), binco.NewReversePtrMap()
-  	return ptrmap.Wrap(ptrMap, revPtrMap, newGraphSer(ptrMap, revPtrMap))
+      ptrMap, revPtrMap := binco.NewPtrMap(), binco.NewReversePtrMap()
+      return ptrmap.Wrap(ptrMap, revPtrMap, newGraphSerializer(ptrMap, revPtrMap))
   }
   ```
 
@@ -2541,7 +2541,7 @@ import (
 
 func main() {
 	g, err := codegen.NewGenerator(
-		genopts.WithPkgPath("example.com/app"), // required
+		genopts.WithPath("example.com/app"), // required
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -2580,24 +2580,24 @@ The generated code contains `ItemBinco` and `OrderBinco`, both implementing
 
 ```go
 g, err := codegen.NewGenerator(
-	genopts.WithPkgPath("github.com/user/project/pkg"), // required
-	genopts.WithPackage("pkg"),                         // package name
-	genopts.WithImport("time"),                        // extra import
-	genopts.WithImportAlias("github.com/x/y", "y"),     // extra import + alias
-	genopts.WithSerName(reflect.TypeFor[other.Type](), "other.CustomSer"),
-	genopts.WithStream(),   // generate for io.Writer/io.Reader
-	genopts.WithUnsafe(),   // use the zero-copy codecs
+	genopts.WithPath("github.com/user/project/pkg"), // required
+	genopts.WithPackage("pkg"),                      // package name
+	genopts.WithImport("time"),                      // extra import
+	genopts.WithImportAlias("github.com/x/y", "y"),  // extra import + alias
+	genopts.WithSerializer(reflect.TypeFor[other.Type](), "other.CustomSerializer"),
+	genopts.WithStream(), // generate for io.Writer/io.Reader
+	genopts.WithUnsafe(), // use the zero-copy codecs
 	// genopts.WithNotUnsafe(), // zero-copy except for strings
 )
 ```
 
 | Option | Effect |
 |--------|--------|
-| `WithPkgPath` | import path of the package the generated file belongs to (required) |
+| `WithPath` | import path of the package the generated file belongs to (required) |
 | `WithPackage` | name of that package (default: the last path element) |
 | `WithImport` | add an import path |
 | `WithImportAlias` | add an import path with an alias; also used to resolve cross-package type names |
-| `WithSerName` | custom serializer name for a type (may carry a package) |
+| `WithSerializer` | custom serializer name for a type (may carry a package) |
 | `WithStream` | generate streaming codecs |
 | `WithUnsafe` | generate with `binco/zerocpy` everywhere |
 | `WithNotUnsafe` | generate with `binco/zerocpy`, except for strings |
@@ -2837,16 +2837,16 @@ By default the generator assumes that `bar.Bar`'s serializer lives in package
 
 ```go
 g, _ := codegen.NewGenerator(
-	genopts.WithPkgPath("example.com/foo"),
-	genopts.WithImportAlias("example.com/serializers", "sers"),
-	genopts.WithSerName(reflect.TypeFor[bar.Bar](), "sers.CustomBar"),
+	genopts.WithPath("example.com/foo"),
+	genopts.WithImportAlias("example.com/serializers", "serializers"),
+	genopts.WithSerializer(reflect.TypeFor[bar.Bar](), "serializers.CustomBar"),
 )
 ```
 
-Generated references then use `sers.CustomBarBinco`.
+Generated references then use `serializers.CustomBarBinco`.
 
 To generate a serializer **for** a type from another package, point
-`WithPkgPath` at the destination and add the type as usual. Add `WithImport`
+`WithPath` at the destination and add the type as usual. Add `WithImport`
 when the generated file needs an import the analysis cannot infer (a package
 that only appears inside a validator expression, for example).
 
@@ -2886,7 +2886,7 @@ package.
 | `use the Generator.AddStruct method` | a struct was passed to `AddDefinedType` (or vice versa) |
 | `not enough structops.WithField() calls` | one `WithField` per field, always |
 | generated code refers to a package that does not exist | the target package path is wrong, or the field type needs `WithImportAlias` |
-| `can't get serializer for ...` panic | a field type has no codec; add a defined type, a `WithSerName`, or change the schema |
+| `can't get serializer for ...` panic | a field type has no codec; add a defined type, a `WithSerializer`, or change the schema |
 
 ## 10. Performance guide
 
@@ -2961,7 +2961,7 @@ traffic; measure with your structs rather than synthetic scalars. `go test
 | `binco.ErrUnsupportedIntSize` | the host's `int` is neither 32 nor 64 bits |
 | `binco.ErrUnsupportedArch` | `binco/zerocpy` is used on a big-endian host |
 | `binco.UnexpectedDTMError` | a dispatcher read an unknown type identifier |
-| `binco.WrongDTMError` | `typeid.Ser` read a different identifier than its own |
+| `binco.WrongDTMError` | `typeid.Serializer` read a different identifier than its own |
 | `io.EOF` (streams) | the stream ended cleanly between values |
 | `io.ErrUnexpectedEOF` (streams) | the stream ended inside a value |
 | `ErrCodeGenFailed` (`codegen`) | the generated source does not parse |
@@ -2986,28 +2986,28 @@ bs = binco.Marshal(v)        // v implements binco.Marshaller
 bs = binco.MarshalTyped(v)   // v implements binco.MarshallerTyped
 
 // Without allocation
-bs = make([]byte, ser.Size(v))
-n := ser.Marshal(v, bs)
+bs = make([]byte, serializer.Size(v))
+n := serializer.Marshal(v, bs)
 
 // Containers
-composite.NewSliceSer(varnum.Int)
-composite.NewMapSer(composite.String, varnum.Int)
-composite.NewPtrSer(composite.String)
-zerocpy.NewArraySer[[3]int, int](varnum.Int)
+composite.NewSliceSerializer(varnum.Int)
+composite.NewMapSerializer(composite.String, varnum.Int)
+composite.NewPtrSerializer(composite.String)
+zerocpy.NewArraySerializer[[3]int, int](varnum.Int)
 
 // Validation
-composite.NewValidStringSer(stropts.WithLenValidator(vl))
-composite.NewValidSliceSer(elem, slopts.WithLenValidator[int](vl), slopts.WithElemValidator[int](evl))
-composite.NewValidMapSer(k, v, mapopts.WithLenValidator[K, V](vl), mapopts.WithKeyValidator[K, V](kvl))
+composite.NewValidStringSerializer(stropts.WithLenValidator(vl))
+composite.NewValidSliceSerializer(elem, slopts.WithLenValidator[int](vl), slopts.WithElemValidator[int](evl))
+composite.NewValidMapSerializer(k, v, mapopts.WithLenValidator[K, V](vl), mapopts.WithKeyValidator[K, V](kvl))
 
 // Type identifiers
-typeid.NewSer(MyDTM, myCodec)
-typeid.DTMSer.Unmarshal(bs)
-ser.UnmarshalData(bs) / ser.SkipData(bs)
+typeid.NewSerializer(MyDTM, myCodec)
+typeid.DTMSerializer.Unmarshal(bs)
+serializer.UnmarshalData(bs) / serializer.SkipData(bs)
 
 // Pointer mapping
 ptrMap, revPtrMap := binco.NewPtrMap(), binco.NewReversePtrMap()
-ptrmap.NewPtrSer(ptrMap, revPtrMap, base)
+ptrmap.NewPtrSerializer(ptrMap, revPtrMap, base)
 ptrmap.Wrap(ptrMap, revPtrMap, outer)
 
 // Zero copy
@@ -3021,7 +3021,7 @@ wirefmt.Decode(wcomposite.String, r)
 wirefmt.NewWriter(w) / wirefmt.NewReader(r)
 
 // Generator
-g, err := codegen.NewGenerator(genopts.WithPkgPath(path))
+g, err := codegen.NewGenerator(genopts.WithPath(path))
 g.AddStruct(reflect.TypeFor[T]())
 bs, err := g.Generate()
 ```
@@ -3072,21 +3072,41 @@ The suite covers every codec, buffer/stream byte parity, pointer identity and
 cycles, DTM dispatch, version migration, validators, and it generates, compiles
 and runs serializers for a fixture package in a temporary module.
 
-CI runs `gofmt`, `go vet` and the race-enabled suite on every push and pull
-request, and uploads the coverage profile to
-[Coveralls](https://coveralls.io/github/malivvan/binco). Pushing a `v*` tag runs
-the same tests and publishes a GitHub release.
+### Fuzzing
 
-**Releasing.** Add the `COVERALLS_REPO_TOKEN` repository secret (the Coveralls
-repo token) so coverage uploads work, update [CHANGELOG.md](./CHANGELOG.md),
-then tag the release:
+Fuzz targets are excluded from `go test` by the `fuzz` build tag. Run one
+explicitly:
+
+```bash
+go test -tags=fuzz -run='^$' -fuzz=FuzzUnmarshal -fuzztime=30s ./wirefmt/varnum
+go test -tags=fuzz -run='^$' -fuzz=FuzzString -fuzztime=30s ./wirefmt/composite
+go test -tags=fuzz -run='^$' -fuzz=FuzzScan -fuzztime=30s ./codegen/scanner
+```
+
+The `wirefmt/composite` targets use the validating constructors with a length
+cap. The plain decoders allocate from the decoded length, so a fuzzer must not
+hand them an unbounded length prefix. `TestValidatedLengthsRejectBeforeReading`
+checks that the validators reject an oversized length before any allocation.
+
+Crashers are written under `<package>/testdata/fuzz/<target>`; commit them as
+regression seeds.
+
+CI runs `gofmt`, `go vet`, `golangci-lint`, the race-enabled suite and a short
+run of every fuzz target on every branch push and pull request. Coverage is
+uploaded to [Coveralls](https://coveralls.io/github/malivvan/binco) on pushes.
+(A pull request from a fork cannot read the repository secret.) Pushing a `v*`
+tag runs the same checks and publishes a GitHub release.
+
+**Releasing.** Coverage is uploaded with `shogo82148/actions-goveralls`; the
+`COVERALLS_REPO_TOKEN` repository secret is mapped to `COVERALLS_TOKEN` for
+Coveralls. Update [CHANGELOG.md](./CHANGELOG.md), then tag the release:
 
 ```bash
 git tag v1.0.0
 git push origin v1.0.0
 ```
 
-The release workflow reruns the suite on the tagged commit and creates the
+The CI workflow runs the suite and lint on the tagged commit, then creates the
 GitHub release from the tag.
 
 ## 16. FAQ

@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	stringc7JSCL5ZQZZj4eve6AIhkAΞΞ = composite.NewValidStringSer(stropts.WithLenValidator(binco.ValidatorFn[int](ValidateLength)))
+	stringc7JSCL5ZQZZj4eve6AIhkAΞΞ = composite.NewValidStringSerializer(stropts.WithLenValidator(binco.ValidatorFn[int](ValidateLength)))
 )
 
 var CustomFooBinco = customFooBinco{}

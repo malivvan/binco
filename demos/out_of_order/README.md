@@ -17,12 +17,12 @@ A record is encoded as `ID`, `Name`, `Score`. `Skip` measures a value without
 decoding it, so the offsets of the fields can be computed first:
 
 ```go
-idEnd, _   := idSer.Skip(bs)          // end of ID
-nameEnd, _ := nameSer.Skip(bs[idEnd:]) // end of Name
+idEnd, _   := idSerializer.Skip(bs)          // end of ID
+nameEnd, _ := nameSerializer.Skip(bs[idEnd:]) // end of Name
 
-score, _, _ := scoreSer.Unmarshal(bs[idEnd+nameEnd:]) // last field first
-name, _, _  := nameSer.Unmarshal(bs[idEnd:])
-id, _, _    := idSer.Unmarshal(bs)
+score, _, _ := scoreSerializer.Unmarshal(bs[idEnd+nameEnd:]) // last field first
+name, _, _  := nameSerializer.Unmarshal(bs[idEnd:])
+id, _, _    := idSerializer.Unmarshal(bs)
 ```
 
 This is how a receiver can

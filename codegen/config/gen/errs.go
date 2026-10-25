@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-var ErrEmptyPkgPath = errors.New("option PkgPath is not set")
+var ErrEmptyPkgPath = errors.New("option WithPath is not set")
 
 func NewInvalidImportPathError(val string) error {
 	return fmt.Errorf("invalid '%v' import path", val)

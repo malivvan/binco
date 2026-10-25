@@ -43,7 +43,7 @@ func main() {
 		return nil
 	})
 
-	ser := composite.NewValidMapSer(
+	serializer := composite.NewValidMapSerializer(
 		varnum.Int,
 		composite.String,
 		mapopts.WithLenValidator[int, string](lenVl),
@@ -58,8 +58,8 @@ func main() {
 		{1: ""},
 	}
 	for _, value := range values {
-		bs := binco.Encode(ser, value)
-		got, _, err := ser.Unmarshal(bs)
+		bs := binco.Encode(serializer, value)
+		got, _, err := serializer.Unmarshal(bs)
 		if err != nil {
 			fmt.Printf("%-22s → rejected: %v\n", render(value), err)
 			continue

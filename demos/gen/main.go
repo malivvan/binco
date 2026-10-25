@@ -32,6 +32,6 @@ func main() {
 	}
 	fmt.Printf("skipped: %d bytes\n", n)
 
-	var ser binco.Serializer[pkg.Int] = pkg.IntBinco
-	fmt.Printf("through binco.Serializer[int]: size=%d\n", ser.Size(num))
+	var serializer binco.Serializer[pkg.Int] = pkg.IntBinco
+	fmt.Printf("through binco.Serializer[int]: size=%d\n", serializer.Size(num))
 }

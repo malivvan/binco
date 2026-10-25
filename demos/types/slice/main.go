@@ -15,33 +15,33 @@ func main() {
 	var (
 		value = []int{1, 2, 3}
 
-		ser = composite.NewSliceSer(varnum.Int)
+		serializer = composite.NewSliceSerializer(varnum.Int)
 
-		rawLenSer = composite.NewSliceSer(varnum.Int, slopts.WithLenSer[int](scalar.Int))
+		rawLenSerializer = composite.NewSliceSerializer(varnum.Int, slopts.WithLenSerializer[int](scalar.Int))
 	)
 
-	bs := binco.Encode(ser, value)
+	bs := binco.Encode(serializer, value)
 	fmt.Printf("value:     %v\n", value)
 	fmt.Printf("encoded:   %v (%d bytes)\n", bs, len(bs))
 
-	back, n, err := ser.Unmarshal(bs)
+	back, n, err := serializer.Unmarshal(bs)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("decoded:   %v (%d bytes)\n", back, n)
 
-	bs = binco.Encode(rawLenSer, value)
+	bs = binco.Encode(rawLenSerializer, value)
 	fmt.Printf("raw len:   %v (%d bytes)\n", bs, len(bs))
 
 	for _, v := range [][]int{nil, {}} {
-		back, err = binco.Decode(ser, binco.Encode(ser, v))
+		back, err = binco.Decode(serializer, binco.Encode(serializer, v))
 		if err != nil {
 			panic(err)
 		}
 		fmt.Printf("nil=%v → len=%d, nil=%v\n", v == nil, len(back), back == nil)
 	}
 
-	n, err = ser.Skip(bs)
+	n, err = serializer.Skip(bs)
 	if err != nil {
 		panic(err)
 	}

@@ -128,7 +128,7 @@ func (b TypeBuilder) checkFields(t reflect.Type, sops stopts.Options) (
 }
 
 func (b TypeBuilder) CollectAnonTypes(name typename.FullName,
-	m map[spec.AnonSerName]spec.AnonType,
+	m map[spec.AnonSerializerName]spec.AnonType,
 	tops tpopts.Options,
 ) (err error) {
 	op := NewCollectAnonOp(m, b.converter)

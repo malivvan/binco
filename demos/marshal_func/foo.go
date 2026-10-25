@@ -6,17 +6,17 @@ type Foo struct {
 }
 
 func (f Foo) MarshalBinco(bs []byte) (n int) {
-	return FooSer.Marshal(f, bs)
+	return FooSerializer.Marshal(f, bs)
 }
 
 func (f Foo) SizeBinco() (size int) {
-	return FooSer.Size(f)
+	return FooSerializer.Size(f)
 }
 
 func (f Foo) MarshalTypedBinco(bs []byte) (n int) {
-	return FooTypedSer.Marshal(f, bs)
+	return FooTypedSerializer.Marshal(f, bs)
 }
 
 func (f Foo) SizeTypedBinco() (size int) {
-	return FooTypedSer.Size(f)
+	return FooTypedSerializer.Size(f)
 }

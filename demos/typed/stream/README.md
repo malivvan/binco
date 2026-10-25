@@ -43,11 +43,11 @@ func (m Login) writeTo(w wirefmt.Writer) (n int, err error) {
 ```
 
 The sender only needs this small interface, so a heterogeneous slice of messages
-can be written in a loop. `LoginTyped` is a `wirefmt/typeid.Ser[Login]`, created
+can be written in a loop. `LoginTyped` is a `wirefmt/typeid.Serializer[Login]`, created
 once:
 
 ```go
-var LoginTyped = wtypeid.NewSer(LoginDTM, loginSer{})
+var LoginTyped = wtypeid.NewSerializer(LoginDTM, loginSerializer{})
 ```
 
 Each message is flushed after it is written (`bufio.Writer.Flush`), so the
@@ -58,7 +58,7 @@ the wire.
 
 ```go
 for {
-	dtm, n, err := wtypeid.DTMSer.Unmarshal(r)
+	dtm, n, err := wtypeid.DTMSerializer.Unmarshal(r)
 	if errors.Is(err, io.EOF) {
 		return nil // the peer closed the connection between messages
 	}

@@ -27,7 +27,7 @@ func (e NumEncoding) Package() (pkg string) {
 	}
 }
 
-func (e NumEncoding) LenSer() string {
+func (e NumEncoding) LenSerializer() string {
 	switch e {
 	case NumEncodingUndefined, NumEncodingVarintPositive:
 		return "varnum.PositiveInt"

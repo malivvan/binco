@@ -7,18 +7,18 @@ import (
 	"github.com/malivvan/binco/wirefmt/varnum"
 )
 
-// NewSliceSer returns a slice serializer for elemSer.
-func NewSliceSer[T any](elemSer wirefmt.Serializer[T], opts ...slopts.SetOption[T]) (
+// NewSliceSerializer returns a slice serializer that encodes elements with elemSerializer.
+func NewSliceSerializer[T any](elemSerializer wirefmt.Serializer[T], opts ...slopts.SetOption[T]) (
 	s listCodec[T],
 ) {
 	o := slopts.Options[T]{}
 	slopts.Apply(opts, &o)
 
-	return newListCodec(elemSer, o)
+	return newListCodec(elemSerializer, o)
 }
 
-// NewValidSliceSer returns a slice serializer that runs its length and element validators while decoding.
-func NewValidSliceSer[T any](elemSer wirefmt.Serializer[T],
+// NewValidSliceSerializer returns a slice serializer that runs its length and element validators while decoding.
+func NewValidSliceSerializer[T any](elemSerializer wirefmt.Serializer[T],
 	opts ...slopts.SetOption[T],
 ) checkedList[T] {
 	o := slopts.Options[T]{}
@@ -35,46 +35,46 @@ func NewValidSliceSer[T any](elemSer wirefmt.Serializer[T],
 		elemVl = o.ElemVl
 	}
 	return checkedList[T]{
-		listCodec: newListCodec(elemSer, o),
+		listCodec: newListCodec(elemSerializer, o),
 		lenVl:     lenVl,
 		elemVl:    elemVl,
 	}
 }
 
-func newListCodec[T any](elemSer wirefmt.Serializer[T], o slopts.Options[T]) (
+func newListCodec[T any](elemSerializer wirefmt.Serializer[T], o slopts.Options[T]) (
 	s listCodec[T],
 ) {
-	var lenSer wirefmt.Serializer[int] = varnum.PositiveInt
-	if o.LenSer != nil {
-		lenSer = o.LenSer
+	var lenSerializer wirefmt.Serializer[int] = varnum.PositiveInt
+	if o.LenSerializer != nil {
+		lenSerializer = o.LenSerializer
 	}
 	return listCodec[T]{
-		elemSer: elemSer,
-		lenSer:  lenSer,
+		elemSerializer: elemSerializer,
+		lenSerializer:  lenSerializer,
 	}
 }
 
 type listCodec[T any] struct {
-	lenSer  wirefmt.Serializer[int]
-	elemSer wirefmt.Serializer[T]
+	lenSerializer  wirefmt.Serializer[int]
+	elemSerializer wirefmt.Serializer[T]
 }
 
 func (s listCodec[T]) Marshal(v []T, w wirefmt.Writer) (n int, err error) {
-	return MarshalSlice(v, s.elemSer, s.lenSer, w)
+	return MarshalSlice(v, s.elemSerializer, s.lenSerializer, w)
 }
 
 func (s listCodec[T]) Unmarshal(r wirefmt.Reader) (v []T, n int, err error) {
-	return UnmarshalSlice(s.elemSer, s.lenSer, r)
+	return UnmarshalSlice(s.elemSerializer, s.lenSerializer, r)
 }
 
 func (s listCodec[T]) Size(v []T) (size int) {
-	return SizeSlice(v, s.elemSer, s.lenSer)
+	return SizeSlice(v, s.elemSerializer, s.lenSerializer)
 }
 
 func (s listCodec[T]) Skip(r wirefmt.Reader) (
 	n int, err error,
 ) {
-	return SkipSlice(s.elemSer, s.lenSer, r)
+	return SkipSlice(s.elemSerializer, s.lenSerializer, r)
 }
 
 type checkedList[T any] struct {
@@ -84,19 +84,19 @@ type checkedList[T any] struct {
 }
 
 func (s checkedList[T]) Unmarshal(r wirefmt.Reader) (v []T, n int, err error) {
-	return UnmarshalValidSlice(s.elemSer, s.lenSer, s.lenVl, s.elemVl, r)
+	return UnmarshalValidSlice(s.elemSerializer, s.lenSerializer, s.lenVl, s.elemVl, r)
 }
 
 // MarshalSlice writes v, prefixed by its length, to w.
-func MarshalSlice[T any](v []T, elemSer wirefmt.Serializer[T],
-	lenSer wirefmt.Serializer[int], w wirefmt.Writer) (n int, err error) {
-	n, err = lenSer.Marshal(len(v), w)
+func MarshalSlice[T any](v []T, elemSerializer wirefmt.Serializer[T],
+	lenSerializer wirefmt.Serializer[int], w wirefmt.Writer) (n int, err error) {
+	n, err = lenSerializer.Marshal(len(v), w)
 	if err != nil {
 		return
 	}
 	var n1 int
 	for _, e := range v {
-		n1, err = elemSer.Marshal(e, w)
+		n1, err = elemSerializer.Marshal(e, w)
 		n += n1
 		if err != nil {
 			return
@@ -106,9 +106,9 @@ func MarshalSlice[T any](v []T, elemSer wirefmt.Serializer[T],
 }
 
 // UnmarshalSlice reads a slice from r.
-func UnmarshalSlice[T any](elemSer wirefmt.Serializer[T],
-	lenSer wirefmt.Serializer[int], r wirefmt.Reader) (v []T, n int, err error) {
-	length, n, err := lenSer.Unmarshal(r)
+func UnmarshalSlice[T any](elemSerializer wirefmt.Serializer[T],
+	lenSerializer wirefmt.Serializer[int], r wirefmt.Reader) (v []T, n int, err error) {
+	length, n, err := lenSerializer.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -122,7 +122,7 @@ func UnmarshalSlice[T any](elemSer wirefmt.Serializer[T],
 
 	v = make([]T, length)
 	for i := range length {
-		e, n1, err = elemSer.Unmarshal(r)
+		e, n1, err = elemSerializer.Unmarshal(r)
 		n += n1
 		if err != nil {
 			return
@@ -133,19 +133,19 @@ func UnmarshalSlice[T any](elemSer wirefmt.Serializer[T],
 }
 
 // SizeSlice reports the encoded size of v.
-func SizeSlice[T any](v []T, elemSer wirefmt.Serializer[T],
-	lenSer wirefmt.Serializer[int]) (size int) {
-	size = lenSer.Size(len(v))
+func SizeSlice[T any](v []T, elemSerializer wirefmt.Serializer[T],
+	lenSerializer wirefmt.Serializer[int]) (size int) {
+	size = lenSerializer.Size(len(v))
 	for i := range v {
-		size += elemSer.Size(v[i])
+		size += elemSerializer.Size(v[i])
 	}
 	return
 }
 
 // SkipSlice advances over an encoded slice.
-func SkipSlice[T any](elemSer wirefmt.Serializer[T],
-	lenSer wirefmt.Serializer[int], r wirefmt.Reader) (n int, err error) {
-	length, n, err := lenSer.Unmarshal(r)
+func SkipSlice[T any](elemSerializer wirefmt.Serializer[T],
+	lenSerializer wirefmt.Serializer[int], r wirefmt.Reader) (n int, err error) {
+	length, n, err := lenSerializer.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -155,7 +155,7 @@ func SkipSlice[T any](elemSer wirefmt.Serializer[T],
 	}
 	var n1 int
 	for range length {
-		n1, err = elemSer.Skip(r)
+		n1, err = elemSerializer.Skip(r)
 		n += n1
 		if err != nil {
 			return
@@ -165,10 +165,10 @@ func SkipSlice[T any](elemSer wirefmt.Serializer[T],
 }
 
 // UnmarshalValidSlice reads a slice and validates its length and elements.
-func UnmarshalValidSlice[T any](elemSer wirefmt.Serializer[T],
-	lenSer wirefmt.Serializer[int], lenVl binco.Validator[int],
+func UnmarshalValidSlice[T any](elemSerializer wirefmt.Serializer[T],
+	lenSerializer wirefmt.Serializer[int], lenVl binco.Validator[int],
 	elemVl binco.Validator[T], r wirefmt.Reader) (v []T, n int, err error) {
-	length, n, err := lenSer.Unmarshal(r)
+	length, n, err := lenSerializer.Unmarshal(r)
 	if err != nil {
 		return
 	}
@@ -187,7 +187,7 @@ func UnmarshalValidSlice[T any](elemSer wirefmt.Serializer[T],
 
 	v = make([]T, length)
 	for i := range length {
-		e, n1, err = elemSer.Unmarshal(r)
+		e, n1, err = elemSerializer.Unmarshal(r)
 		n += n1
 		if err != nil {
 			return

@@ -19,13 +19,13 @@ func TestApply(t *testing.T) {
 	)
 	o := bslopts.Options{}
 	bslopts.Apply([]bslopts.SetOption{
-		bslopts.WithLenSer(scalar.Int),
+		bslopts.WithLenSerializer(scalar.Int),
 		bslopts.WithLenValidator(vl),
 		nil,
 	}, &o)
 
-	if o.LenSer != scalar.Int {
-		t.Fatal("WithLenSer was not applied")
+	if o.LenSerializer != scalar.Int {
+		t.Fatal("WithLenSerializer was not applied")
 	}
 	if o.LenVl == nil {
 		t.Fatal("WithLenValidator was not applied")
@@ -41,7 +41,7 @@ func TestApply(t *testing.T) {
 func TestApplyEmpty(t *testing.T) {
 	o := bslopts.Options{}
 	bslopts.Apply(nil, &o)
-	if o.LenSer != nil || o.LenVl != nil {
+	if o.LenSerializer != nil || o.LenVl != nil {
 		t.Fatalf("empty Apply changed the options: %+v", o)
 	}
 }
