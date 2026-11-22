@@ -5824,7 +5824,7 @@ review diffs, exactly like any other generated code.
 The architecture, repository layout, commands, testing strategy, conventions
 and the full list of runnable examples live in [`AGENTS.md`](./AGENTS.md),
 which is the entry point for contributors and coding agents. The everyday
-commands are `go test ./...`, `make cover-check`, `make doc-check` and
+commands are `go test ./...`, `make cover`, `make doc-check` and
 `make portable`; AGENTS.md explains each one. The user-facing documentation
 is this file; the wire format in
 [The wire format](#13-the-wire-format) is the shared reference.

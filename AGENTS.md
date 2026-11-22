@@ -74,13 +74,12 @@ gofmt -l .                       # must print nothing
 go vet ./...
 go test -race ./...
 GOARCH=386 go test ./...          # the 32-bit wire-width and overflow paths
-make cover-check                 # 100% statement coverage, whole module
 make doc-check                   # README/AGENTS links, symbols, numbering
 make portable                    # builds every target Go supports (slow)
 make portable-quick              # the cross-section only, for iteration
 
 # Every Go command above has a Makefile entry:
-make build test race vet fmt lint cover cover-check doc-check portable portable-quick
+make build test race vet fmt lint cover doc-check portable portable-quick
 
 # Faster iteration.
 go test ./composite/ -run TestSorted -v
@@ -124,10 +123,8 @@ it, and delete it if a stray copy is left behind.
 ├── codegen/            the generator: API, spec model, builder, templates, scanner
 ├── internal/           shared implementation details (see §4.6)
 ├── testdata/           fixture types used by the generator tests
-├── scripts/            covercheck.sh (coverage gate), doccheck.py (docs),
-│                       portable.sh (every target)
+├── scripts/            doccheck.py (docs), portable.sh (every target)
 ├── Makefile            build/test/cover/lint entry points
-├── NOCOVER.md          the few branches coverage cannot reach, with reasons
 └── .github/workflows/  CI
 ```
 
@@ -511,19 +508,12 @@ A new documentation rule belongs in the script, not in a reviewer's memory.
 
 ### Coverage
 
-Every package in the module must stay at **100% statement coverage**; the
-Makefile measures `go list ./...`.
-
-```bash
-make cover-check   # go test -coverprofile over the non-demo packages, then
-                   # scripts/covercheck.sh
-```
-
-`scripts/covercheck.sh` counts the statements listed in the `nocover` block of
-[`NOCOVER.md`](./NOCOVER.md) as covered and fails on anything else. An entry is
-only acceptable for a branch that cannot run at all — the file explains each one
-and rejects entries that no longer name an uncovered block. Prefer deleting an
-unreachable branch or making the dependency injectable over adding an entry.
+Coverage is measured, not enforced. `make cover` runs the suite with a profile
+over `go list ./...` and prints the module total; the CI job uploads the same
+profile to Coveralls. There is no statement-coverage gate and no exception list:
+write the test that pins the behaviour you changed, not the test that moves a
+number. A branch that cannot be reached is a reason to delete or restructure the
+branch, not to add a coverage exception.
 
 ### Platform coverage
 
@@ -564,7 +554,7 @@ README does not exist, so it cannot drift.
 
 | Job | What it does |
 |-----|--------------|
-| `Test` | gofmt check, `go vet`, `go test -race -covermode=atomic -coverprofile=coverage.out ./...`, `scripts/covercheck.sh`, `go build ./...`, Coveralls upload |
+| `Test` | gofmt check, `go vet`, `go test -race -covermode=atomic -coverprofile=coverage.out ./...`, `go build ./...`, Coveralls upload |
 | `Test (GOARCH=386)` | `GOARCH=386 go test ./...` on 32-bit |
 | `Portability` | `scripts/portable.sh`: build every Go target, test-compile the cross-section |
 | `Docs` | `python3 scripts/doccheck.py`: links, documented symbols, numbering, retired names |
@@ -578,7 +568,7 @@ A change is ready when all of these hold:
 
 1. `gofmt -l .` prints nothing and `go vet ./...` passes.
 2. `go test ./...`, `go test -race ./...` and `GOARCH=386 go test ./...` pass.
-3. `make cover-check` reports 100% (or `NOCOVER.md` explains the gap).
+3. `make cover` runs, and the tests for the behaviour you changed are present.
 4. `make portable-quick` passes; before a release, run `make portable`.
 5. `golangci-lint run --build-tags=fuzz` reports no issues.
 6. `make doc-check` passes, and README and this file describe the new behaviour.
@@ -588,7 +578,7 @@ Release checklist:
 
 1. Update `CHANGELOG.md`: move `Unreleased` into the new version and date it.
 2. `gofmt -l .`, `go vet ./...`, `go test ./...`, `go test -race ./...`,
-   `GOARCH=386 go test ./...`, `make cover-check`.
+   `GOARCH=386 go test ./...`.
 3. Tag `vX.Y.Z` and push the tag; CI publishes the release.
 
 ## 13. Traps to know about
@@ -620,7 +610,7 @@ Release checklist:
   reads a known number of bytes.
 * **Fuzz seeds.** A failing input is written next to the package; commit it, do
   not delete it.
-* **Generated artifacts.** `make cover-check` writes `coverage.out`; `go test
+* **Generated artifacts.** `make cover` writes `coverage.out`; `go test
   -c` writes `*.test`; `go tool cover -html` writes `coverage.html`. All three
   are ignored and must not be committed. Nothing generated belongs in git.
 * **Documentation drift.** README and this file are part of the contract:

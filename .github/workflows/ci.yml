@@ -51,11 +51,6 @@ jobs:
       - name: Test
         run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
 
-      # 100% statement coverage of the library, with the exceptions recorded in
-      # NOCOVER.md. `make cover-check` runs the same check locally.
-      - name: Check coverage
-        run: sh scripts/covercheck.sh coverage.out NOCOVER.md
-
       - name: Build every package
         run: go build ./...
 

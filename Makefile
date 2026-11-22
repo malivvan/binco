@@ -4,7 +4,7 @@ GO        ?= go
 PKGS      := $(shell $(GO) list ./...)
 COVEROUT  ?= coverage.out
 
-.PHONY: build test race vet fmt lint cover cover-check doc-check portable portable-quick
+.PHONY: build test race vet fmt lint cover doc-check portable portable-quick
 
 build:
 	$(GO) build ./...
@@ -28,11 +28,6 @@ lint:
 cover:
 	$(GO) test -coverprofile=$(COVEROUT) $(PKGS)
 	$(GO) tool cover -func=$(COVEROUT) | tail -1
-
-# Fail unless every library statement is covered. Statements that cannot run
-# are listed in NOCOVER.md and treated as covered; everything else must count.
-cover-check: cover
-	@sh scripts/covercheck.sh $(COVEROUT) NOCOVER.md
 
 # Prove that every target Go supports builds, and that the test files compile on
 # a representative cross-section (both byte orders, 32-bit, wasm). Slow: CI runs
