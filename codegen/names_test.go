@@ -72,6 +72,31 @@ func TestSerializerFnsNames(t *testing.T) {
 	}
 }
 
+// TestUnexportedTypeKeepsItsOwnSerializerName covers the collision an
+// unexported record type would otherwise hit: its serializer variable is
+// already lower-case, so the lower-cased serializer type would declare the same
+// identifier twice and the generated file would not compile.
+func TestUnexportedTypeKeepsItsOwnSerializerName(t *testing.T) {
+	must := mustName(t)
+	f := newTestSerializerFns(t)
+	name := typename.FullName("target.statsRecord")
+
+	if got := must(f.Var(name)); got != "statsRecordBinco" {
+		t.Fatalf("Var = %q", got)
+	}
+	if got := must(f.Type(name)); got != "statsRecordBincoImpl" {
+		t.Fatalf("Type = %q, want the variable's name plus Impl", got)
+	}
+	if got := must(f.SchemaVar(name)); got != "statsRecordSchemaFingerprint" {
+		t.Fatalf("SchemaVar = %q", got)
+	}
+	// An exported type keeps the plain lower-cased name: there the variable and
+	// the type differ already.
+	if got := must(f.Type(typename.FullName("target.Record"))); got != "recordBinco" {
+		t.Fatalf("Type(exported) = %q", got)
+	}
+}
+
 func TestSerializerFnsOf(t *testing.T) {
 	safe := newTestSerializerFns(t)
 	tests := []struct {

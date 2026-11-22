@@ -293,12 +293,27 @@ func (f SerializerFns) Val(tp any) string {
 }
 
 // Type returns the name of the generated serializer type.
+//
+// It is the serializer variable's name with a lower-case first letter, so the
+// variable and the type it holds read as one thing: Foo's serializer is the
+// variable FooBinco of type fooBinco.
+//
+// An unexported type breaks that rule, because its variable is already
+// lower-case: statsRecord's serializer variable is statsRecordBinco, and the
+// lower-cased type name would be statsRecordBinco again — two declarations of
+// one identifier, which does not compile. The type takes SuffixImpl in that
+// case, so a package can generate serializers for its own unexported records
+// without renaming them or supplying a name for each one.
 func (f SerializerFns) Type(fullName typename.FullName) (string, error) {
 	v, err := f.Var(fullName)
 	if err != nil {
 		return "", err
 	}
-	return f.lowerFirst(v), nil
+	name := f.lowerFirst(v)
+	if name == v {
+		name += SuffixImpl
+	}
+	return name, nil
 }
 
 // SchemaVar is the name of the generated constant that identifies the wire
@@ -378,9 +393,10 @@ type TypeBuilder interface {
 		spec.AnonType, bool, error)
 }
 
-// The suffixes appended to a type name: SuffixBinco for a serializer, SuffixTypedBinco for a typed serializer and SuffixDTM for a type identifier.
+// The suffixes appended to a type name: SuffixBinco for a serializer, SuffixTypedBinco for a typed serializer, SuffixDTM for a type identifier and SuffixImpl for the unexported serializer type of a type whose own name is already unexported.
 const (
 	SuffixBinco      = "Binco"
 	SuffixTypedBinco = "TypedBinco"
 	SuffixDTM        = "DTM"
+	SuffixImpl       = "Impl"
 )
