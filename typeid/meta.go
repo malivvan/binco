@@ -1,6 +1,8 @@
 package typeid
 
 import (
+	"math"
+
 	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/varnum"
 )
@@ -66,11 +68,14 @@ func (s optionalMetaCodec) Marshal(dtm binco.DTM, bs []byte) (n int) {
 }
 
 func (s optionalMetaCodec) Unmarshal(bs []byte) (dtm binco.DTM, n int, err error) {
-	num, n, err := varnum.PositiveInt64.Unmarshal(bs)
+	num, n, err := varnum.Uint64.Unmarshal(bs)
 	if err != nil {
 		return
 	}
-	if int64(binco.DTM(num)) != num {
+	// The identifier has the range of the plain DTM codec, plus zero: above
+	// MaxInt64 is rejected, and on a 32-bit host a value that does not fit
+	// binco.DTM is rejected instead of being truncated.
+	if num > math.MaxInt64 || int64(binco.DTM(num)) != int64(num) {
 		return 0, n, binco.ErrOverflow
 	}
 	return binco.DTM(num), n, nil

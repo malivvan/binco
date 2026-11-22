@@ -61,6 +61,13 @@ func TestOptionalDTMSerializerRejectsBadInput(t *testing.T) {
 	if _, _, err := typeid.OptionalDTMSerializer.Unmarshal(reader(0x80, 0x00)); !errors.Is(err, binco.ErrNonCanonical) {
 		t.Fatalf("Unmarshal of a non-canonical identifier = %v, want ErrNonCanonical", err)
 	}
+	over := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01}
+	if _, _, err := typeid.OptionalDTMSerializer.Unmarshal(reader(over...)); !errors.Is(err, binco.ErrOverflow) {
+		t.Fatalf("Unmarshal of MaxUint64 = %v, want ErrOverflow", err)
+	}
+	if _, err := typeid.OptionalDTMSerializer.Skip(reader(over...)); !errors.Is(err, binco.ErrOverflow) {
+		t.Fatalf("Skip of MaxUint64 = %v, want ErrOverflow", err)
+	}
 
 	if strconv.IntSize == 32 {
 		big := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f}
