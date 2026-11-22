@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/malivvan/binco"
+	"github.com/malivvan/binco/codegen/classifier"
 	"github.com/malivvan/binco/codegen/typename"
 	"github.com/malivvan/binco/internal/modpath"
 )
@@ -142,6 +143,9 @@ func WithLogger(logger *log.Logger) SetOption {
 // type is pinned, every type that receives an identifier must be pinned.
 func WithDTM(t reflect.Type, dtm binco.DTM) SetOption {
 	return func(o *Options) (err error) {
+		if classifier.AnyType(t) {
+			return NewUnsupportedDTMTypeError(t)
+		}
 		if dtm <= 0 {
 			return binco.ErrOverflow
 		}

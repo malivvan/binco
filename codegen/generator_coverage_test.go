@@ -130,6 +130,10 @@ func TestNewGeneratorRejectsUnnamedTypes(t *testing.T) {
 		genopts.WithSerializer(reflect.TypeFor[struct{ X int }](), "X")); err == nil {
 		t.Fatal("NewGenerator accepted a serializer name for an unnamed type")
 	}
+	if _, err := codegen.NewGenerator(genopts.WithPath(modelPkgPath),
+		genopts.WithDTM(reflect.TypeFor[any](), 1)); err == nil {
+		t.Fatal("NewGenerator accepted a pinned identifier for the empty interface")
+	}
 }
 
 // TestNewGeneratorRejectsConflictingAliases checks the conversion error when an

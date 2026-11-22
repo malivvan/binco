@@ -155,6 +155,15 @@ func (b TypeBuilder) CollectAnonTypes(name typename.FullName,
 	return scanner.Scan(scanner.Config{}, name, op, tops)
 }
 
+// UsesAny reports whether the type name mentions the empty interface.
+//
+// A type that holds any needs the interface serializer declared by
+// RegisterInterface(reflect.TypeFor[any](), ...). A name the scanner cannot
+// parse reports false; the caller's own scan reports that error.
+func (b TypeBuilder) UsesAny(name typename.FullName) bool {
+	return usesAnyName(name)
+}
+
 // BuildAnonType returns the anonymous serializer a type name needs, if any.
 func (b TypeBuilder) BuildAnonType(name typename.FullName, tops tpopts.Options) (
 	anonType spec.AnonType, ok bool, err error) {
@@ -233,8 +242,12 @@ func (b TypeBuilder) BuildVersionedType(t reflect.Type, vops veropts.Options) (
 func (b TypeBuilder) BuildInterfaceType(t reflect.Type, iops intropts.Options) (
 	interfaceType spec.InterfaceType, err error,
 ) {
-	if !classifier.DefinedInterface(t) {
+	if !classifier.DefinedInterface(t) && !classifier.AnyType(t) {
 		err = b.notInterfaceError(t)
+		return
+	}
+	if classifier.AnyType(t) && len(iops.Impls) == 0 {
+		err = NewAnyWithoutImplsError()
 		return
 	}
 	typeName, err := b.parseTypeName(t)

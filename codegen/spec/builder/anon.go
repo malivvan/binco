@@ -36,6 +36,9 @@ func (o *CollectAnonOp) putToMap(anonType spec.AnonType) {
 func (o *CollectAnonOp) makeMapType(t scanner.TypeInfo[typename.FullName],
 	tops tpopts.Options,
 ) (d spec.AnonType, ok bool, err error) {
+	if usesAnyName(t.KeyType) {
+		return d, false, NewAnyMapKeyError()
+	}
 	var (
 		lenSerializer = "nil"
 		lenVl         = "nil"
@@ -227,6 +230,8 @@ func (o *CollectAnonOp) ProcessType(typeInfo scanner.TypeInfo[typename.FullName]
 	if typeInfo.Stars != "" {
 		return o.processPtrType(typeInfo, tops)
 	}
+	// KindAny has no case on purpose: the empty interface is encoded by the
+	// generated union (anyBinco), not by an anonymous container serializer.
 	switch typeInfo.Kind {
 	case scanner.KindPrim:
 		anonType, ok, err = o.makePrimType(typeInfo, tops)
@@ -332,3 +337,26 @@ func stripStar(s string) string {
 
 // ErrStop tells the scanner to stop: the probe already has its answer.
 var ErrStop = errors.New("stop")
+
+// anyProbe records whether a scanned name mentions the empty interface.
+type anyProbe struct{ saw bool }
+
+func (p *anyProbe) ProcessType(t scanner.TypeInfo[typename.FullName],
+	tops tpopts.Options,
+) error {
+	if t.Kind == scanner.KindAny {
+		p.saw = true
+	}
+	return nil
+}
+
+func (p *anyProbe) ProcessLeftSquare()  {}
+func (p *anyProbe) ProcessComma()       {}
+func (p *anyProbe) ProcessRightSquare() {}
+
+// usesAnyName reports whether name mentions the empty interface anywhere.
+func usesAnyName(name typename.FullName) bool {
+	p := &anyProbe{}
+	_ = scanner.Scan(scanner.Config{}, name, p, tpopts.Options{})
+	return p.saw
+}

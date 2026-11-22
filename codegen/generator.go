@@ -39,6 +39,9 @@ type Generator struct {
 	dtmIDs       map[string]binco.DTM
 	resolvedDTMs map[string]binco.DTM
 	opts         genopts.Options
+	// anyRegistered is set once the empty interface has a generated serializer.
+	// AddStruct and AddDefinedType refuse a type that holds any until then.
+	anyRegistered bool
 }
 
 func (g *Generator) isForeign(t reflect.Type) bool {
@@ -281,6 +284,14 @@ func (g *Generator) RegisterInterface(t reflect.Type,
 	if opts != nil {
 		intropts.ApplyRegister(&rops, opts...)
 	}
+	if classifier.AnyType(t) {
+		if len(rops.StructImpls)+len(rops.DefinedTypeImpls) == 0 {
+			return bldr.NewAnyWithoutImplsError()
+		}
+		// The flag is set before the implementations are added: one of them may
+		// itself hold an empty interface.
+		g.anyRegistered = true
+	}
 	var (
 		l       = len(rops.StructImpls) + len(rops.DefinedTypeImpls)
 		iops    = make([]intropts.SetOption, 0, l)
@@ -360,6 +371,9 @@ func (g *Generator) AddInterface(t reflect.Type, opts ...intropts.SetOption) (
 	if err != nil {
 		return
 	}
+	if classifier.AnyType(t) {
+		g.anyRegistered = true
+	}
 	g.markForeign(t, interfaceType.FullName)
 	g.queue = append(g.queue, queued{interfaceSerializerTmpl, interfaceType})
 	return
@@ -407,6 +421,10 @@ func (g *Generator) AddStruct(t reflect.Type, opts ...stopts.SetOption) (
 		if err = g.builder.CollectAnonTypes(fd.FullName, g.anonTypes, tops); err != nil {
 			return
 		}
+		if !g.anyRegistered && g.builder.UsesAny(fd.FullName) {
+			return fmt.Errorf("%w: field %s of %s; call RegisterInterface(reflect.TypeFor[any](), ...) first",
+				ErrNoAnySerializer, fd.FieldName, structType.FullName)
+		}
 	}
 	g.markForeign(t, structType.FullName)
 	g.queue = append(g.queue, queued{structSerializerTmpl, structType})
@@ -428,6 +446,10 @@ func (g *Generator) AddDefinedType(t reflect.Type, opts ...tpopts.SetOption) (
 	if err = g.builder.CollectAnonTypes(definedType.UnderlyingTypeName,
 		g.anonTypes, tops); err != nil {
 		return
+	}
+	if !g.anyRegistered && g.builder.UsesAny(definedType.UnderlyingTypeName) {
+		return fmt.Errorf("%w: the underlying type of %s is %s; call RegisterInterface(reflect.TypeFor[any](), ...) first",
+			ErrNoAnySerializer, definedType.FullName, definedType.UnderlyingTypeName)
 	}
 	g.queue = append(g.queue, queued{definedTypeSerializerTmpl, definedType})
 	return

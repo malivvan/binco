@@ -355,3 +355,125 @@ func TestBuildInterfaceTypeForStruct(t *testing.T) {
 		t.Fatal("a channel was accepted as an interface")
 	}
 }
+
+// TestBuildInterfaceTypeForAny checks that the predeclared empty interface is
+// accepted with its implementations.
+func TestBuildInterfaceTypeForAny(t *testing.T) {
+	b := newBuilder(t)
+	iops := intropts.Options{}
+	intropts.Apply(&iops,
+		intropts.WithImpl(reflect.TypeFor[testdata.AnyRecord]()),
+		intropts.WithImpls(reflect.TypeFor[testdata.AnyNumber]()),
+	)
+	got, err := b.BuildInterfaceType(reflect.TypeFor[any](), iops)
+	if err != nil {
+		t.Fatalf("BuildInterfaceType(any): %v", err)
+	}
+	if got.FullName != "any" {
+		t.Fatalf("FullName = %q, want any", got.FullName)
+	}
+	if len(got.Impls) != 2 || got.Impls[0] != "testdata.AnyRecord" ||
+		got.Impls[1] != "testdata.AnyNumber" {
+		t.Fatalf("Impls = %v", got.Impls)
+	}
+}
+
+// TestBuildInterfaceTypeAnyNeedsImpls checks that a union with no
+// implementations is refused: it could only encode nil.
+func TestBuildInterfaceTypeAnyNeedsImpls(t *testing.T) {
+	b := newBuilder(t)
+	_, err := b.BuildInterfaceType(reflect.TypeFor[any](), intropts.Options{})
+	if err == nil {
+		t.Fatal("BuildInterfaceType(any) accepted an empty implementation list")
+	}
+	if !strings.Contains(err.Error(), "WithStructImpl") {
+		t.Fatalf("error %q does not name the option that fixes it", err)
+	}
+}
+
+// TestBuildStructTypeWithAnyFields checks the names of the fields that hold the
+// empty interface.
+func TestBuildStructTypeWithAnyFields(t *testing.T) {
+	b := newBuilder(t)
+	got, err := b.BuildStructType(reflect.TypeFor[testdata.AnyEvent](), stopts.Options{})
+	if err != nil {
+		t.Fatalf("BuildStructType: %v", err)
+	}
+	want := []typename.FullName{"string", "any", "map[string]any", "[]any"}
+	if len(got.Fields) != len(want) {
+		t.Fatalf("fields = %v", got.Fields)
+	}
+	for i, name := range want {
+		if got.Fields[i].FullName != name {
+			t.Fatalf("field %d = %q, want %q", i, got.Fields[i].FullName, name)
+		}
+	}
+}
+
+// TestUsesAny checks the probe the generator uses to require the union before a
+// type that holds it.
+func TestUsesAny(t *testing.T) {
+	b := newBuilder(t)
+	for _, name := range []typename.FullName{
+		"any", "*any", "[]any", "map[string]any", "pkg.Pair[any, int]",
+	} {
+		if !b.UsesAny(name) {
+			t.Fatalf("UsesAny(%q) = false", name)
+		}
+	}
+	for _, name := range []typename.FullName{
+		"int", "[]string", "pkg.Type", "chan int",
+	} {
+		if b.UsesAny(name) {
+			t.Fatalf("UsesAny(%q) = true", name)
+		}
+	}
+}
+
+// TestCollectAnyAnonTypes checks that any adds no serializer of its own but that
+// the containers around it still get one.
+func TestCollectAnyAnonTypes(t *testing.T) {
+	b := newBuilder(t)
+	tests := []struct {
+		name  typename.FullName
+		count int
+		kind  spec.AnonKind
+		elem  typename.FullName
+	}{
+		{"any", 0, spec.AnonKindUndefined, ""},
+		{"[]any", 1, spec.AnonKindSlice, "any"},
+		{"map[string]any", 1, spec.AnonKindMap, "any"},
+		{"*any", 1, spec.AnonKindPtr, "any"},
+	}
+	for _, tc := range tests {
+		t.Run(string(tc.name), func(t *testing.T) {
+			m := map[spec.AnonSerializerName]spec.AnonType{}
+			if err := b.CollectAnonTypes(tc.name, m, tpopts.Options{}); err != nil {
+				t.Fatalf("CollectAnonTypes: %v", err)
+			}
+			if len(m) != tc.count {
+				t.Fatalf("collected %d anonymous types, want %d: %v", len(m), tc.count, m)
+			}
+			for _, anonType := range m {
+				if anonType.Kind != tc.kind || anonType.ElemType != tc.elem {
+					t.Fatalf("unexpected anonymous type %+v", anonType)
+				}
+			}
+		})
+	}
+}
+
+// TestAnyMapKeyIsRejected checks the map-key rule, including a key that nests
+// the empty interface in an array.
+func TestAnyMapKeyIsRejected(t *testing.T) {
+	b := newBuilder(t)
+	for _, name := range []typename.FullName{"map[any]int", "map[[2]any]int"} {
+		if _, _, err := b.BuildAnonType(name, tpopts.Options{}); err == nil {
+			t.Fatalf("BuildAnonType(%q) accepted an interface key", name)
+		}
+		if err := b.CollectAnonTypes(name,
+			map[spec.AnonSerializerName]spec.AnonType{}, tpopts.Options{}); err == nil {
+			t.Fatalf("CollectAnonTypes(%q) accepted an interface key", name)
+		}
+	}
+}

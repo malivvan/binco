@@ -2,6 +2,7 @@ package genopts_test
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	genopts "github.com/malivvan/binco/codegen/config/gen"
@@ -140,5 +141,18 @@ func TestErrors(t *testing.T) {
 	if got, want := genopts.NewDuplicateImportPath("x").Error(),
 		"duplicate 'x' import path in the generator options"; got != want {
 		t.Fatalf("error = %q, want %q", got, want)
+	}
+}
+
+// TestWithDTMRejectsAny checks that the empty interface cannot be pinned: the
+// union has no identifier of its own, only its implementations do.
+func TestWithDTMRejectsAny(t *testing.T) {
+	o := genopts.New()
+	err := genopts.WithDTM(reflect.TypeFor[any](), 1)(&o)
+	if err == nil {
+		t.Fatal("WithDTM accepted the empty interface")
+	}
+	if !strings.Contains(err.Error(), "implementations") {
+		t.Fatalf("error %q does not name the fix", err)
 	}
 }

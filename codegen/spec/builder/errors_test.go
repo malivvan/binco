@@ -35,6 +35,10 @@ func TestErrorConstructors(t *testing.T) {
 			"two pkgPath 'example.com/a' and 'example.com/b' have the same alias 'pkg'"},
 		{"wrong fields count", builder.NewWrongFieldsCountError(3),
 			"not enough structops.WithField() calls, want 3"},
+		{"any without implementations", builder.NewAnyWithoutImplsError(),
+			"an interface{} serializer needs at least one implementation; add one with intropts.WithStructImpl or intropts.WithDefinedTypeImpl"},
+		{"any map key", builder.NewAnyMapKeyError(),
+			"an interface{} cannot be a map key; a decoded key may hold a dynamic type that is not comparable, so use a concrete key type"},
 	}
 
 	for _, tc := range tests {

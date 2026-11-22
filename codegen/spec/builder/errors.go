@@ -45,3 +45,17 @@ func NewTwoPathsSameAliasError(pkgPath1, pkgPath2 typename.PkgPath,
 func NewWrongFieldsCountError(want int) error {
 	return fmt.Errorf("not enough structops.WithField() calls, want %v", want)
 }
+
+// NewAnyWithoutImplsError reports an interface{} serializer without implementations.
+func NewAnyWithoutImplsError() error {
+	return fmt.Errorf("an interface{} serializer needs at least one implementation; add one with intropts.WithStructImpl or intropts.WithDefinedTypeImpl")
+}
+
+// NewAnyMapKeyError reports an interface{} map key.
+//
+// A decoded key would hold a value of one of the registered types, and a type
+// that is not comparable would panic inside the map assignment, so the shape is
+// rejected while the type is generated instead of on hostile input.
+func NewAnyMapKeyError() error {
+	return fmt.Errorf("an interface{} cannot be a map key; a decoded key may hold a dynamic type that is not comparable, so use a concrete key type")
+}

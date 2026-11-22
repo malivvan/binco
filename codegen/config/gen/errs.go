@@ -3,6 +3,7 @@ package genopts
 import (
 	"errors"
 	"fmt"
+	"reflect"
 )
 
 // ErrEmptyPkgPath reports a generator run without genopts.WithPath.
@@ -27,4 +28,9 @@ func NewDuplicateImportPath(path ImportPath) error {
 func NewDuplicateImportAlias(alias Alias) error {
 	return fmt.Errorf("duplicate '%v' package alias in the generator options",
 		alias)
+}
+
+// NewUnsupportedDTMTypeError reports a type that cannot carry a type identifier.
+func NewUnsupportedDTMTypeError(t reflect.Type) error {
+	return fmt.Errorf("cannot pin a type identifier for %v: pin the identifiers of its implementations instead", t)
 }

@@ -306,6 +306,32 @@ func TestSerializerFnsNameCollision(t *testing.T) {
 	}
 }
 
+// TestSerializerFnsAny checks the names the empty interface is generated under:
+// an unexported serializer variable, so no user type can collide with it, and a
+// custom name through WithSerializer.
+func TestSerializerFnsAny(t *testing.T) {
+	must := mustName(t)
+	f := newTestSerializerFns(t)
+	if got := must(f.Of("any", tpopts.Options{}, f.gopts)); got != "anyBinco" {
+		t.Fatalf("Of(any) = %q", got)
+	}
+	if got := must(f.Var("any")); got != "anyBinco" {
+		t.Fatalf("Var(any) = %q", got)
+	}
+	if got := must(f.Type("any")); got != "anyBincoImpl" {
+		t.Fatalf("Type(any) = %q", got)
+	}
+
+	custom := newTestSerializerFns(t,
+		genopts.WithSerializer(reflect.TypeFor[any](), "Any"))
+	if got := must(custom.Var("any")); got != "AnyBinco" {
+		t.Fatalf("Var(any) with WithSerializer = %q", got)
+	}
+	if got := must(custom.Type("any")); got != "anyBinco" {
+		t.Fatalf("Type(any) with WithSerializer = %q", got)
+	}
+}
+
 func TestSerializerFnsCustomNames(t *testing.T) {
 	must := mustName(t)
 	f := newTestSerializerFns(t,

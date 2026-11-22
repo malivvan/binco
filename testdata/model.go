@@ -152,3 +152,35 @@ func (NamedB) Name() string { return "b" }
 type UnsupportedFieldStruct struct {
 	C chan int
 }
+
+// AnyEvent holds a value whose concrete type is chosen at run time.
+type AnyEvent struct {
+	Kind    string
+	Payload any
+	Meta    map[string]any
+	Items   []any
+}
+
+// AnyNumber and AnyRecord are implementations the tests register for any.
+type AnyNumber int
+
+type AnyRecord struct {
+	Name  string
+	Count int
+}
+
+// AnyNode nests any inside an implementation, so the union has to exist before
+// its own implementations are added.
+type AnyNode struct {
+	Value int
+	Next  any
+}
+
+// AnyList is a defined slice of any.
+type AnyList []any
+
+// AnyKeyedMap is rejected by the generator: a decoded interface key may not be
+// comparable.
+type AnyKeyedMap struct {
+	M map[any]int
+}
