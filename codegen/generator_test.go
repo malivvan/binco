@@ -285,6 +285,9 @@ func TestGeneratedCodeCompilesAndRuns(t *testing.T) {
 
 	g := newGenerator(t,
 		genopts.WithPackage("testdata"),
+		// Export the empty interface's codec so the generated program can
+		// exercise it directly; the default name is unexported.
+		genopts.WithSerializer(reflect.TypeFor[any](), "Any"),
 	)
 	for _, add := range []func() error{
 		func() error {
@@ -318,6 +321,15 @@ func TestGeneratedCodeCompilesAndRuns(t *testing.T) {
 				veropts.WithVersion(reflect.TypeFor[testdata.VerFooVer1](), "MigrateVerFooVer1"),
 				veropts.WithCurrentVersion(reflect.TypeFor[testdata.VerFooVer2]()))
 		},
+		func() error {
+			return g.RegisterInterface(reflect.TypeFor[any](),
+				intropts.WithStructImpl(reflect.TypeFor[testdata.AnyRecord]()),
+				intropts.WithStructImpl(reflect.TypeFor[testdata.AnyNode]()),
+				intropts.WithDefinedTypeImpl(reflect.TypeFor[testdata.AnyNumber]()))
+		},
+		func() error {
+			return g.AddStruct(reflect.TypeFor[testdata.AnyEvent]())
+		},
 	} {
 		if err = add(); err != nil {
 			t.Fatalf("generator: %v", err)
@@ -350,6 +362,7 @@ func TestGeneratedCodeCompilesAndRuns(t *testing.T) {
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -435,6 +448,82 @@ func main() {
 	gotIS, err := binco.Decode(testdata.IntSliceBinco, binco.Encode(testdata.IntSliceBinco, is))
 	if err != nil || len(gotIS) != 3 || gotIS[2] != 3 {
 		fail("int slice: %v %v", gotIS, err)
+	}
+
+	// A nil interface is the reserved identifier 0, for a named interface and
+	// for any alike.
+	if got := binco.Encode(testdata.UniversalBinco, nil); !bytes.Equal(got, []byte{0}) {
+		fail("nil interface = %v, want [0]", got)
+	}
+	if v, err := binco.Decode(testdata.UniversalBinco, []byte{0}); err != nil || v != nil {
+		fail("nil interface decode = %v %v", v, err)
+	}
+
+	// any: the DTM of the concrete type, then its payload.
+	anyBS := binco.Encode[any](testdata.AnyBinco, testdata.AnyNumber(7))
+	if !bytes.Equal(anyBS, binco.Encode(testdata.AnyNumberTypedBinco, testdata.AnyNumber(7))) {
+		fail("any encoding differs from the typed serializer: %v", anyBS)
+	}
+	gotAny, err := binco.Decode(testdata.AnyBinco, anyBS)
+	if err != nil {
+		fail("any decode: %v", err)
+	}
+	if v, ok := gotAny.(testdata.AnyNumber); !ok || v != 7 {
+		fail("any decode = %#v, want AnyNumber(7)", gotAny)
+	}
+	if n, err := testdata.AnyBinco.Skip(anyBS); err != nil || n != len(anyBS) {
+		fail("any skip: %d %v", n, err)
+	}
+	if got := binco.Encode(testdata.AnyBinco, nil); !bytes.Equal(got, []byte{0}) {
+		fail("nil any = %v, want [0]", got)
+	}
+	if v, err := binco.Decode(testdata.AnyBinco, []byte{0}); err != nil || v != nil {
+		fail("nil any decode = %v %v", v, err)
+	}
+	if _, err := binco.Decode(testdata.AnyBinco, []byte{99, 0}); err == nil {
+		fail("an unknown DTM decoded without an error")
+	}
+	func() {
+		defer func() {
+			r := recover()
+			err, ok := r.(error)
+			if !ok || !errors.Is(err, binco.ErrBufferTooSmall) {
+				fail("nil any into an empty buffer panicked with %v", r)
+			}
+		}()
+		testdata.AnyBinco.Marshal(nil, nil)
+	}()
+	func() {
+		defer func() {
+			if recover() == nil {
+				fail("an unregistered type was encoded without a panic")
+			}
+		}()
+		binco.Encode[any](testdata.AnyBinco, map[string]int{"a": 1})
+	}()
+
+	ev := testdata.AnyEvent{
+		Kind:    "login",
+		Payload: testdata.AnyRecord{Name: "a", Count: 2},
+		Meta:    map[string]any{"n": testdata.AnyNode{Value: 1, Next: testdata.AnyNumber(3)}},
+		Items:   []any{testdata.AnyNumber(4), nil, testdata.AnyRecord{Name: "b"}},
+	}
+	evBS := binco.Encode(testdata.AnyEventBinco, ev)
+	gotEv, err := binco.Decode(testdata.AnyEventBinco, evBS)
+	if err != nil {
+		fail("event with any: %v", err)
+	}
+	if gotEv.Payload.(testdata.AnyRecord).Name != "a" {
+		fail("event payload = %#v", gotEv.Payload)
+	}
+	if gotEv.Meta["n"].(testdata.AnyNode).Next.(testdata.AnyNumber) != 3 {
+		fail("nested any = %#v", gotEv.Meta["n"])
+	}
+	if len(gotEv.Items) != 3 || gotEv.Items[0].(testdata.AnyNumber) != 4 || gotEv.Items[1] != nil {
+		fail("items = %#v", gotEv.Items)
+	}
+	if !bytes.Equal(evBS, binco.Encode(testdata.AnyEventBinco, gotEv)) {
+		fail("event with any is not re-encodable")
 	}
 
 	fmt.Println("OK")
