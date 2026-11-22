@@ -366,6 +366,9 @@ func TestTmplFns(t *testing.T) {
 	if got := f.TimeSerializer(tpopts.Options{TimeUnit: tpopts.TimeUnitNano}); got != "TimeUnixNano" {
 		t.Fatalf("TimeSerializer = %q", got)
 	}
+	if got := f.TimeSerializer(tpopts.Options{}); got != "TimeUnixUTC" {
+		t.Fatalf("TimeSerializer(undefined) = %q", got)
+	}
 
 	if got := f.MarshalSignatureLastParam(genopts.Options{}); got != "bs []byte" {
 		t.Fatalf("MarshalSignatureLastParam = %q", got)

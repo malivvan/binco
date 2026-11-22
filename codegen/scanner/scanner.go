@@ -7,7 +7,7 @@
 package scanner
 
 import (
-	"path/filepath"
+	"path"
 
 	tpopts "github.com/malivvan/binco/codegen/config/type"
 	"github.com/malivvan/binco/codegen/typename"
@@ -125,7 +125,7 @@ func New[T QualifiedName](cfg Config, op Op[T], opts tpopts.Options) Scanner[T] 
 
 // joinParamPath repairs the package path of a type parameter, which reflect reports without the package name.
 func joinParamPath[T QualifiedName](t TypeInfo[T]) TypeInfo[T] {
-	t.PkgPath = typename.PkgPath(filepath.Join(string(t.PkgPath), string(t.Package)))
+	t.PkgPath = typename.PkgPath(path.Join(string(t.PkgPath), string(t.Package)))
 	return t
 }
 

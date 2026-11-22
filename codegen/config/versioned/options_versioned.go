@@ -16,14 +16,17 @@ type Options struct {
 
 // Validate reports a missing or duplicated current version.
 func Validate(o *Options) error {
-	foundCurrVersion := false
+	current := 0
 	for _, v := range o.Versions {
 		if v.Migration == "" {
-			if foundCurrVersion {
-				return errors.New("multiple current versions found")
-			}
-			foundCurrVersion = true
+			current++
 		}
+	}
+	switch {
+	case current == 0:
+		return errors.New("no current version found")
+	case current > 1:
+		return errors.New("multiple current versions found")
 	}
 	return nil
 }

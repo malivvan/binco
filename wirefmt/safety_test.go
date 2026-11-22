@@ -128,6 +128,36 @@ func streamCases() []streamCase {
 			},
 		},
 		{
+			name:           "zerocopy.Array",
+			lengthPrefixed: true,
+			encode: func(w wirefmt.Writer) (int, error) {
+				return wzerocopy.NewArraySerializer[[3]int32, int32](wscalar.Int32).
+					Marshal([3]int32{1, -2, 3}, w)
+			},
+			decode: func(r wirefmt.Reader) (int, error) {
+				_, n, err := wzerocopy.NewArraySerializer[[3]int32, int32](wscalar.Int32).
+					Unmarshal(r)
+				return n, err
+			},
+			skip: func(r wirefmt.Reader) (int, error) {
+				return wzerocopy.NewArraySerializer[[3]int32, int32](wscalar.Int32).Skip(r)
+			},
+		},
+		{
+			name: "composite.Ptr",
+			encode: func(w wirefmt.Writer) (int, error) {
+				v := int32(-7)
+				return wcomposite.NewPtrSerializer(wscalar.Int32).Marshal(&v, w)
+			},
+			decode: func(r wirefmt.Reader) (int, error) {
+				_, n, err := wcomposite.NewPtrSerializer(wscalar.Int32).Unmarshal(r)
+				return n, err
+			},
+			skip: func(r wirefmt.Reader) (int, error) {
+				return wcomposite.NewPtrSerializer(wscalar.Int32).Skip(r)
+			},
+		},
+		{
 			name:       "scalar.Uint64",
 			fixedWidth: true,
 			encode:     func(w wirefmt.Writer) (int, error) { return wscalar.Uint64.Marshal(1<<40, w) },

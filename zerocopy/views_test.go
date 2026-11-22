@@ -139,6 +139,15 @@ func TestArray(t *testing.T) {
 		t.Fatalf("Unmarshal of a longer array returned %v, want ErrWrongLength", err)
 	}
 
+	// Skip must apply the same length rule as Unmarshal: an array of another
+	// length is not silently skipped.
+	if _, err = serializer.Skip(short); err != binco.ErrWrongLength {
+		t.Fatalf("Skip of a shorter array returned %v, want ErrWrongLength", err)
+	}
+	if _, err = serializer.Skip(long); err != binco.ErrWrongLength {
+		t.Fatalf("Skip of a longer array returned %v, want ErrWrongLength", err)
+	}
+
 	zero := zerocopy.NewArraySerializer[[0]int, int](varnum.Int)
 	zbs := binco.Encode(zero, [0]int{})
 	if !reflect.DeepEqual(zbs, []byte{0}) {

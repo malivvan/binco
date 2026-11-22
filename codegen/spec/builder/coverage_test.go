@@ -135,7 +135,8 @@ func TestBuildVersionedTypeErrors(t *testing.T) {
 
 	var badMigration veropts.Options
 	if err := veropts.Apply(&badMigration,
-		veropts.WithVersion(reflect.TypeFor[testdata.VerFooVer1](), "not an expr")); err != nil {
+		veropts.WithVersion(reflect.TypeFor[testdata.VerFooVer1](), "not an expr"),
+		veropts.WithCurrentVersion(reflect.TypeFor[testdata.VerFooVer2]())); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 	if _, err := b.BuildVersionedType(reflect.TypeFor[testdata.VerFoo](), badMigration); err == nil {

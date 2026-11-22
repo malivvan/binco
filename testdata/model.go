@@ -189,3 +189,15 @@ type AnyKeyedMap struct {
 type AnyPointer struct {
 	Ptr *any
 }
+
+// ArrayWidths and LengthEncodings pin the anonymous-serializer naming: two
+// fields whose generated code differs must not share one serializer.
+type ArrayWidths struct {
+	Three [3]int
+	Four  [4]int
+}
+
+type LengthEncodings struct {
+	A []int
+	B []int
+}

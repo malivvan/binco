@@ -13,6 +13,8 @@ type Options struct {
 	LenVl         binco.Validator[int]
 }
 
+// The streaming constructors honour every validator set here; use
+// WithLenValidator to reject implausible input while decoding.
 // SetOption changes one field of Options.
 type SetOption func(o *Options)
 

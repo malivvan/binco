@@ -1,7 +1,7 @@
 package typename
 
 import (
-	"path/filepath"
+	"path"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -107,7 +107,10 @@ func typeCompleteName(stars string, t reflect.Type) (name CompleteName,
 // definedTypeCompleteName builds a complete name for a defined type.
 func definedTypeCompleteName(stars string, t reflect.Type) (name CompleteName,
 	err error) {
-	name = CompleteName(stars + filepath.Join(t.PkgPath(), t.String()))
+	// path.Join, not filepath.Join: an import path is slash-separated on every
+	// host, and filepath would produce backslashes on Windows, which the
+	// scanner does not accept.
+	name = CompleteName(stars + path.Join(t.PkgPath(), t.String()))
 	return
 }
 

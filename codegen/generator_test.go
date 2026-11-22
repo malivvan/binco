@@ -330,6 +330,15 @@ func TestGeneratedCodeCompilesAndRuns(t *testing.T) {
 		func() error {
 			return g.AddStruct(reflect.TypeFor[testdata.AnyEvent]())
 		},
+		func() error {
+			return g.AddStruct(reflect.TypeFor[testdata.ArrayWidths]())
+		},
+		func() error {
+			return g.AddStruct(reflect.TypeFor[testdata.LengthEncodings](),
+				stopts.WithField(),
+				stopts.WithField(field.WithType(
+					tpopts.WithLenEncoding(tpopts.NumEncodingVarint))))
+		},
 	} {
 		if err = add(); err != nil {
 			t.Fatalf("generator: %v", err)
@@ -524,6 +533,27 @@ func main() {
 	}
 	if !bytes.Equal(evBS, binco.Encode(testdata.AnyEventBinco, gotEv)) {
 		fail("event with any is not re-encodable")
+	}
+
+	// Two array widths and two length codecs must not collapse into one
+	// anonymous serializer.
+	aw := testdata.ArrayWidths{Three: [3]int{1, 2, 3}, Four: [4]int{1, 2, 3, 4}}
+	gotAW, err := binco.Decode(testdata.ArrayWidthsBinco,
+		binco.Encode(testdata.ArrayWidthsBinco, aw))
+	if err != nil || gotAW != aw {
+		fail("array widths: %+v %v", gotAW, err)
+	}
+
+	le := testdata.LengthEncodings{A: []int{1, 2}, B: []int{7}}
+	leBS := binco.Encode(testdata.LengthEncodingsBinco, le)
+	// A uses the default length (PositiveInt: 2 -> 2); B uses the field option
+	// (varnum.Int zig-zags the length: 1 -> 2), then the elements.
+	if fmt.Sprint(leBS) != "[2 2 4 2 14]" {
+		fail("length encodings = %v", leBS)
+	}
+	gotLE, err := binco.Decode(testdata.LengthEncodingsBinco, leBS)
+	if err != nil || len(gotLE.A) != 2 || len(gotLE.B) != 1 || gotLE.B[0] != 7 {
+		fail("length encodings decode: %+v %v", gotLE, err)
 	}
 
 	fmt.Println("OK")

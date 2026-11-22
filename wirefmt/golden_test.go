@@ -16,6 +16,8 @@ import (
 	wscalar "github.com/malivvan/binco/wirefmt/scalar"
 	wtypeid "github.com/malivvan/binco/wirefmt/typeid"
 	wvarnum "github.com/malivvan/binco/wirefmt/varnum"
+	wzerocopy "github.com/malivvan/binco/wirefmt/zerocopy"
+	"github.com/malivvan/binco/zerocopy"
 )
 
 // The buffer packages and wirefmt implement the same format twice (D3). These
@@ -155,6 +157,44 @@ func TestGoldenVectorsCrossTheImplementations(t *testing.T) {
 			},
 			decodeBuffer: func(bs []byte) error {
 				return decodeBuffer(t, typeid.OptionalDTMSerializer, bs, binco.DTM(300))
+			},
+		},
+		{
+			name: "array of int32",
+			buffer: func() []byte {
+				return binco.Encode(zerocopy.NewArraySerializer[[3]int32, int32](scalar.Int32),
+					[3]int32{1, -2, 300})
+			},
+			stream: func() []byte {
+				return streamBytes(t, wzerocopy.NewArraySerializer[[3]int32, int32](wscalar.Int32),
+					[3]int32{1, -2, 300})
+			},
+			decodeStream: func(bs []byte) error {
+				return decodeStream(t, wzerocopy.NewArraySerializer[[3]int32, int32](wscalar.Int32),
+					bs, [3]int32{1, -2, 300})
+			},
+			decodeBuffer: func(bs []byte) error {
+				return decodeBuffer(t, zerocopy.NewArraySerializer[[3]int32, int32](scalar.Int32),
+					bs, [3]int32{1, -2, 300})
+			},
+		},
+		{
+			name: "pointer",
+			buffer: func() []byte {
+				v := int32(-7)
+				return binco.Encode(composite.NewPtrSerializer(scalar.Int32), &v)
+			},
+			stream: func() []byte {
+				v := int32(-7)
+				return streamBytes(t, wcomposite.NewPtrSerializer(wscalar.Int32), &v)
+			},
+			decodeStream: func(bs []byte) error {
+				v := int32(-7)
+				return decodeStream(t, wcomposite.NewPtrSerializer(wscalar.Int32), bs, &v)
+			},
+			decodeBuffer: func(bs []byte) error {
+				v := int32(-7)
+				return decodeBuffer(t, composite.NewPtrSerializer(scalar.Int32), bs, &v)
 			},
 		},
 	}

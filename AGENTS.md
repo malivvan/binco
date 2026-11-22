@@ -605,6 +605,9 @@ Release checklist:
   `int64`/`uint64` values where the host cannot hold them.
 * **Host byte order.** Never reinterpret a `[]byte` as a multi-byte type: encode
   with `encoding/binary` and leave raw-memory copies to the guarded bulk path.
+* **Import paths are slash-separated.** Join and split them with `path`, never
+  `path/filepath`: `filepath.Join` produces backslashes on Windows, which the
+  generator's scanner rejects, so the generator would stop working there.
 * **Stalled readers.** `io.ReadFull`/`io.CopyN` spin forever on a reader that
   returns `(0, nil)`. The streaming tree uses `internal/wireio` for anything that
   reads a known number of bytes.

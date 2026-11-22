@@ -5086,6 +5086,11 @@ Every constructor honours the validators it is given, so there is one way to
 build a codec: pass the validator as an option. The constructors return
 `binco.Serializer[T]`, which is all a caller needs.
 
+A map key must be comparable at run time as well as in the type: an interface
+key whose decoded value is not comparable (a struct holding a slice, for example)
+panics inside the map assignment. Hand-written key codecs should not produce such
+values; the generator rejects `map[any]T` for this reason.
+
 Building blocks for hand-written codecs:
 
 ```go

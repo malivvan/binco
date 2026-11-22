@@ -108,3 +108,30 @@ func TestNonCanonicalVarintsAreRejected(t *testing.T) {
 		t.Fatalf("Skip = %v, want ErrNonCanonical", err)
 	}
 }
+
+// TestPositiveIntSizePanicsOnNegative checks that Size reports a negative value
+// the same way the buffer codec does: Size has no error return, so it panics
+// with ErrOverflow instead of returning the size of the huge unsigned value.
+func TestPositiveIntSizePanicsOnNegative(t *testing.T) {
+	calls := []struct {
+		name string
+		call func()
+	}{
+		{"PositiveInt8", func() { varnum.PositiveInt8.Size(-1) }},
+		{"PositiveInt16", func() { varnum.PositiveInt16.Size(-1) }},
+		{"PositiveInt32", func() { varnum.PositiveInt32.Size(-1) }},
+		{"PositiveInt64", func() { varnum.PositiveInt64.Size(-1) }},
+		{"PositiveInt", func() { varnum.PositiveInt.Size(-1) }},
+	}
+	for _, tc := range calls {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				err, ok := recover().(error)
+				if !ok || !errors.Is(err, binco.ErrOverflow) {
+					t.Fatalf("panic value %v, want ErrOverflow", err)
+				}
+			}()
+			tc.call()
+		})
+	}
+}

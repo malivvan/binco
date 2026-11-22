@@ -89,7 +89,13 @@ func (f TmplFns) Include(name string, pipeline any) (str string, err error) {
 }
 
 // TimeSerializer is the name of the time codec a template should use.
+//
+// An undefined unit means the default codec, the same rule the mode tables
+// apply; calling the unit's own Serializer with the zero value would panic.
 func (f TmplFns) TimeSerializer(topts tpopts.Options) string {
+	if topts.TimeUnit == tpopts.TimeUnitUndefined {
+		return DefTimeSerializer
+	}
 	return topts.TimeUnit.Serializer()
 }
 

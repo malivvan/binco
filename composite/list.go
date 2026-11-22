@@ -227,6 +227,13 @@ func UnmarshalValidSlice[T any](bs []byte, elemSerializer binco.Serializer[T],
 			return
 		}
 	}
+	// A fixed-width element with no element validator takes the same one-copy
+	// path the streaming codec uses; the length validator has already run.
+	if elemVl == nil {
+		if width, ok := fixedwidth.Of[T](elemSerializer); ok {
+			return unmarshalFixedSlice[T](bs, n, length, width)
+		}
+	}
 	v = make([]T, 0, binco.AllocHint(length, binco.Remaining(bs, n)))
 	var e T
 

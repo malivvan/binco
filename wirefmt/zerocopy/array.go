@@ -116,8 +116,33 @@ func (s arrayView[T, V]) Size(v T) (size int) {
 	return composite.SizeSlice(sl, s.elemSerializer, s.lenSerializer)
 }
 
+// Skip advances over an encoded array.
+//
+// The decoded length is checked against the array type exactly as Unmarshal
+// checks it, so an array of another length is rejected rather than silently
+// skipped.
 func (s arrayView[T, V]) Skip(r wirefmt.Reader) (n int, err error) {
-	return composite.SkipSlice(s.elemSerializer, s.lenSerializer, r)
+	length, n, err := s.lenSerializer.Unmarshal(r)
+	if err != nil {
+		return
+	}
+	if length < 0 {
+		return n, binco.ErrNegativeLength
+	}
+	if s.lenVl != nil {
+		if err = s.lenVl.Validate(length); err != nil {
+			return n, err
+		}
+	}
+	var n1 int
+	for range s.length {
+		n1, err = s.elemSerializer.Skip(r)
+		n += n1
+		if err != nil {
+			return n, err
+		}
+	}
+	return n, nil
 }
 
 func lengthLimit(length int) binco.ValidatorFn[int] {

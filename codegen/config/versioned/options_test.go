@@ -45,4 +45,14 @@ func TestValidate(t *testing.T) {
 	); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
+
+	// A versioned type without a current version cannot be generated: the
+	// writer needs one version to write.
+	if err := veropts.Apply(&veropts.Options{}); err == nil {
+		t.Fatal("Apply accepted no versions")
+	}
+	if err := veropts.Apply(&veropts.Options{},
+		veropts.WithVersion(reflect.TypeFor[int](), "Migrate")); err == nil {
+		t.Fatal("Apply accepted only older versions")
+	}
 }

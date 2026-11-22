@@ -13,6 +13,11 @@ import (
 //
 // Length, key and value validators passed through opts are honoured; there is
 // no separate constructor to remember.
+//
+// T must be comparable, and a key type that is an interface must not be able to
+// hold a value that is not comparable: decoding such a key panics inside the map
+// assignment. The generator rejects map[any]T for that reason; a hand-written
+// union key codec has to make the same choice.
 func NewMapSerializer[T comparable, V any](keySerializer binco.Serializer[T],
 	valueSerializer binco.Serializer[V], opts ...mapopts.SetOption[T, V],
 ) binco.Serializer[map[T]V] {

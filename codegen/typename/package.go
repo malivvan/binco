@@ -2,7 +2,7 @@ package typename
 
 import (
 	"go/token"
-	"path/filepath"
+	"path"
 
 	"github.com/malivvan/binco/internal/modpath"
 )
@@ -25,7 +25,7 @@ type PkgPath string
 
 // Base returns the last element of the path, which is the default package name.
 func (p PkgPath) Base() string {
-	return filepath.Base(string(p))
+	return path.Base(string(p))
 }
 
 // StrToPkgPath checks that str is a valid import path.

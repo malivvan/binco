@@ -79,8 +79,17 @@ func FuzzArray(f *testing.F) {
 		if n < 0 || n > len(bs) {
 			t.Fatalf("Unmarshal consumed %d of %d bytes", n, len(bs))
 		}
+		// Skip must report the same outcome as Unmarshal, including the
+		// fixed-length rejection.
+		skipN, skipErr := serializer.Skip(bs)
+		if (err == nil) != (skipErr == nil) {
+			t.Fatalf("Unmarshal = %v, Skip = %v", err, skipErr)
+		}
 		if err != nil {
 			return
+		}
+		if skipN != n {
+			t.Fatalf("Skip consumed %d, Unmarshal %d", skipN, n)
 		}
 		if got := serializer.Size(v); got != n {
 			t.Fatalf("Size = %d, Unmarshal consumed %d", got, n)

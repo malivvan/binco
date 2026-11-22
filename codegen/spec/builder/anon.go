@@ -292,41 +292,38 @@ func NewMakeAnonOp(converter TypeNameConverter) *MakeAnonDataOp {
 	return &MakeAnonDataOp{CollectAnonOp: NewCollectAnonOp(m, converter)}
 }
 
-// hashedName derives a stable, unique name from the kind of the anonymous type and its options.
+// hashedName derives a stable, unique name from everything that changes the
+// generated code of an anonymous serializer.
+//
+// The name keys the map of one serializer per distinct definition, so every
+// dimension the templates read has to be part of it. Hashing the package of the
+// length encoding was not enough: the default, varnum.Int and varnum.PositiveInt
+// live in one package but produce different bytes. The array length was not part
+// of the name at all, so [3]int and [4]int collapsed into one serializer and the
+// generated code did not compile.
 func hashedName(kind spec.AnonKind, t scanner.TypeInfo[typename.FullName],
 	tops tpopts.Options) spec.AnonSerializerName {
-	bs := []byte(kind.String())
-	switch kind {
-	case spec.AnonKindString:
-		bs = append(bs, []byte(tops.LenEnc.Package())...)
-		bs = append(bs, []byte(tops.LenValidator)...)
-	case spec.AnonKindArray:
-		bs = append(bs, []byte(t.ElemType)...)
-		bs = append(bs, []byte(tops.LenEnc.Package())...)
-		bs = append(bs, []byte(tops.ElemValidator)...)
-	case spec.AnonKindByteSlice:
-		bs = append(bs, []byte(tops.LenEnc.Package())...)
-		bs = append(bs, []byte(tops.LenValidator)...)
-	case spec.AnonKindSlice:
-		bs = append(bs, []byte(t.ElemType)...)
-		bs = append(bs, []byte(tops.LenEnc.Package())...)
-		bs = append(bs, []byte(tops.LenValidator)...)
-		bs = append(bs, []byte(tops.ElemValidator)...)
-	case spec.AnonKindMap:
-		bs = append(bs, []byte(t.KeyType)...)
-		bs = append(bs, []byte(t.ElemType)...)
-		bs = append(bs, []byte(tops.LenEnc.Package())...)
-		bs = append(bs, []byte(tops.LenValidator)...)
-		bs = append(bs, []byte(tops.KeyValidator)...)
-		bs = append(bs, []byte(tops.ElemValidator)...)
-	case spec.AnonKindPtr:
-		bs = append(bs, []byte(t.Stars)...)
-		bs = append(bs, []byte(t.PkgPath)...)
-		bs = append(bs, []byte(t.Name)...)
+	var b strings.Builder
+	for _, part := range []string{
+		kind.String(),
+		string(t.Name),
+		string(t.PkgPath),
+		string(t.Package),
+		t.Stars,
+		string(t.ElemType),
+		string(t.KeyType),
+		t.ArrLength,
+		tops.LenEnc.LenSerializer(),
+		tops.LenValidator,
+		tops.ElemValidator,
+		tops.KeyValidator,
+	} {
+		b.WriteString(part)
+		b.WriteByte(0)
 	}
 	// SHA-256 truncated to 128 bits: the name only has to be unique and stable,
 	// but md5 is flagged by every linter and offers no collision guarantee.
-	sum := sha256.Sum256(bs)
+	sum := sha256.Sum256([]byte(b.String()))
 	return spec.AnonSerializerName(kind.String() + Base64KeywordEncoding.EncodeToString(sum[:16]))
 }
 

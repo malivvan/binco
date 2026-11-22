@@ -10,8 +10,8 @@ import (
 // PositiveInt8 serializes a non-negative int8 without ZigZag mapping.
 //
 // A decoded value above math.MaxInt8 is reported as ErrOverflow instead of
-// wrapping to a negative number; marshalling a negative value panics with
-// ErrOverflow.
+// wrapping to a negative number; Marshal returns ErrOverflow for a negative
+// value, and Size panics with it, matching the buffer codec.
 var PositiveInt8 = posI8Codec{}
 
 type posI8Codec struct{}
@@ -35,6 +35,9 @@ func (posI8Codec) Unmarshal(r wirefmt.Reader) (v int8, n int, err error) {
 }
 
 func (posI8Codec) Size(v int8) (size int) {
+	if v < 0 {
+		panic(binco.ErrOverflow)
+	}
 	return Uint8.Size(uint8(v))
 }
 
@@ -67,6 +70,9 @@ func (posI16Codec) Unmarshal(r wirefmt.Reader) (v int16, n int, err error) {
 }
 
 func (posI16Codec) Size(v int16) (size int) {
+	if v < 0 {
+		panic(binco.ErrOverflow)
+	}
 	return Uint16.Size(uint16(v))
 }
 
@@ -99,6 +105,9 @@ func (posI32Codec) Unmarshal(r wirefmt.Reader) (v int32, n int, err error) {
 }
 
 func (posI32Codec) Size(v int32) int {
+	if v < 0 {
+		panic(binco.ErrOverflow)
+	}
 	return Uint32.Size(uint32(v))
 }
 
@@ -131,6 +140,9 @@ func (posI64Codec) Unmarshal(r wirefmt.Reader) (v int64, n int, err error) {
 }
 
 func (posI64Codec) Size(v int64) int {
+	if v < 0 {
+		panic(binco.ErrOverflow)
+	}
 	return unsignedLen(uint64(v))
 }
 
@@ -167,6 +179,9 @@ func (posWordCodec) Unmarshal(r wirefmt.Reader) (v int, n int, err error) {
 }
 
 func (posWordCodec) Size(v int) (size int) {
+	if v < 0 {
+		panic(binco.ErrOverflow)
+	}
 	return Uint64.Size(uint64(v))
 }
 

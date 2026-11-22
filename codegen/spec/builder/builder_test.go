@@ -477,3 +477,59 @@ func TestAnyMapKeyIsRejected(t *testing.T) {
 		}
 	}
 }
+
+// TestAnonNamesDependOnEveryDimension checks that two anonymous serializers that
+// differ in something the generated code reads get different names.
+//
+// The name used to include the package of the length codec rather than the codec
+// itself, and an array's length was missing entirely. [3]int and [4]int then
+// shared one serializer (the generated code did not compile), and a slice with
+// the default length shared one with a slice whose length is written by
+// varnum.Int (silently changing the bytes).
+func TestAnonNamesDependOnEveryDimension(t *testing.T) {
+	b := newBuilder(t)
+	collect := func(name typename.FullName, opts tpopts.Options) map[spec.AnonSerializerName]spec.AnonType {
+		t.Helper()
+		m := map[spec.AnonSerializerName]spec.AnonType{}
+		if err := b.CollectAnonTypes(name, m, opts); err != nil {
+			t.Fatalf("CollectAnonTypes(%q): %v", name, err)
+		}
+		return m
+	}
+	onlyName := func(m map[spec.AnonSerializerName]spec.AnonType) spec.AnonSerializerName {
+		t.Helper()
+		if len(m) != 1 {
+			t.Fatalf("collected %d anonymous types, want 1: %v", len(m), m)
+		}
+		for name := range m {
+			return name
+		}
+		return ""
+	}
+
+	positive := tpopts.Options{LenEnc: tpopts.NumEncodingVarintPositive}
+	signed := tpopts.Options{LenEnc: tpopts.NumEncodingVarint}
+	for _, tc := range []struct {
+		left, right typename.FullName
+		leftOpts    tpopts.Options
+		rightOpts   tpopts.Options
+	}{
+		// Different array lengths.
+		{"[3]int", "[4]int", tpopts.Options{}, tpopts.Options{}},
+		// The same container with two length codecs that live in one package:
+		// varnum.PositiveInt and varnum.Int.
+		{"[]int", "[]int", positive, signed},
+		{"[]byte", "[]byte", positive, signed},
+		{"map[string]int", "map[string]int", positive, signed},
+		// A different validator.
+		{"[]int", "[]int", tpopts.Options{},
+			tpopts.Options{ElemValidator: "ValidateElem"}},
+	} {
+		left := onlyName(collect(tc.left, tc.leftOpts))
+		right := onlyName(collect(tc.right, tc.rightOpts))
+		if left == right {
+			t.Fatalf("%q with %+v and %q with %+v share the name %q",
+				tc.left, tc.leftOpts, tc.right, tc.rightOpts, left)
+		}
+	}
+}

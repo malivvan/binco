@@ -38,11 +38,23 @@ func TestArrayEdgeCases(t *testing.T) {
 		t.Fatalf("Unmarshal of a zero-length array = (%v, %d, %v)", got, n, err)
 	}
 
-	// Skip advances over the whole array.
+	// Skip advances over the whole array, and applies the same length rule as
+	// Unmarshal: an array of another length is rejected, not silently skipped.
 	arr := snative.NewArraySerializer[[3]int, int](wvarnum.Int)
 	abs := encodeStream(t, arr, [3]int{1, 2, 3})
 	if n, err := arr.Skip(wirefmt.NewReader(bytes.NewReader(abs))); err != nil || n != len(abs) {
 		t.Fatalf("Skip = (%d, %v), want %d bytes", n, err, len(abs))
+	}
+	for _, n2 := range []int{2, 4} {
+		other := encodeStream(t, snative.NewArraySerializer[[2]int, int](wvarnum.Int),
+			[2]int{1, 2})
+		if n2 == 4 {
+			other = encodeStream(t, snative.NewArraySerializer[[4]int, int](wvarnum.Int),
+				[4]int{1, 2, 3, 4})
+		}
+		if _, err := arr.Skip(wirefmt.NewReader(bytes.NewReader(other))); !errors.Is(err, binco.ErrWrongLength) {
+			t.Fatalf("Skip of a %d-element array = %v, want ErrWrongLength", n2, err)
+		}
 	}
 }
 
