@@ -1111,6 +1111,12 @@ Keep the existing `Unreleased` `### Changed` block.
 
 ## 8. NOCOVER.md — refresh the line numbers (do not skip)
 
+> **Superseded after execution.** At the user's request the statement-coverage
+> gate was removed from the repository: `NOCOVER.md` and
+> `scripts/covercheck.sh` are deleted, `make cover-check` is gone, and CI only
+> measures coverage for Coveralls. The steps below describe the original plan
+> and no longer apply; `make cover` remains as a reporting target.
+
 `NOCOVER.md` lists exact `file:line` keys, and `scripts/covercheck.sh` fails both
 when a listed block is covered and when a listed block no longer exists. Editing
 `generator.go` shifts those numbers. Procedure:
@@ -1141,7 +1147,7 @@ go vet ./...
 go test ./...                                # includes the compile-and-run test
 go test -race ./...
 GOARCH=386 go test ./...
-make cover-check                             # 100%, 10 documented exceptions
+make cover                                   # reports the module total (no gate)
 make doc-check
 make portable-quick
 go test -tags=fuzz -run='^$' ./...           # fuzz targets still compile
@@ -1195,7 +1201,8 @@ git diff                      # only the intended changes
     `OptionalDTMSerializer` as the only identifier reader for interfaces.
 11. **`versioned_*.tmpl` stay on `DTMSerializer`.** A version identifier is always
     positive and has no nil marker; switching it would weaken the check.
-12. **`NOCOVER.md` line numbers drift** (§8). Update them in the same commit.
+12. **~~`NOCOVER.md` line numbers drift~~** — not applicable: the coverage gate
+    and `NOCOVER.md` were removed after execution (§8).
 13. **Do not add a README `##`/`###` heading**; use `####`.
 14. **A plain `string` inside `any` panics.** That is the documented closed-union
     rule in §2 (item 4), not a bug to paper over in this change; the panic names
@@ -1203,27 +1210,26 @@ git diff                      # only the intended changes
 
 ## 11. Acceptance checklist
 
-- [ ] `binco.Decode(UniversalBinco, []byte{0})` returns `nil, nil` and
+- [x] `binco.Decode(UniversalBinco, []byte{0})` returns `nil, nil` and
       `binco.Encode(UniversalBinco, nil)` is `[0]` (named interface nil works).
-- [ ] `g.AddStruct` accepts `any`, `[]any`, `map[string]any`, `*any` fields and
+- [x] `g.AddStruct` accepts `any`, `[]any`, `map[string]any`, `*any` fields and
       `type Values []any`, and generates a dispatcher that round-trips nil and
       every registered implementation.
-- [ ] `g.RegisterInterface(reflect.TypeFor[any](), ...)` works, assigns DTM
+- [x] `g.RegisterInterface(reflect.TypeFor[any](), ...)` works, assigns DTM
       constants and typed serializers to the implementations, and accepts an
       implementation that itself holds `any`.
-- [ ] Without the registration, `AddStruct`/`AddDefinedType` fail with
+- [x] Without the registration, `AddStruct`/`AddDefinedType` fail with
       `codegen.ErrNoAnySerializer`; `map[any]T` is rejected with a map-key error.
-- [ ] Generated nil values panic with `binco.ErrBufferTooSmall` on a short
+- [x] Generated nil values panic with `binco.ErrBufferTooSmall` on a short
       buffer.
-- [ ] Buffer and stream generation both work; an `any` value's bytes equal the
+- [x] Buffer and stream generation both work; an `any` value's bytes equal the
       typed serializer's bytes.
-- [ ] `typeid.OptionalDTMSerializer` and its streaming twin are tested (nil
+- [x] `typeid.OptionalDTMSerializer` and its streaming twin are tested (nil
       marker, parity with `DTMSerializer`, truncation, 32-bit overflow, skip
       agreement) and covered by the golden parity row and the safety row.
-- [ ] `gofmt`, `go vet`, `go test`, `go test -race`, `GOARCH=386 go test`,
-      `make cover-check`, `make doc-check`, `make portable-quick` and the fuzz
-      compilation all pass.
-- [ ] README (§7.3, §7.4, §7.6, §8.7, §10, §13.10), AGENTS.md (§4.3, §5, §6, §7,
+- [x] `gofmt`, `go vet`, `go test`, `go test -race`, `GOARCH=386 go test`,
+      `make doc-check`, `make portable-quick` and the fuzz compilation all pass.
+- [x] README (§7.3, §7.4, §7.6, §8.7, §10, §13.10), AGENTS.md (§4.3, §5, §6, §7,
       §9, §13) and CHANGELOG.md describe the behaviour; `NOCOVER.md` line numbers
       are current.
 
@@ -1236,7 +1242,7 @@ git diff                      # only the intended changes
 3. `feat(codegen): generate DTM dispatch for interface{} fields` — §4.5–§4.8,
    fixtures §5, tests §6.5–§6.9.
 4. `test(codegen): compile and run any fields` — §6.10.
-5. `docs: document generated any fields` — §7, `NOCOVER.md` §8.
+5. `docs: document generated any fields` — §7.
 
 Each commit compiles and passes `go test ./codegen/... ./typeid/...`; only the
 last one runs the full definition-of-done suite.
@@ -1266,3 +1272,47 @@ self-contained if it is wanted later:
 The plan in §4 leaves room for this: the union is just a name list plus a generated
 switch, so adding primitive cases does not change the wire format or the empty
 interface's own encoding.
+
+## 14. Execution log
+
+Implemented on 2026-11-22 in this order:
+
+| Step | Commit | Content |
+|---|---|---|
+| §4.0 | `d19cc09` | `typeid.OptionalDTMSerializer` + the `wirefmt/typeid` twin, `DTMSerializer.Skip` range checks, interface templates and `NilInterfaceMarshal`, unit/golden/safety/fuzz tests |
+| §4.1–§4.4 | `5fa103f` | `classifier.AnyType`, the canonical name `any`, `scanner.KindAny`/`ParseAnyType`, converter cases, tests and fuzz seeds |
+| §4.5–§4.8 | `7e74a8a` | builder acceptance + `UsesAny` + map-key guard, the generator flag and `ErrNoAnySerializer`, the `WithDTM(any)` rejection, fixtures, `any_test.go` |
+| §6.10 | `ab090b4` | `TestGeneratedCodeCompilesAndRuns` gains the union, `AnyEvent`, nil interfaces and the `any` round trips |
+| range check | `92f4beb` | the optional identifier is bounded like the plain one (see deviation 1) |
+| §7, §8 | `c58d160` | README, AGENTS, CHANGELOG, `NOCOVER.md` (both removed again with the coverage gate) |
+
+Deliberate deviations from the plan:
+
+1. `OptionalDTMSerializer.Unmarshal` decodes through `varnum.Uint64` and checks
+   `num > math.MaxInt64 || int64(binco.DTM(num)) != int64(num)` instead of
+   delegating to `PositiveInt64`. The second clause can only fail on a 32-bit
+   host, so combining it with the 64-bit-reachable `MaxInt64` test keeps the
+   range check covered by `make cover-check` (which runs 64-bit). `Skip` reuses
+   `Unmarshal`, so the two agree.
+2. The nil interface value is written with
+   `typeid.OptionalDTMSerializer.Marshal(0, …)` rather than a bare `bs[0] = 0`.
+   That is what makes a short buffer panic with `binco.ErrBufferTooSmall` (the
+   check lives in `varnum`) and keeps one codec as both writer and reader.
+3. `TestGeneratedCodeCompilesAndRuns` registers the union with
+   `genopts.WithSerializer(reflect.TypeFor[any](), "Any")`: the default codec is
+   unexported and the generated program is a different package. The `any` values
+   are passed to `binco.Encode[any]` explicitly, because Go cannot infer
+   `T = any` from an untyped argument.
+4. `NOCOVER.md` was refreshed to **nine** exceptions during the work (the
+   `AddStruct` `CollectAnonTypes` branch became reachable through the map-key
+   test). After that, at the user's request, the 100%-coverage gate itself was
+   removed: `NOCOVER.md` and `scripts/covercheck.sh` are gone, `make cover-check`
+   no longer exists, and `make cover` only reports the total.
+5. `*any` is covered by the `AnyPointer` fixture and
+   `TestGenerateAnyPointerField`.
+
+The verification suite from §9 passes: `gofmt`, `go vet`, `go test ./...`,
+`go test -race ./...`, `GOARCH=386 go test ./...`, `make cover`, `make doc-check`,
+`make portable-quick`, and `go test -tags=fuzz -run='^$' ./...`. The last
+coverage run before the gate was removed was 100% with nine documented
+exceptions; it is reported, not enforced, from then on.
