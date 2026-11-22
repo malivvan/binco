@@ -42,6 +42,33 @@ func FuzzDTM(f *testing.F) {
 			t.Fatalf("round trip = (%d, %v), want %d", got, err, dtm)
 		}
 	})
+
+	// The optional identifier accepts zero as the reserved nil marker and keeps
+	// the same Skip/Unmarshal agreement as the plain one.
+	f.Fuzz(func(t *testing.T, bs []byte) {
+		dtm, n, err := typeid.OptionalDTMSerializer.Unmarshal(bs)
+		if n < 0 || n > len(bs) {
+			t.Fatalf("Unmarshal consumed %d of %d bytes", n, len(bs))
+		}
+		if err != nil {
+			return
+		}
+		if dtm < 0 {
+			t.Fatalf("Unmarshal returned the negative identifier %d", dtm)
+		}
+		if skipN, skipErr := typeid.OptionalDTMSerializer.Skip(bs); skipErr != nil || skipN != n {
+			t.Fatalf("Skip = (%d, %v), Unmarshal consumed %d", skipN, skipErr, n)
+		}
+		size := typeid.OptionalDTMSerializer.Size(dtm)
+		out := make([]byte, size)
+		if written := typeid.OptionalDTMSerializer.Marshal(dtm, out); written != size {
+			t.Fatalf("Marshal wrote %d, Size reported %d", written, size)
+		}
+		got, _, err := typeid.OptionalDTMSerializer.Unmarshal(out)
+		if err != nil || got != dtm {
+			t.Fatalf("round trip = (%d, %v), want %d", got, err, dtm)
+		}
+	})
 }
 
 // FuzzTyped decodes arbitrary bytes as a typed payload and checks that a

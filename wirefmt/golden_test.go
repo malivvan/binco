@@ -9,10 +9,12 @@ import (
 	"github.com/malivvan/binco"
 	"github.com/malivvan/binco/composite"
 	"github.com/malivvan/binco/scalar"
+	"github.com/malivvan/binco/typeid"
 	"github.com/malivvan/binco/varnum"
 	"github.com/malivvan/binco/wirefmt"
 	wcomposite "github.com/malivvan/binco/wirefmt/composite"
 	wscalar "github.com/malivvan/binco/wirefmt/scalar"
+	wtypeid "github.com/malivvan/binco/wirefmt/typeid"
 	wvarnum "github.com/malivvan/binco/wirefmt/varnum"
 )
 
@@ -123,6 +125,36 @@ func TestGoldenVectorsCrossTheImplementations(t *testing.T) {
 			decodeBuffer: func(bs []byte) error {
 				return decodeBuffer(t, composite.NewSortedMapSerializer(varnum.Int, varnum.Int),
 					bs, map[int]int{2: 20, 1: 10, 3: 30})
+			},
+		},
+		{
+			name: "typeid optional dtm nil",
+			buffer: func() []byte {
+				return binco.Encode(typeid.OptionalDTMSerializer, binco.DTM(0))
+			},
+			stream: func() []byte {
+				return streamBytes(t, wtypeid.OptionalDTMSerializer, binco.DTM(0))
+			},
+			decodeStream: func(bs []byte) error {
+				return decodeStream(t, wtypeid.OptionalDTMSerializer, bs, binco.DTM(0))
+			},
+			decodeBuffer: func(bs []byte) error {
+				return decodeBuffer(t, typeid.OptionalDTMSerializer, bs, binco.DTM(0))
+			},
+		},
+		{
+			name: "typeid optional dtm 300",
+			buffer: func() []byte {
+				return binco.Encode(typeid.OptionalDTMSerializer, binco.DTM(300))
+			},
+			stream: func() []byte {
+				return streamBytes(t, wtypeid.OptionalDTMSerializer, binco.DTM(300))
+			},
+			decodeStream: func(bs []byte) error {
+				return decodeStream(t, wtypeid.OptionalDTMSerializer, bs, binco.DTM(300))
+			},
+			decodeBuffer: func(bs []byte) error {
+				return decodeBuffer(t, typeid.OptionalDTMSerializer, bs, binco.DTM(300))
 			},
 		},
 	}

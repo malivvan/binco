@@ -124,11 +124,13 @@ func (f TmplFns) PtrType(name typename.FullName) (ok bool) {
 
 // NilInterfaceMarshal is the statement that writes the reserved zero type
 // identifier, which stands for a nil interface value.
+//
+// The write goes through OptionalDTMSerializer so that the writer and the
+// reader of the marker cannot drift, and so that a short buffer panics with
+// binco.ErrBufferTooSmall instead of a runtime index error.
 func (f TmplFns) NilInterfaceMarshal(opts genopts.Options) string {
-	if opts.Stream {
-		return "err = w.WriteByte(0)\n\t\tif err != nil {\n\t\t\treturn\n\t\t}\n\t\tn = 1\n\t\treturn"
-	}
-	return "bs[0] = 0\n\t\treturn 1"
+	return "return typeid.OptionalDTMSerializer.Marshal(0, " +
+		f.MarshalLastParam(true, opts) + ")"
 }
 
 // NilInterfaceSize is the encoded size of a nil interface value.

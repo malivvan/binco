@@ -20,7 +20,8 @@ func TestNilInterfaceIsRepresentable(t *testing.T) {
 		t.Fatalf("RegisterInterface: %v", err)
 	}
 	mustContain(t, generate(t, g),
-		"if v == nil {\n\t\tbs[0] = 0\n\t\treturn 1\n\t}",
+		"if v == nil {\n\t\treturn typeid.OptionalDTMSerializer.Marshal(0, bs)\n\t}",
+		"dtm, n, err := typeid.OptionalDTMSerializer.Unmarshal(bs)",
 		"case 0:\n\t\t// The writer stored a nil interface value.\n\t\treturn nil, n, nil",
 		"if v == nil {\n\t\treturn 1\n\t}",
 		"case 0:\n\t\treturn n, nil",

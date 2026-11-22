@@ -2,7 +2,7 @@
 {{- $v := Serializer.Val . }}
 {{- $fulp := Tmpl.UnmarshalLastParam true .Gops }}
 {{- $ulp := Tmpl.UnmarshalLastParam false .Gops }}
-dtm, n, err := typeid.DTMSerializer.Unmarshal({{ $fulp }})
+dtm, n, err := typeid.OptionalDTMSerializer.Unmarshal({{ $fulp }})
 if err != nil {
 	return
 }

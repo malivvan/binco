@@ -44,6 +44,9 @@ func TestDTMSerializerRejectsBadInput(t *testing.T) {
 	if _, _, err := typeid.DTMSerializer.Unmarshal([]byte{0}); !errors.Is(err, binco.ErrOverflow) {
 		t.Fatalf("Unmarshal of identifier 0 = %v, want ErrOverflow", err)
 	}
+	if _, err := typeid.DTMSerializer.Skip([]byte{0}); !errors.Is(err, binco.ErrOverflow) {
+		t.Fatalf("Skip of identifier 0 = %v, want ErrOverflow", err)
+	}
 }
 
 // TestTypedSkipReportsATruncatedIdentifier checks the typed serializer's skip of

@@ -115,6 +115,19 @@ func streamCases() []streamCase {
 			skip: func(r wirefmt.Reader) (int, error) { return typed.Skip(r) },
 		},
 		{
+			name: "typeid optional dtm",
+			encode: func(w wirefmt.Writer) (int, error) {
+				return wtypeid.OptionalDTMSerializer.Marshal(binco.DTM(0), w)
+			},
+			decode: func(r wirefmt.Reader) (int, error) {
+				_, n, err := wtypeid.OptionalDTMSerializer.Unmarshal(r)
+				return n, err
+			},
+			skip: func(r wirefmt.Reader) (int, error) {
+				return wtypeid.OptionalDTMSerializer.Skip(r)
+			},
+		},
+		{
 			name:       "scalar.Uint64",
 			fixedWidth: true,
 			encode:     func(w wirefmt.Writer) (int, error) { return wscalar.Uint64.Marshal(1<<40, w) },
