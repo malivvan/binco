@@ -225,3 +225,14 @@ func TestAnySharesAnImplementationIsRejected(t *testing.T) {
 		t.Fatalf("Generate = %v, want ErrDuplicateDTM", err)
 	}
 }
+
+// TestGenerateAnyPointerField checks the last container shape: a pointer whose
+// element is the empty interface.
+func TestGenerateAnyPointerField(t *testing.T) {
+	g := newGenerator(t)
+	registerAny(t, g)
+	if err := g.AddStruct(reflect.TypeFor[testdata.AnyPointer]()); err != nil {
+		t.Fatalf("AddStruct: %v", err)
+	}
+	mustContain(t, generate(t, g), "composite.NewPtrSerializer[any](anyBinco)")
+}

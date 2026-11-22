@@ -184,3 +184,8 @@ type AnyList []any
 type AnyKeyedMap struct {
 	M map[any]int
 }
+
+// AnyPointer holds a pointer to the empty interface.
+type AnyPointer struct {
+	Ptr *any
+}
