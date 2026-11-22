@@ -12,6 +12,29 @@ and this project adheres to
 
 - Removed the standalone `minlz` compression package and its `xxhash` dependency.
 
+### Added
+
+- Struct fields of type `any` (and containers such as `[]any` and
+  `map[string]any`) are generated. `RegisterInterface(reflect.TypeFor[any](),
+  ...)` registers the closed set of implementations; the generated codec writes
+  the concrete type's DTM followed by its payload, and nil is the reserved
+  identifier `0`. A heterogeneous field no longer needs a hand-rolled `[]byte`
+  envelope. A field of type `any` without a registered union is rejected with
+  `codegen.ErrNoAnySerializer`, and `map[any]T` is rejected because a decoded key
+  may not be comparable.
+- `typeid.OptionalDTMSerializer` (and `wirefmt/typeid.OptionalDTMSerializer`):
+  the interface identifier, where zero is the reserved nil marker.
+
+### Fixed
+
+- A nil interface value did not decode: the generated codecs read the reserved
+  zero identifier with `typeid.DTMSerializer`, which rejects it. They now use
+  `typeid.OptionalDTMSerializer`, so `Marshal(nil)`/`Unmarshal` round-trip, and a
+  short output buffer panics with `binco.ErrBufferTooSmall` instead of a runtime
+  index error.
+- `typeid.DTMSerializer.Skip` applies the same range checks as its `Unmarshal`,
+  so the two agree on 32-bit hosts and for the zero identifier.
+
 ## [1.0.0] - 2026-10-25
 
 The first stable release. The wire format, the public API and the generated code

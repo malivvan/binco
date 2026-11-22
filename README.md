@@ -4469,6 +4469,13 @@ g.RegisterInterface(reflect.TypeFor[Shape](),
 )
 ```
 
+The same form registers the empty interface: `reflect.TypeFor[any]()` collects a
+closed set of implementations for `any`, and every `any`, `[]any` or
+`map[string]any` field of a type added afterwards uses it. Register the union
+before adding the types that hold it; its implementations receive the same DTM
+constants and typed serializers, so `Generator.DTMRegistry` includes them. See
+*The empty interface* below.
+
 **AddVersioned / RegisterVersioned** - a codec that reads several versions and
 migrates old ones:
 
@@ -4519,6 +4526,11 @@ The file starts with
 so tooling treats it as generated. Anonymous codecs (the serializer of a
 `[]Item` field, for example) are declared once in a single `var (...)` block at
 the top of the file.
+
+The empty interface's serializer is the unexported `anyBinco` of type
+`anyBincoImpl`, like an anonymous container codec. Rename and export it with
+`genopts.WithSerializer(reflect.TypeFor[any](), "Any")`, which declares
+`AnyBinco`.
 
 ### 7.5 Serialization options
 
@@ -4803,6 +4815,51 @@ panic(...)
 Either way the receiver switches on the DTM and reports `UnexpectedDTMError` for
 unknown ids. A nil interface value is written as the reserved identifier `0` and
 decodes back to nil, so `Marshal(nil)` no longer panics.
+
+#### The empty interface
+
+`reflect.TypeFor[any]()` registers a closed set of implementations for `any`.
+Every `any` field, `[]any` and `map[string]any` in a type the generator renders
+then writes the DTM of the value's concrete type followed by its payload; a nil
+value is the reserved identifier `0`, so the bytes are the same as a named
+interface ([Type identifiers](#1310-type-identifiers)).
+
+```go
+type Login struct{ User string }
+type Count int
+
+type Event struct {
+	Kind    string
+	Payload any
+	Meta    map[string]any
+	Items   []any
+}
+
+g.RegisterInterface(reflect.TypeFor[any](),
+	intropts.WithStructImpl(reflect.TypeFor[Login]()),
+	intropts.WithDefinedTypeImpl(reflect.TypeFor[Count]()),
+)
+g.AddStruct(reflect.TypeFor[Event]()) // every any field uses anyBinco
+```
+
+* Register the union before adding the types that hold it. `AddStruct` and
+  `AddDefinedType` reject a field of type `any` with
+  `codegen.ErrNoAnySerializer` until the serializer exists, because the generated
+  code refers to it.
+* Implementations are what `RegisterInterface` already accepts: defined structs
+  and defined types. A bare `string`, `int`, `map[string]any` or `[]byte` value
+  cannot be stored in the union; wrap it in a defined type first. Encoding a
+  value of an unregistered type panics, like a named-interface codec does.
+* The union is closed: an unknown identifier decodes to
+  `binco.UnexpectedDTMError`.
+* An empty interface cannot be a map key: a decoded key may hold a dynamic type
+  that is not comparable, which would panic inside the map. Use a concrete key
+  type, as in `map[string]any` above.
+* Pin the identifiers with `genopts.WithDTM` before payloads outlive a build;
+  `WithDTM` refuses `any` itself, which has no identifier of its own.
+* The generated codec is the unexported `anyBinco` (`anyBincoImpl`).
+  `genopts.WithSerializer(reflect.TypeFor[any](), "Any")` declares `AnyBinco`
+  instead.
 
 ### 7.7 Versioned types
 
@@ -5105,6 +5162,7 @@ Type identifiers in front of payloads.
 
 ```go
 typeid.DTMSerializer                                 // binco.Serializer[binco.DTM]
+typeid.OptionalDTMSerializer                         // the same, with 0 reserved for a nil interface
 typeid.NewSerializer[T any](dtm binco.DTM, serializer binco.Serializer[T]) typeid.Serializer[T]
 
 serializer.DTM() binco.DTM
@@ -5114,6 +5172,11 @@ serializer.SkipData(bs []byte) (int, error)
 
 `typeid.Serializer[T]` itself implements `binco.Serializer[T]`, so it drops into any position
 where a codec is expected, including inside slices and maps.
+
+`DTMSerializer` rejects a zero identifier because an identifier on the wire is
+positive. `OptionalDTMSerializer` has the same encoding and accepts zero, which is
+the reserved marker for a nil interface value; the generated interface codecs use
+it, so a nil value round-trips. The two agree on every non-zero identifier.
 
 ### 8.8 config
 
@@ -5284,6 +5347,7 @@ bs, err := g.Generate()
 | `binco.ErrNilInterface` | reserved for a nil interface where a value was required |
 | `binco.ErrDuplicateDTM` | the generator assigned the same type identifier twice |
 | `codegen.ErrNameCollision` | two types would be generated under the same name |
+| `codegen.ErrNoAnySerializer` | a struct or defined type holds `any` before its implementations were registered |
 | `binco.ErrUnsupportedIntSize` | kept for compatibility; no code path raises it now that `int` has a fixed wire width |
 | `binco.ErrUnsupportedArch` | kept for compatibility; `zerocopy` no longer requires a little-endian host |
 | `binco.UnexpectedDTMError` | a dispatcher read an unknown type identifier |
@@ -5621,6 +5685,13 @@ default:
 
 DTMs are the only "framing" the format has, which makes them the tool of choice
 for streams and files of heterogeneous values.
+
+An empty-interface value has no identifier of its own: the writer stores the DTM
+of the concrete type followed by that type's payload, and the reserved identifier
+`0` means nil. The bytes are identical to a named interface, and a reader that
+does not know the concrete type reports `binco.UnexpectedDTMError`. Interface
+codecs read and write the identifier through `typeid.OptionalDTMSerializer`,
+which accepts the zero marker; `typeid.DTMSerializer` keeps rejecting it.
 
 Ids are positive: a zero or negative id would be written as a huge unsigned
 number, so `typeid.DTMSerializer` rejects it with `binco.ErrOverflow`. In the

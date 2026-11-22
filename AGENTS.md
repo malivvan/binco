@@ -224,6 +224,12 @@ A codec family must agree byte for byte with its siblings:
 `varnum`/`scalar`/`zerocopy` on numbers, `composite`/`zerocopy` on strings and
 blobs, buffer and stream everywhere.
 
+An `any` (empty interface) field has no runtime codec: the generator emits a DTM
+dispatcher over the implementations registered with
+`RegisterInterface(reflect.TypeFor[any](), ...)`, reusing the named-interface
+templates, with the reserved identifier `0` for nil. That is why `AddStruct`
+needs the union before it can render a type that holds `any`.
+
 ### 4.4 Options
 
 `config/{array,byte_slice,map,slice,string}` hold the option structs. The plain
@@ -282,6 +288,7 @@ import it.
 | `binco.ErrWrongArrayType` | `NewArraySerializer` got mismatched type parameters (panic) |
 | `binco.ErrDuplicateDTM` | the generator assigned one id twice |
 | `codegen.ErrCodeGenFailed`, `codegen.ErrNameCollision` | generator failures; `Generate` wraps the cause, including a name collision, with `%w` |
+| `codegen.ErrNoAnySerializer` | a struct or defined type holds `any` before `RegisterInterface(reflect.TypeFor[any](), ...)` registered its implementations |
 
 `binco.ErrNilInterface`, `ErrSchemaMismatch`, `ErrUnsupportedArch` and
 `ErrUnsupportedIntSize` are reserved: no code path raises them today, but the
@@ -324,6 +331,10 @@ The format is specified in README §13 (The wire format). Repository-side rules:
 * **Every generated struct carries a `SchemaFingerprint`** constant (SHA-256 of
   field names and types in declaration order). Changing field order changes it;
   that is the early warning the README promises.
+* **An interface payload writes the concrete type's DTM followed by its payload**,
+  and nil is the reserved identifier `0`. The identifier is read through
+  `typeid.OptionalDTMSerializer`, which accepts zero; `typeid.DTMSerializer` keeps
+  rejecting it. `any` adds no bytes of its own, and no new wire type.
 
 ## 7. The code generator
 
@@ -378,6 +389,11 @@ expression** has no type to derive it from and must be named with
 `SerializerFns.Of` (codec choice) → templates (marshal/unmarshal/size/skip) →
 tests for every mode (safe, unsafe, stream) and for the foreign/local cases.
 
+`scanner.KindAny` is the exception that proves the rule: it has no anonymous
+serializer and no runtime codec. `SerializerFns.Of` returns the generated union
+(`anyBinco`) for it, and `AddStruct`/`AddDefinedType` require that union to exist
+first (`codegen.ErrNoAnySerializer`).
+
 ## 8. Adding to the library
 
 ### A new codec
@@ -418,7 +434,9 @@ The suite is table-driven and lives next to the code. What it covers:
 * validators, allocation caps and zero-size containers;
 * the generator: emitted fragments, ignored fields, field-option alignment,
   name collisions, DTM duplicates, schema fingerprints, and a full
-  generate → compile → run cycle in a temporary module.
+  generate → compile → run cycle in a temporary module;
+* the empty interface: registration order, missing registration, map keys, nil
+  identifiers, and both trees.
 
 ### Fuzz targets (build tag `fuzz`)
 
@@ -579,6 +597,16 @@ Release checklist:
   needs `WithImport`; see §7.
 * **DTM renumbering.** Adding a version or implementation renumbers unpinned ids.
   Pin them and compare `DTMRegistry` if payloads survive deployments.
+* **`any` registration order.** `RegisterInterface(reflect.TypeFor[any](), ...)`
+  must run before `AddStruct`/`AddDefinedType` for a type that holds `any`;
+  otherwise the generator cannot name the codec the field refers to and returns
+  `codegen.ErrNoAnySerializer`.
+* **`any` map keys.** `map[any]T` is rejected because a decoded key may hold a
+  dynamic type that is not comparable, which would panic inside the map
+  assignment; use a concrete key type (`map[string]any` and friends).
+* **One union per implementation.** A type registered in two interfaces declares
+  two constants with one name and is rejected with `binco.ErrDuplicateDTM`;
+  register each implementation once.
 * **Field options are positional.** `stopts.WithField` is called once per struct
   field, including ignored ones; an ignored field does not shift the options.
 * **`zerocopy` aliasing.** A decoded string or `[]byte` points into the input
