@@ -96,6 +96,8 @@ func typeCompleteName(stars string, t reflect.Type) (name CompleteName,
 		return sliceTypeCompleteName(stars, t)
 	case classifier.MapType(t):
 		return mapTypeCompleteName(stars, t)
+	case classifier.AnyType(t):
+		return CompleteName(stars + "any"), nil
 	default:
 		err = NewUnsupportedTypeError(t)
 		return

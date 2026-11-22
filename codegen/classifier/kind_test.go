@@ -111,3 +111,21 @@ func TestKinds(t *testing.T) {
 		})
 	}
 }
+
+type definedEmpty interface{}
+
+func TestAnyType(t *testing.T) {
+	if !classifier.AnyType(reflect.TypeFor[any]()) {
+		t.Fatal("AnyType(any) = false")
+	}
+	for _, typ := range []reflect.Type{
+		reflect.TypeFor[int](),
+		reflect.TypeFor[testdata.Universal](),
+		reflect.TypeFor[*any](),
+		reflect.TypeFor[definedEmpty](),
+	} {
+		if classifier.AnyType(typ) {
+			t.Fatalf("AnyType(%v) = true", typ)
+		}
+	}
+}

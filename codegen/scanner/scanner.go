@@ -37,6 +37,11 @@ func (s Scanner[T]) scanPrimitive(t TypeInfo[T], position Position) (err error) 
 	return s.op.ProcessType(t, s.tops)
 }
 
+func (s Scanner[T]) scanAny(t TypeInfo[T], position Position) (err error) {
+	t.Position = position
+	return s.op.ProcessType(t, s.tops)
+}
+
 func (s Scanner[T]) scanContainer(t TypeInfo[T], keyType, elemType T,
 	kind Kind, position Position,
 ) (err error) {
@@ -98,6 +103,9 @@ func (s Scanner[T]) scan(name T, position Position) (err error) {
 	}
 	if t, keyType, elemType, kind, ok := ParseContainerType(name); ok {
 		return s.scanContainer(t, keyType, elemType, kind, position)
+	}
+	if t, ok := ParseAnyType(name); ok {
+		return s.scanAny(t, position)
 	}
 	if t, ok := ParsePrimitiveType(name); ok {
 		return s.scanPrimitive(t, position)

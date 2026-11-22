@@ -188,6 +188,25 @@ var (
 	SliceRe = regexp.MustCompile(SlicePattern)
 )
 
+// ParseAnyType parses the predeclared empty interface: any, interface{} or
+// interface {} (the spelling reflect uses), with optional leading stars.
+//
+// The canonical spelling this module emits is "any".
+func ParseAnyType[T QualifiedName](name T) (t TypeInfo[T], ok bool) {
+	str := string(name)
+	stars := str[:len(str)-len(strings.TrimLeft(str, "*"))]
+	switch str[len(stars):] {
+	case "any", "interface{}", "interface {}":
+		return TypeInfo[T]{
+			Stars: stars,
+			Name:  typename.TypeName("any"),
+			Kind:  KindAny,
+		}, true
+	default:
+		return TypeInfo[T]{}, false
+	}
+}
+
 // PrimitiveType parses the built-in scalar names.
 type PrimitiveType[T QualifiedName] string
 

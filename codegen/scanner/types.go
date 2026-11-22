@@ -32,6 +32,7 @@ const (
 	KindSlice
 	KindMap
 	KindPrim
+	KindAny
 )
 
 // Position tells where in the name a type appears.

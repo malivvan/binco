@@ -172,6 +172,8 @@ func (o *fullNameOp) ProcessType(t scanner.TypeInfo[typename.CompleteName],
 		o.b.WriteString("map")
 	case scanner.KindPrim:
 		o.b.WriteString(string(t.Name))
+	case scanner.KindAny:
+		o.b.WriteString("any")
 	default:
 		return fmt.Errorf("unexpected %v kind", t.Kind)
 	}
@@ -236,6 +238,8 @@ func (o *relativeNameOp) ProcessType(t scanner.TypeInfo[typename.FullName],
 		o.b.WriteString("map")
 	case scanner.KindPrim:
 		o.b.WriteString(string(t.Name))
+	case scanner.KindAny:
+		o.b.WriteString("any")
 	default:
 		return fmt.Errorf("unexpected %v kind", t.Kind)
 	}

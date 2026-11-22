@@ -14,6 +14,15 @@ func DefinedBasicType(t reflect.Type) (ok bool) {
 	return DefinedType(t) && BasicType(t)
 }
 
+// AnyType reports whether t is the predeclared empty interface, spelled any or
+// interface{}.
+//
+// A defined empty interface, such as type Empty interface{}, is not AnyType: it
+// has its own package and name, so it takes the ordinary interface path.
+func AnyType(t reflect.Type) (ok bool) {
+	return t == reflect.TypeFor[any]()
+}
+
 // DefinedStruct reports whether t is a defined struct.
 func DefinedStruct(t reflect.Type) (ok bool) {
 	return DefinedType(t) && t.Kind() == reflect.Struct

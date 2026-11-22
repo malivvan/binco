@@ -70,3 +70,37 @@ func TestScanWithoutParamsSkipsNestedParams(t *testing.T) {
 		t.Fatalf("parameters were scanned: %d types", len(r.infos))
 	}
 }
+
+func TestParseAnyType(t *testing.T) {
+	tests := []struct {
+		name  typename.FullName
+		ok    bool
+		stars string
+	}{
+		{"any", true, ""},
+		{"*any", true, "*"},
+		{"interface{}", true, ""},
+		{"interface {}", true, ""},
+		{"*interface{}", true, "*"},
+		{"anything", false, ""},
+		{"pkg.any", false, ""},
+		{"", false, ""},
+	}
+	for _, tc := range tests {
+		t.Run(string(tc.name), func(t *testing.T) {
+			info, ok := scanner.ParseAnyType(tc.name)
+			if ok != tc.ok {
+				t.Fatalf("ParseAnyType(%q) ok = %v, want %v", tc.name, ok, tc.ok)
+			}
+			if !ok {
+				return
+			}
+			if info.Name != typename.TypeName("any") || info.Kind != scanner.KindAny {
+				t.Fatalf("ParseAnyType(%q) = %+v", tc.name, info)
+			}
+			if info.Stars != tc.stars {
+				t.Fatalf("ParseAnyType(%q) Stars = %q, want %q", tc.name, info.Stars, tc.stars)
+			}
+		})
+	}
+}

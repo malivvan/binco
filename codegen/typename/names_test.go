@@ -22,6 +22,10 @@ func TestTypeCompleteName(t *testing.T) {
 		{reflect.TypeFor[*[]int](), "*[]int"},
 		{reflect.TypeFor[map[int]string](), "map[int]string"},
 		{reflect.TypeFor[map[*int]string](), "map[*int]string"},
+		{reflect.TypeFor[any](), "any"},
+		{reflect.TypeFor[*any](), "*any"},
+		{reflect.TypeFor[[]any](), "[]any"},
+		{reflect.TypeFor[map[string]any](), "map[string]any"},
 
 		{reflect.TypeFor[testdata.SimpleStruct](),
 			"github.com/malivvan/binco/testdata/testdata.SimpleStruct"},
@@ -74,6 +78,11 @@ func TestBaseTypeCompleteName(t *testing.T) {
 	}
 	if _, err := typename.BaseTypeCompleteName(reflect.TypeFor[testdata.SimpleStruct]()); err == nil {
 		t.Fatal("BaseTypeCompleteName(struct) returned no error")
+	}
+	// The empty interface has no underlying type to name: a defined type whose
+	// underlying type is any is not supported.
+	if _, err := typename.BaseTypeCompleteName(reflect.TypeFor[any]()); err != typename.ErrTypeMismatch {
+		t.Fatalf("BaseTypeCompleteName(any) returned %v, want ErrTypeMismatch", err)
 	}
 }
 

@@ -51,6 +51,10 @@ func TestConvertToFullName(t *testing.T) {
 		{"int", "int"},
 		{"[]int", "[]int"},
 		{"map[string]int", "map[string]int"},
+		{"any", "any"},
+		{"[]any", "[]any"},
+		{"map[string]any", "map[string]any"},
+		{"interface{}", "any"},
 		{"github.com/user/project/types/types.Foo", "types.Foo"},
 		{"*github.com/user/project/types/types.Foo", "*types.Foo"},
 		{"github.com/other/pkg/pkg.Bar", "pkg.Bar"},
@@ -106,6 +110,8 @@ func TestConvertToRelativeName(t *testing.T) {
 		{"types.Foo", "types.Foo"},
 		{"*[]project.Foo", "*[]Foo"},
 		{"map[string]types.Foo", "map[string]types.Foo"},
+		{"any", "any"},
+		{"map[string]any", "map[string]any"},
 	}
 	for _, tc := range tests {
 		if got := relName(t, c, tc.fname); got != tc.want {
